@@ -1,0 +1,15 @@
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                 sh '''
+		          rm -rf Builds
+                  echo "Unity Build Starting... "
+                  /Applications/Unity/Hub/Editor/2021.3.22f1/Unity.app/Contents/MacOS/Unity  -quit -batchmode -projectPath . -executeMethod  Plugins.Tools.Editor.BuildActions.AndroidRelease -buildTarget android  -nographics  -stackTraceLogType Full  --silent-crashes
+                  echo "Unity Build finished..."
+                  '''
+            }
+        }
+    }
+}

@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                 sh '''
+		          rm -rf Builds
+                  echo "Unity Build Starting... "
+                  /Applications/Unity/Hub/Editor/2021.3.22f1/Unity.app/Contents/MacOS/Unity  -quit -batchmode -projectPath . -executeMethod  Plugins.Tools.Editor.BuildActions.iOSRelease -buildTarget ios  -nographics  -stackTraceLogType Full  --silent-crashes
+                  echo "Unity Build finished..."
+                  '''
+            }
+        }
+        stage('Clean') {
+            steps {
+                sh '''
+		        echo "xCode Clean Project starting..."
+	            cd '/Users/cagilfirat/.jenkins/workspace/Unity Build/Builds/iOS'
+		        /usr/bin/xcodebuild -workspace Unity-iPhone.xcworkspace -scheme Unity-iPhone -sdk iphoneos -configuration Release clean
+                echo "xCode Clean Project finished..."
+                '''
+            }
+        }
+        stage('Archive') {
+            steps {
+                sh '''
+                echo "Create Archive starting..."
+                cd '/Users/cagilfirat/.jenkins/workspace/Unity Build/Builds/iOS'
+      	        /usr/bin/xcodebuild -workspace Unity-iPhone.xcworkspace -allowProvisioningUpdates -scheme Unity-iPhone -sdk iphoneos -configuration Release archive -archivePath '../ios-build/***.xcarchive' clean
+                echo "Create Archive finished..."
+                '''
+            }
+        }
+        stage('Executable') {
+        steps {
+            sh '''
+            echo "Create ipa starting..."
+            cd '/Users/cagilfirat/.jenkins/workspace/Unity Build/Builds/ios-build'
+            /usr/bin/xcodebuild  -exportArchive -archivePath '***.xcarchive'  -exportPath '.' -allowProvisioningUpdates -exportOptionsPlist '../../exportOptions.plist' 
+            echo "Create ipa finished..."
+            '''
+        }
+        }
+        stage('Upload') {
+            steps {
+                sh '''
+                echo "Test Flight upload starting"
+                cd '/Users/cagilfirat/.jenkins/workspace/Unity Build/Builds/ios-build'
+                /usr/bin/xcrun altool --upload-app --type ios --file ***.ipa --username cagil.firat@level4.games --password odpt-kbid-runh-qfzf
+                echo "Test Flight upload completed"    
+                '''
+            }
+        }
+    }
+}
