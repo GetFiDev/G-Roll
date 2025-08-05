@@ -11,8 +11,6 @@ public class PlayerController : MonoSingleton<PlayerController>
         playerCollision = GetComponent<PlayerCollision>().Initialize(this);
         playerMovement = GetComponent<PlayerMovement>().Initialize(this);
         playerAnimator = GetComponentInChildren<PlayerAnimator>().Initialize(this);
-        
-        GameManager.Instance.cameraManager.SetPlayerTarget(transform);
     }
 
     private void OnValidate()
