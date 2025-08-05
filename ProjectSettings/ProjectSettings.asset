@@ -12,8 +12,8 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: Level4
-  productName: Template
+  companyName: GetFi
+  productName: G-Roll
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0, g: 0, b: 0, a: 1}
@@ -164,7 +164,7 @@ PlayerSettings:
   androidMinAspectRatio: 1
   applicationIdentifier:
     Android: com.level4.games
-    iPhone: com.level4.games
+    iPhone: com.level4.groll
   buildNumber:
     Standalone: 0
     VisionOS: 0
@@ -239,7 +239,7 @@ PlayerSettings:
   metalCompileShaderBinary: 0
   iOSRenderExtraFrameOnPause: 0
   iosCopyPluginsCodeInsteadOfSymlink: 0
-  appleDeveloperTeamID: H64K7UGB2U
+  appleDeveloperTeamID: 
   iOSManualSigningProvisioningProfileID: 
   tvOSManualSigningProvisioningProfileID: 
   VisionOSManualSigningProvisioningProfileID: 
@@ -577,7 +577,13 @@ PlayerSettings:
   m_BuildTargetGroupLightmapSettings: []
   m_BuildTargetGroupLoadStoreDebugModeSettings: []
   m_BuildTargetNormalMapEncoding: []
-  m_BuildTargetDefaultTextureCompressionFormat: []
+  m_BuildTargetDefaultTextureCompressionFormat:
+  - serializedVersion: 3
+    m_BuildTarget: iOS
+    m_Formats: 03000000
+  - serializedVersion: 3
+    m_BuildTarget: Android
+    m_Formats: 01000000
   playModeTestRunnerEnabled: 0
   runPlayModeTestAsEditModeTest: 0
   actionOnDotNetUnhandledException: 1
@@ -856,7 +862,7 @@ PlayerSettings:
   webWasm2023: 0
   scriptingDefineSymbols:
     Android: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY
-    Standalone: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY
+    Standalone: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3
     iPhone: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3
   additionalCompilerArguments: {}
   platformArchitecture:
