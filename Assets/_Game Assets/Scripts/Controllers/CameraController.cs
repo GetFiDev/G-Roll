@@ -11,8 +11,10 @@ public class CameraController : MonoBehaviour
 
     private void Update()
     {
-        if (GameManager.Instance.GameState == GameState.Gameplay && PlayerController.Instance.playerMovement.IsMoving)
-            MoveCamera();
+        if (!PlayerController.Instance.playerMovement.IsMoving)
+            return;
+
+        MoveCamera();
     }
 
     private void MoveCamera()
