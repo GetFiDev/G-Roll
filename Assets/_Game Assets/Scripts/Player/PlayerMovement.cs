@@ -6,15 +6,15 @@ public class PlayerMovement : MonoBehaviour
 {
     public bool IsMoving => GameManager.Instance.GameState == GameState.Gameplay && _movementDirection.magnitude > 0.1f;
 
-    [SerializeField] private float movementSpeed = 5f;
+    [SerializeField] private float drag = 5f;
+    [SerializeField] private float forceMultiplier = 0.000002f;
 
     private PlayerController _playerController;
-    private float _activeSpeed;
+    private float _activeSpeed = 1f;
 
     public PlayerMovement Initialize(PlayerController playerController)
     {
         _playerController = playerController;
-        _activeSpeed = movementSpeed;
 
         return this;
     }
@@ -29,6 +29,8 @@ public class PlayerMovement : MonoBehaviour
         if (GameManager.Instance.GameState == GameState.Gameplay)
         {
             Move();
+
+            Debug.Log($"Movement Direction: {_movementDirection}");
         }
     }
 
@@ -36,12 +38,17 @@ public class PlayerMovement : MonoBehaviour
 
     private void Move()
     {
+        _movementDirection = Vector3.Lerp(_movementDirection, Vector3.zero, Time.deltaTime * drag);
+
         transform.position += _movementDirection * (Time.deltaTime * _activeSpeed);
     }
 
-    private void ChangeDirection(SwipeDirection swipeDirection)
+    private void ChangeDirection(Vector2 swipeDirection)
     {
-        _movementDirection = SwipeDirectionHelper.SwipeDirectionToWorld(swipeDirection);
+        var newForce = swipeDirection.ToDirectionVector().normalized;
+        newForce *= swipeDirection.sqrMagnitude * forceMultiplier;
+
+        _movementDirection += newForce;
     }
 
     public void ChangeSpeed(float changeAmount)
@@ -60,9 +67,9 @@ public class PlayerMovement : MonoBehaviour
         _activeSpeed = 0f;
 
         yield return transform.DOScale(Vector3.zero, .2f).SetEase(Ease.InBack).WaitForCompletion();
-        
+
         transform.position = teleportPosition;
-        
+
         yield return transform.DOScale(Vector3.one, .2f).SetEase(Ease.OutBack).WaitForCompletion();
 
         _activeSpeed = lastSpeed;

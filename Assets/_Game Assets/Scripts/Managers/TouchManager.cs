@@ -10,7 +10,7 @@ public class TouchManager : MonoBehaviour
     public Action<Vector2> OnTouchMoveScreen;
     public Action<Vector2> OnTouchEnd;
     
-    public Action<SwipeDirection> OnSwipe;
+    public Action<Vector2> OnSwipe;
 
     private LeanFinger _activeFinger;
 
@@ -70,9 +70,9 @@ public class TouchManager : MonoBehaviour
     
     private void OnFingerSwipe(LeanFinger finger)
     {
-        var swipeDirection = SwipeDirectionHelper.CalculateSwipeDirection(finger.SwipeScaledDelta.normalized);
+        Debug.Log($"Swipe Scaled Delta : {finger.SwipeScaledDelta}");
         
-        OnSwipe?.Invoke(swipeDirection);
+        OnSwipe?.Invoke(finger.SwipeScaledDelta);
     }
 
     private bool ValidateFinger(LeanFinger finger)

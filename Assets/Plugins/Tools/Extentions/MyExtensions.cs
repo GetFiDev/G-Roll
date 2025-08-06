@@ -120,4 +120,9 @@ public static class MyExtensions
     {
         Debug.Log("<color=#" + ColorUtility.ToHtmlStringRGB(color) + ">" + message + "</color>");
     }
+    
+    public static Vector3 ToDirectionVector(this Vector2 vector)
+    {
+        return new Vector3(vector.x, 0f, vector.y);
+    }
 }
