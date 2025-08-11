@@ -67,4 +67,16 @@ public class PlayerMovement : MonoBehaviour
 
         _activeSpeed = lastSpeed;
     }
+
+    public void Jump(float jumpForce)
+    {
+        StartCoroutine(JumpCoroutine(jumpForce));
+    }
+
+    private IEnumerator JumpCoroutine(float jumpForce)
+    {
+        yield return transform.DOMoveY(jumpForce, .1f).WaitForCompletion();
+        
+        yield return transform.DOMoveY(0f, 1f).WaitForCompletion();
+    }
 }
