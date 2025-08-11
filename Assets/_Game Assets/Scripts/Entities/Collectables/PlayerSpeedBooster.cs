@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Booster : Collectable
+public class PlayerSpeedBooster : Collectable
 {
     [SerializeField] private float speedChangeAmount;
     

@@ -3,6 +3,9 @@ using UnityEngine;
 
 public class LevelController : MonoBehaviour
 {
+    public CameraController CameraController => cameraController;
+    [SerializeField] private CameraController cameraController;
+    
     [SerializeField] private List<GameManager> levelParts;
     [SerializeField] private float spawnDistance;
     

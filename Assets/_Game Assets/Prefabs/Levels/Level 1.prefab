@@ -48,6 +48,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fdd13acb111245af9bbd1f41b0e0ab46, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  minSpeed: 1.5
+  maxSpeed: 3
+  timeToReachMaxSpeed: 10
   cameraSpeed: 2
 --- !u!1 &2493868919701256667
 GameObject:
@@ -269,6 +272,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0bf261809af64754da6303401cb8afc2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cameraController: {fileID: 4349760395753787806}
   levelParts: []
   spawnDistance: 0
 --- !u!1 &7236450349708406414
