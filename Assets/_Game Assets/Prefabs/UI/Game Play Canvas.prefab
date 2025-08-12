@@ -767,7 +767,7 @@ GameObject:
   - component: {fileID: 2071709232070612372}
   - component: {fileID: 4967967050319513223}
   m_Layer: 5
-  m_Name: Button_Booser
+  m_Name: UI Booster
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -815,7 +815,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   boosterSlider: {fileID: 9192400315909626634}
-  boosterMinValueToUse: 1
+  boosterMinValueToUse: 0
   boosterValuePerCurrency: 0.1
   boosterValue: 0
 --- !u!114 &5604361929777242545
@@ -1741,10 +1741,11 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1101473862850747858}
+  - component: {fileID: 4808386980226350573}
   - component: {fileID: 3165987509423595960}
   - component: {fileID: 6399305922640385554}
   m_Layer: 5
-  m_Name: SpeedValue
+  m_Name: UI Speed Element
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1770,6 +1771,19 @@ RectTransform:
   m_AnchoredPosition: {x: 63, y: -37}
   m_SizeDelta: {x: 130.8587, y: 93.009}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &4808386980226350573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7203397652150334074}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 799e6da514896694db133a75b30b5b6a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  speedText: {fileID: 6399305922640385554}
 --- !u!222 &3165987509423595960
 CanvasRenderer:
   m_ObjectHideFlags: 0
