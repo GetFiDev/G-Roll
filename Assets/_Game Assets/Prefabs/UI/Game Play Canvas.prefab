@@ -761,8 +761,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6347505863505015753}
-  - component: {fileID: 7827855367471694503}
   - component: {fileID: 5575285406290429129}
+  - component: {fileID: 7827855367471694503}
   - component: {fileID: 5604361929777242545}
   - component: {fileID: 2071709232070612372}
   - component: {fileID: 4967967050319513223}
@@ -794,14 +794,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 456.2439, y: 382.19}
   m_Pivot: {x: 1, y: 0}
---- !u!222 &7827855367471694503
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3887243560041976771}
-  m_CullTransparentMesh: 1
 --- !u!114 &5575285406290429129
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -818,6 +810,14 @@ MonoBehaviour:
   boosterMinValueToUse: 0
   boosterValuePerCurrency: 0.1
   boosterValue: 0
+--- !u!222 &7827855367471694503
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3887243560041976771}
+  m_CullTransparentMesh: 1
 --- !u!114 &5604361929777242545
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2108,11 +2108,13 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7778818678185710651}
+  - component: {fileID: 2271233198911400351}
   - component: {fileID: 7453644021099204879}
   - component: {fileID: 828870932772454399}
   - component: {fileID: 3085812411615748917}
+  - component: {fileID: 3915388223084067922}
   m_Layer: 5
-  m_Name: Button_Pause
+  m_Name: UI Settings Button
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2138,6 +2140,18 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 456.2017, y: 382.1541}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &2271233198911400351
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8121220548802324806}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7541def205bf2d542950611d06ec5848, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!222 &7453644021099204879
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2195,7 +2209,7 @@ MonoBehaviour:
     m_SelectOnDown: {fileID: 0}
     m_SelectOnLeft: {fileID: 0}
     m_SelectOnRight: {fileID: 0}
-  m_Transition: 1
+  m_Transition: 0
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
     m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
@@ -2219,7 +2233,35 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 828870932772454399}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 2271233198911400351}
+        m_TargetAssemblyTypeName: UISettingsButton, Assembly-CSharp
+        m_MethodName: OnSettingsButtonClicked
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &3915388223084067922
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8121220548802324806}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8b151c194b666c43ba216c5f6c1644a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  isAnimated: 1
+  isScaleBigger: 1
+  hasClick: 1
+  hasHaptic: 1
 --- !u!1 &8339026362146932292
 GameObject:
   m_ObjectHideFlags: 0

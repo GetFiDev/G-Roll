@@ -8,6 +8,8 @@ public class UIManager : MonoSingleton<UIManager>
     public UIGamePlay gamePlay;
     public UILevelEnd levelEnd;
     public UIOverlay overlay;
+    
+    public UISettings settings;
 
     public UIManager Initialize()
     {
@@ -48,7 +50,7 @@ public class UIManager : MonoSingleton<UIManager>
                 levelEnd.Show(false);
                 break;
             default:
-                throw new ArgumentOutOfRangeException();
+                break;
         }
     }
 }

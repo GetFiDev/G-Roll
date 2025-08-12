@@ -70,6 +70,20 @@ public class GameManager : MonoSingleton<GameManager>
         AnalyticsManager.OnLevelStart();
     }
 
+    private GameState _previousGameState;
+    
+    public void PauseGame()
+    {
+        _previousGameState = GameState;
+        
+        GameState = GameState.Paused;
+    }
+
+    public void ResumeGame()
+    {
+        GameState = _previousGameState;
+    }
+
     public void LevelFinish(bool isSuccess)
     {
         if (GameState != GameState.Gameplay)

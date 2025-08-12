@@ -2,9 +2,12 @@ using UnityEngine;
 
 public class UISettings : MonoBehaviour
 {
+    [SerializeField] private CanvasGroup settingsPanel;
+    
     [SerializeField] private ToggleButton hapticToggle;
     [SerializeField] private ToggleButton soundToggle;
     [SerializeField] private ToggleButton musicToggle;
+    
     [SerializeField] private bool isSoundToggleAlsoEffectTheMusicSettings = true;
     
     private void Start()
@@ -12,6 +15,18 @@ public class UISettings : MonoBehaviour
         hapticToggle.SetValue(DataManager.Vibration);
         soundToggle.SetValue(DataManager.Sound);
         musicToggle.SetValue(DataManager.Music);
+    }
+    
+    public void Show()
+    {
+        GameManager.Instance.PauseGame();
+        settingsPanel.gameObject.SetActive(true);
+    }
+
+    public void Hide()
+    {
+        GameManager.Instance.ResumeGame();
+        settingsPanel.gameObject.SetActive(false);
     }
 
     public void OnSoundToggled(bool value)
