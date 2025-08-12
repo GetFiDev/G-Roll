@@ -4,7 +4,6 @@
     {
         base.OnInteract();
         
-        //TODO: Increase Currency Properly
-        DataManager.Currency++;
+        CurrencyEvents.OnCollected?.Invoke(CurrencyType.SoftCurrency, new CurrencyCollectedData(1, transform.position));
     }
 }

@@ -44,17 +44,6 @@ public static class DataManager
         set => PlayerPrefs.SetInt(PlayerPrefKeys.CurrentLevelIndexKey, value);
     }
 
-    public static Action<int> OnCurrencyUpdated;
-    public static int Currency
-    {
-        get => PlayerPrefs.GetInt(PlayerPrefKeys.CurrencyKey, 0);
-        set
-        {
-            PlayerPrefs.SetInt(PlayerPrefKeys.CurrencyKey, value);
-            OnCurrencyUpdated?.Invoke(value);
-        } 
-    }
-
     private struct PlayerPrefKeys
     {
         public const string VibrationKey = "Vibration";
@@ -64,6 +53,5 @@ public static class DataManager
         public const string TutorialKey = "Tutorial";
         
         public const string CurrentLevelIndexKey = "CurrentLevelIndex";
-        public const string CurrencyKey = "Currency";
     }
 }

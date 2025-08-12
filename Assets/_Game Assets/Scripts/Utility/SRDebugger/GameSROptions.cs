@@ -22,19 +22,6 @@ public class GameSROptions
         Debug.Log("PlayerPrefs cleared successfully!");
     }
 
-    [Category("Economy")]
-    public void AddCurrency()
-    {
-        DataManager.Currency += 1000;
-    }
-
-    [Category("Economy")]
-    public int Currency
-    {
-        get => DataManager.Currency;
-        set => DataManager.Currency = value;
-    }
-
     [Category("Levels")]
     public int Level
     {

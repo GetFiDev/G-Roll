@@ -79,4 +79,9 @@ public class PlayerMovement : MonoBehaviour
         
         yield return transform.DOMoveY(0f, 1f).WaitForCompletion();
     }
+
+    public void Boost(float boosterValue)
+    {
+        throw new System.NotImplementedException();
+    }
 }

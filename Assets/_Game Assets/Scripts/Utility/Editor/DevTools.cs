@@ -45,13 +45,11 @@ namespace _Game_Assets.Scripts.Utility.Editor
         [MenuItem("Tools/Dev Tools/Add Money " + "&m", false, 100)]
         public static void AddMoney()
         {
-            DataManager.Currency += 10000;
         }
 
         [MenuItem("Tools/Dev Tools/Clear Money " + "&#m", false, 100)]
         public static void ClearMoney()
         {
-            DataManager.Currency = 1;
         }
 
 

@@ -10,13 +10,13 @@ namespace _Project.Scripts.Utility.Currency.UI
         [SerializeField] private ParticleImage particleImage;
 
         private const int MaxCount = 20;
-        private const int MinPrice = 5;
+        private const int MinPrice = 1;
 
         protected override void OnEnable()
         {
             base.OnEnable();
 
-            CurrencyEvents.OnRewarded.Subscribe(currencyType, SpawnCurrencyOnRewarded);
+            CurrencyEvents.OnCollected.Subscribe(currencyType, SpawnCurrencyOnCollected);
         }
 
         private Tween _punchTween;
@@ -33,13 +33,15 @@ namespace _Project.Scripts.Utility.Currency.UI
 
         [GUIColor(1f, .4f, 1f)]
         [Button("Spawn", ButtonSizes.Large, ButtonStyle.Box)]
-        private void SpawnCurrencyOnRewarded((int, Vector3) payload)
+        private void SpawnCurrency(int amount)
         {
-            var amount = payload.Item1;
-            var position = payload.Item2;
-
-            var newParticle = CreateParticle(position);
-            var spawnInfo = SpawnPriceInfo.Calculate(amount);
+            SpawnCurrencyOnCollected(new CurrencyCollectedData(amount, new Vector3(Screen.width / 2f, Screen.height / 2f, 0)));
+        }
+        
+        private void SpawnCurrencyOnCollected(CurrencyCollectedData payload)
+        {
+            var newParticle = CreateParticle(payload.Position);
+            var spawnInfo = SpawnPriceInfo.Calculate(payload.Amount);
 
             SetupParticleListeners(spawnInfo, newParticle);
             PlayParticle(spawnInfo, newParticle);
@@ -86,7 +88,7 @@ namespace _Project.Scripts.Utility.Currency.UI
         {
             base.OnDisable();
 
-            CurrencyEvents.OnRewarded.Unsubscribe(currencyType, SpawnCurrencyOnRewarded);
+            CurrencyEvents.OnCollected.Unsubscribe(currencyType, SpawnCurrencyOnCollected);
         }
 
         private class SpawnPriceInfo

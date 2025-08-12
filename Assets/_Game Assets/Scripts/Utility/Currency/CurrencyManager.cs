@@ -4,8 +4,10 @@ using UnityEngine;
 
 public static class CurrencyManager
 {
-    private static Dictionary<CurrencyType, CurrencyData> _currencyDatas;
-    private static Dictionary<CurrencyType, CurrencyData> CurrencyDatas => _currencyDatas ??= LoadFromResources();
+    private static readonly Lazy<Dictionary<CurrencyType, CurrencyData>> LazyList = new(LoadFromResources);
+
+    private static Dictionary<CurrencyType, CurrencyData> CurrencyDataList => LazyList.Value;
+
 
     private static Dictionary<CurrencyType, CurrencyData> LoadFromResources()
     {
@@ -15,36 +17,34 @@ public static class CurrencyManager
 
         foreach (var resource in allResources)
         {
-            if (dict.ContainsKey(resource.CurrencyType))
+            if (!dict.TryAdd(resource.CurrencyType, resource))
             {
                 throw new Exception($"Duplicate CurrencyType found: {resource.CurrencyType} in CurrencyData assets.");
             }
-
-            dict[resource.CurrencyType] = resource;
         }
 
         return dict;
     }
-    
+
     public static CurrencyData GetData(CurrencyType type)
     {
-        if (CurrencyDatas.TryGetValue(type, out var data))
+        if (CurrencyDataList.TryGetValue(type, out var data))
             return data;
-        
-        throw new Exception($"No CurrencyData found for {type}");
+
+        throw new Exception($"No CurrencyData found for {type} on {ResourcePaths.CurrencyData}");
     }
 
     public static int Get(CurrencyType type)
     {
-        if (CurrencyDatas.TryGetValue(type, out var data))
+        if (CurrencyDataList.TryGetValue(type, out var data))
             return data.Value;
 
-        throw new Exception($"No CurrencyData found for {type}");
+        throw new Exception($"No CurrencyData found for {type}on {ResourcePaths.CurrencyData}");
     }
 
     public static void Set(CurrencyType type, int amount)
     {
-        if (CurrencyDatas.TryGetValue(type, out var data))
+        if (CurrencyDataList.TryGetValue(type, out var data))
             data.Value = amount;
         else
             Debug.LogError($"Currency of type {type} not found.");
@@ -52,7 +52,7 @@ public static class CurrencyManager
 
     public static void Add(CurrencyType type, int amount)
     {
-        if (CurrencyDatas.TryGetValue(type, out var data))
+        if (CurrencyDataList.TryGetValue(type, out var data))
             data.Value += amount;
         else
             Debug.LogError($"Currency of type {type} not found.");
@@ -60,7 +60,7 @@ public static class CurrencyManager
 
     public static void Subtract(CurrencyType type, int amount)
     {
-        if (CurrencyDatas.TryGetValue(type, out var data))
+        if (CurrencyDataList.TryGetValue(type, out var data))
             data.Value = Mathf.Max(0, data.Value - amount);
         else
             Debug.LogError($"Currency of type {type} not found.");

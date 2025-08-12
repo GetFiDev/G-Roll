@@ -9,8 +9,6 @@ public class UIManager : MonoSingleton<UIManager>
     public UILevelEnd levelEnd;
     public UIOverlay overlay;
 
-    public UIFlyingCurrency flyingCurrency;
-    
     public UIManager Initialize()
     {
         GameManager.Instance.OnGameStateChanged += OnGameStateChanged;

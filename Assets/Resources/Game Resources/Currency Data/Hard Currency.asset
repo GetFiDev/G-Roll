@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 96547acdea3a479da98333c5bf542ebc, type: 3}
-  m_Name: Soft Currency
+  m_Name: Hard Currency
   m_EditorClassIdentifier: 
   _objectID: 0d65f873-f2d4-48c1-8ab2-d441e2bc1105
-  currencyType: 0
-  icon: {fileID: 21300000, guid: 62caf8fa8077346f98e18477f3872a95, type: 3}
-  defaultValue: 10
+  currencyType: 1
+  icon: {fileID: 21300000, guid: ac841ee8c9b8244abbbbd52487edfe2e, type: 3}
+  defaultValue: 0

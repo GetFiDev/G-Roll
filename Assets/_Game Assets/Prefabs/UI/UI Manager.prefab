@@ -53,7 +53,6 @@ MonoBehaviour:
   gamePlay: {fileID: 7749307218139626356}
   levelEnd: {fileID: 7749307216145215960}
   overlay: {fileID: 3643412070583593985}
-  flyingCurrency: {fileID: 0}
 --- !u!1001 &200793229957255224
 PrefabInstance:
   m_ObjectHideFlags: 0
