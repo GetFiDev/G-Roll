@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Linq;
 using DG.Tweening;
 using UnityEngine;
 
@@ -13,6 +14,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float boosterDuration = 10f;
 
     [SerializeField] private float boosterSpeed = 1f;
+    [SerializeField] private float boosterCollectRange = 2f;
 
     private PlayerController _playerController;
 
@@ -97,8 +99,24 @@ public class PlayerMovement : MonoBehaviour
         Speed += boosterSpeed;
         _lastSpeed += boosterSpeed;
 
-        yield return new WaitForSeconds(boosterDuration);
-        
+        var timeLeft = boosterDuration;
+        var coinList = GameManager.Instance.levelManager.currentLevel.Coins;
+
+        while (timeLeft > 0)
+        {
+            timeLeft -= Time.deltaTime;
+
+            yield return null;
+
+            foreach (var coin in coinList.Where(coin => Vector3.Distance(transform.position, coin.transform.position) < boosterCollectRange))
+            {
+                coin.CollectByMagnet(transform);
+                coinList.Remove(coin);
+                    
+                break;
+            }
+        }
+
         Speed -= boosterSpeed;
         _lastSpeed -= boosterSpeed;
     }

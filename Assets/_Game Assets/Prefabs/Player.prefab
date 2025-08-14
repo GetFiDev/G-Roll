@@ -113,6 +113,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   movementSpeed: 5
+  boosterDuration: 10
+  boosterSpeed: 1
+  boosterCollectRange: 10
 --- !u!114 &6942240846770388984
 MonoBehaviour:
   m_ObjectHideFlags: 0
