@@ -7,7 +7,7 @@ public abstract class Collectable : MonoBehaviour, IPlayerInteractable
     {
         var activeCollider = gameObject.GetComponent<Collider>();
         activeCollider.enabled = false;
-
+        
         transform.DOScale(Vector3.zero, .2f)
             .SetEase(Ease.InBack)
             .OnComplete(() => Destroy(gameObject));
