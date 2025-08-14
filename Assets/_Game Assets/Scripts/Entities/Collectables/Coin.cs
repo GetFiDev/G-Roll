@@ -8,6 +8,8 @@ public class Coin : Collectable
         base.OnInteract();
         
         CurrencyEvents.OnCollected?.Invoke(CurrencyType.SoftCurrency, new CurrencyCollectedData(1, transform.position));
+
+        GameManager.Instance.levelManager.currentLevel.Coins.Remove(this);
     }
 
     private Tweener _magnetTween;
