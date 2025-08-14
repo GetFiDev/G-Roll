@@ -41,4 +41,11 @@ public class UIBoosterFill : MonoBehaviour
         boosterSlider.DOKill();
         boosterSlider.DOValue(boosterValue, .1f);
     }
+
+    public void InstantFill()
+    {
+        boosterValue = 1f;
+
+        UpdateUI();
+    }
 }
