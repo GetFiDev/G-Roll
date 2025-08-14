@@ -8,10 +8,30 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 3561426009509326417, guid: 9189c785043921449969f9cc01c7db56,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4598117528975143786, guid: 9189c785043921449969f9cc01c7db56,
         type: 3}
       propertyPath: m_Name
-      value: Booster_1 Variant
+      value: Player Speed Reducer
+      objectReference: {fileID: 0}
+    - target: {fileID: 9012424972528935496, guid: 9189c785043921449969f9cc01c7db56,
+        type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9012424972528935496, guid: 9189c785043921449969f9cc01c7db56,
+        type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9012424972528935496, guid: 9189c785043921449969f9cc01c7db56,
+        type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9012424972528935496, guid: 9189c785043921449969f9cc01c7db56,
         type: 3}

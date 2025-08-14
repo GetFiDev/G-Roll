@@ -15,6 +15,9 @@ public class PlayerMovement : MonoBehaviour
 
     [SerializeField] private float boosterSpeed = 1f;
     [SerializeField] private float boosterCollectRange = 2f;
+    
+    [Header("Jump Options")]
+    [SerializeField] private float doubleTapJumpForce = 3f;
 
     private PlayerController _playerController;
 
@@ -29,6 +32,7 @@ public class PlayerMovement : MonoBehaviour
     private void Start()
     {
         GameManager.Instance.touchManager.OnSwipe += ChangeDirection;
+        GameManager.Instance.touchManager.OnDoubleTap += () => Jump(doubleTapJumpForce);
     }
 
     private void Update()
@@ -77,9 +81,14 @@ public class PlayerMovement : MonoBehaviour
         Speed = _lastSpeed;
     }
 
+    private Coroutine _jumpCoroutine;
+    
     public void Jump(float jumpForce)
     {
-        StartCoroutine(JumpCoroutine(jumpForce));
+        if (_jumpCoroutine != null || GameManager.Instance.GameState != GameState.Gameplay)
+            return;
+        
+        _jumpCoroutine = StartCoroutine(JumpCoroutine(jumpForce));
     }
 
     private IEnumerator JumpCoroutine(float jumpForce)
@@ -87,6 +96,8 @@ public class PlayerMovement : MonoBehaviour
         yield return transform.DOMoveY(jumpForce, .1f).WaitForCompletion();
 
         yield return transform.DOMoveY(0f, 1f).WaitForCompletion();
+
+        _jumpCoroutine = null;
     }
 
     public void Boost(float boosterValue)

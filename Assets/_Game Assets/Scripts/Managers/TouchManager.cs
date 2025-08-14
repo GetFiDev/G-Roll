@@ -1,18 +1,22 @@
 ﻿using System;
 using Lean.Touch;
+using Sirenix.OdinInspector;
 using UnityEngine;
 
 public class TouchManager : MonoBehaviour
 {
     public bool IsTouching => _activeFinger != null;
-
+    [SerializeField] private float doubleTapDuration = 0.2f;
+    
     public Action<Vector2> OnTouchBegin;
     public Action<Vector2> OnTouchMoveScreen;
     public Action<Vector2> OnTouchEnd;
     
     public Action<SwipeDirection> OnSwipe;
-
-    private LeanFinger _activeFinger;
+    public Action OnDoubleTap;
+    
+    [ShowInInspector, ReadOnly] private LeanFinger _activeFinger;
+    private float _doubleTapTimer;
 
     public TouchManager Initialize()
     {
@@ -62,9 +66,19 @@ public class TouchManager : MonoBehaviour
 
         _activeFinger = null;
 
+        if (_doubleTapTimer < Time.time)
+        {
+            _doubleTapTimer = Time.time + doubleTapDuration;
+        }
+        else
+        {
+            OnDoubleTap?.Invoke();
+            _doubleTapTimer = 0f;
+        }
+
         if (finger.Old)
             return;
-
+        
         OnTouchEnd?.Invoke(finger.ScreenPosition);
     }
     
@@ -78,7 +92,7 @@ public class TouchManager : MonoBehaviour
     private bool ValidateFinger(LeanFinger finger)
     {
         if (_activeFinger != finger)
-            return true;
+            return false;
 
         return finger.IsOverGui && GameSettingsData.Instance.ignoreUITouches;
     }
