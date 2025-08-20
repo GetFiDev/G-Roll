@@ -76,6 +76,13 @@ public class GameSROptions
     {
         AdManager.ActivateBanner();
     }
+    
+        
+    [Category("SDK")]
+    public void GoogleSignIn()
+    {
+        FirebaseManager.SignInWithGoogle();
+    }
 }
 
 #endif

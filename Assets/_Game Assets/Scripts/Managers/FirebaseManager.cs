@@ -1,15 +1,19 @@
+using System.Threading.Tasks;
 using Firebase;
 using Firebase.Analytics;
 using Firebase.Auth;
 using Firebase.Crashlytics;
 using Firebase.Extensions;
+using Google;
 using UnityEngine;
 
 public abstract class FirebaseManager
 {
     public static bool IsFirebaseInitialized = false;
     private static DependencyStatus _dependencyStatus = DependencyStatus.UnavailableOther;
+
     private static FirebaseApp _firebaseApp;
+    private static FirebaseAuth _firebaseAuth;
 
     public static void Initialize()
     {
@@ -30,6 +34,7 @@ public abstract class FirebaseManager
     private static void OnInitializationComplete()
     {
         _firebaseApp = FirebaseApp.DefaultInstance;
+        _firebaseAuth = FirebaseAuth.DefaultInstance;
 
         FirebaseAnalytics.SetAnalyticsCollectionEnabled(true);
 
@@ -48,29 +53,45 @@ public abstract class FirebaseManager
         // FirebaseAnalytics.SetSessionTimeoutDuration(new TimeSpan(0, 30, 0));
     }
 
-    public static void Authentication()
+    public static void SignInWithGoogle()
     {
-        var authInstance = FirebaseAuth.DefaultInstance;
+        // Google Sign-In yapılandırması
+        GoogleSignIn.Configuration = new GoogleSignInConfiguration
+        {
+            WebClientId = "926358794548-l5g8nno4kep2vt3hkhts6h3cika2nlts.apps.googleusercontent.com", // Firebase Console → Web client ID
+            RequestIdToken = true
+        };
 
-        //var credential = GoogleAuthProvider.GetCredential(googleIdToken, googleAccessToken);
+        GoogleSignIn.DefaultInstance.SignIn().ContinueWith(OnGoogleSignIn);
+    }
 
-        // authInstance.SignInAndRetrieveDataWithCredentialAsync(credential).ContinueWith(task =>
-        // {
-        //     if (task.IsCanceled)
-        //     {
-        //         Debug.LogError("SignInAndRetrieveDataWithCredentialAsync was canceled.");
-        //         return;
-        //     }
-        //
-        //     if (task.IsFaulted)
-        //     {
-        //         Debug.LogError("SignInAndRetrieveDataWithCredentialAsync encountered an error: " + task.Exception);
-        //         return;
-        //     }
-        //
-        //     var result = task.Result;
-        //
-        //     Debug.LogFormat("User signed in successfully: {0} ({1})", result.User.DisplayName, result.User.UserId);
-        // });
+    private static void OnGoogleSignIn(Task<GoogleSignInUser> task)
+    {
+        if (task.IsFaulted)
+        {
+            Debug.LogError("Google Sign-In failed: " + task.Exception);
+            return;
+        }
+
+        if (task.IsCanceled)
+        {
+            Debug.LogWarning("Google Sign-In canceled.");
+            return;
+        }
+
+        var idToken = task.Result.IdToken;
+        var credential = GoogleAuthProvider.GetCredential(idToken, null);
+
+        _firebaseAuth.SignInWithCredentialAsync(credential).ContinueWith(authTask =>
+        {
+            if (authTask.IsFaulted)
+            {
+                Debug.LogError("Firebase Sign-In failed: " + authTask.Exception);
+                return;
+            }
+
+            var newUser = authTask.Result;
+            Debug.Log("Firebase user signed in: " + newUser.DisplayName);
+        });
     }
 }
