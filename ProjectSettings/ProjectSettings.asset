@@ -163,8 +163,8 @@ PlayerSettings:
   androidMaxAspectRatio: 2.1
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.level4.games
-    iPhone: com.level4.groll
+    Android: com.get.groll
+    iPhone: com.get.groll
   buildNumber:
     Standalone: 0
     VisionOS: 0
@@ -189,7 +189,7 @@ PlayerSettings:
   VertexChannelCompressionMask: 4054
   iPhoneSdkVersion: 988
   iOSSimulatorArchitecture: 0
-  iOSTargetOSVersionString: 13.0
+  iOSTargetOSVersionString: 15.0
   tvOSSdkVersion: 0
   tvOSSimulatorArchitecture: 0
   tvOSRequireExtendedGameController: 0
@@ -574,6 +574,7 @@ PlayerSettings:
   - serializedVersion: 2
     m_BuildTarget: Standalone
     m_EncodingQuality: 1
+  m_BuildTargetGroupHDRCubemapEncodingQuality: []
   m_BuildTargetGroupLightmapSettings: []
   m_BuildTargetGroupLoadStoreDebugModeSettings: []
   m_BuildTargetNormalMapEncoding: []
@@ -861,7 +862,7 @@ PlayerSettings:
   webGLCloseOnQuit: 0
   webWasm2023: 0
   scriptingDefineSymbols:
-    Android: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY
+    Android: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3
     Standalone: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3
     iPhone: MOREMOUNTAINS_NICEVIBRATIONS;ODIN_INSPECTOR;ODIN_INSPECTOR_3;ODIN_INSPECTOR_3_1;ODIN_INSPECTOR_EDITOR_ONLY;ODIN_INSPECTOR_3_2;ODIN_INSPECTOR_3_3
   additionalCompilerArguments: {}

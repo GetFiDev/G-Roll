@@ -12,7 +12,7 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
-  - _ALPHABLEND_ON
+  - _ALPHAPREMULTIPLY_ON
   - _FADING_ON
   m_InvalidKeywords: []
   m_LightmapFlags: 0
@@ -58,11 +58,11 @@ Material:
     - _FlipbookMode: 0
     - _InvFade: 3
     - _LightingEnabled: 0
-    - _Mode: 2
+    - _Mode: 3
     - _SoftParticlesEnabled: 1
     - _SoftParticlesFarFadeDistance: 0.15
     - _SoftParticlesNearFadeDistance: 0
-    - _SrcBlend: 5
+    - _SrcBlend: 1
     - _ZWrite: 0
     m_Colors:
     - _CameraFadeParams: {r: 0, g: Infinity, b: 0, a: 0}

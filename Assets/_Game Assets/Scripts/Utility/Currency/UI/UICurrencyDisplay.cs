@@ -48,7 +48,7 @@ public class UICurrencyDisplay : MonoBehaviour
 
     private void OnValidate()
     {
-        UpdateCurrencyReferenceInEditor();
+        //UpdateCurrencyReferenceInEditor();
     }    
 
     private void UpdateCurrencyReferenceInEditor()

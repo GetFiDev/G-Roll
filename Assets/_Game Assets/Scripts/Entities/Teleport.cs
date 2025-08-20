@@ -15,7 +15,7 @@ public class Teleport : MonoBehaviour, IPlayerInteractable
         Suspend();
         otherPortal.Suspend();
 
-        PlayerController.Instance.playerMovement.Teleport(otherPortal.transform.position);
+        PlayerController.Instance.playerMovement.Teleport(transform.position, otherPortal.transform.position);
     }
 
     private void Suspend()

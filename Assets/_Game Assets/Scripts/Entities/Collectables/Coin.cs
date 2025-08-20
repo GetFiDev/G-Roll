@@ -5,7 +5,20 @@ public class Coin : Collectable
 {
     public override void OnInteract()
     {
-        base.OnInteract();
+        var activeCollider = gameObject.GetComponent<Collider>();
+        activeCollider.enabled = false;
+        
+        transform.DOScale(Vector3.zero, .2f)
+            .SetDelay(.2f)
+            .SetEase(Ease.InBack)
+            .OnComplete(() => Destroy(gameObject));
+        
+        _magnetTween = transform.DOMove(PlayerController.Instance.transform.position, .2f)
+            .SetEase(Ease.OutQuad)
+            .OnUpdate(() =>
+            {
+                _magnetTween?.ChangeEndValue(PlayerController.Instance.transform.position, true);
+            });
         
         CurrencyEvents.OnCollected?.Invoke(CurrencyType.SoftCurrency, new CurrencyCollectedData(1, transform.position));
 

@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@string/gcm_defaultSenderId,@string/google_storage_bucket,@string/project_id,@string/google_api_key,@string/google_crash_reporting_api_key,@string/google_app_id,@string/default_android_client_id,@string/default_web_client_id">
+  <string name="gcm_defaultSenderId" translatable="false">926358794548</string>
+  <string name="google_storage_bucket" translatable="false">getfi-7f987.firebasestorage.app</string>
+  <string name="project_id" translatable="false">getfi-7f987</string>
+  <string name="google_api_key" translatable="false">AIzaSyB7keaSr_DYTr4xUWqiiivIYlz4PbW8jVE</string>
+  <string name="google_crash_reporting_api_key" translatable="false">AIzaSyB7keaSr_DYTr4xUWqiiivIYlz4PbW8jVE</string>
+  <string name="google_app_id" translatable="false">1:926358794548:android:587e971bf1db4014eb3561</string>
+  <string name="default_android_client_id" translatable="false">926358794548-sdihuatc25pic639r8f1pubv73cifrbs.apps.googleusercontent.com</string>
+  <string name="default_web_client_id" translatable="false">926358794548-l5g8nno4kep2vt3hkhts6h3cika2nlts.apps.googleusercontent.com</string>
+</resources>

@@ -60,23 +60,23 @@ public class PlayerMovement : MonoBehaviour
         Speed += changeAmount;
     }
 
-    public void Teleport(Vector3 teleportPosition)
+    public void Teleport(Vector3 enterPosition,Vector3 teleportPosition)
     {
-        StartCoroutine(TeleportCoroutine(teleportPosition));
+        StartCoroutine(TeleportCoroutine(enterPosition, teleportPosition));
     }
 
     private float _lastSpeed = 0;
 
-    private IEnumerator TeleportCoroutine(Vector3 teleportPosition)
+    private IEnumerator TeleportCoroutine(Vector3 enterPosition, Vector3 teleportPosition)
     {
         _lastSpeed = Speed;
         Speed = 0f;
-
-        yield return transform.DOScale(Vector3.zero, .2f).SetEase(Ease.InBack).WaitForCompletion();
-
-        transform.position = teleportPosition;
-
-        yield return transform.DOScale(Vector3.one, .2f).SetEase(Ease.OutBack).WaitForCompletion();
+        
+        yield return transform.DOJump(enterPosition + Vector3.down, 2f, 1, .35f).WaitForCompletion();
+        
+        transform.position = teleportPosition + Vector3.down;
+        
+        yield return transform.DOJump(teleportPosition + _movementDirection, 2f, 1, .35f).WaitForCompletion();
 
         Speed = _lastSpeed;
     }

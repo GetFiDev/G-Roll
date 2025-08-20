@@ -39,39 +39,7 @@ public abstract class ReviewManager
     {
         ReviewRequested = true;
 
-#if UNITY_IOS
-        UnityEngine.iOS.Device.RequestStoreReview();
-#elif UNITY_ANDROID
-        GameManager.Instance.StartCoroutine(GooglePlayReview());
-#endif
-
-        Debug.Log($"Review Requested @{Time.realtimeSinceStartup:N}");
+        Debug.Log($"Review NOT Requested @{Time.realtimeSinceStartup:N}");
     }
 
-#if UNITY_ANDROID
-    private static IEnumerator GooglePlayReview()
-    {
-        var reviewManager = new Google.Play.Review.ReviewManager();
-
-        var requestFlowOperation = reviewManager.RequestReviewFlow();
-        yield return requestFlowOperation;
-        if (requestFlowOperation.Error != Google.Play.Review.ReviewErrorCode.NoError)
-        {
-            Debug.LogError("Review Request Error" + requestFlowOperation.Error);
-            yield break;
-        }
-
-        var _playReviewInfo = requestFlowOperation.GetResult();
-
-        var launchFlowOperation = reviewManager.LaunchReviewFlow(_playReviewInfo);
-        yield return launchFlowOperation;
-        _playReviewInfo = null; // Reset the object
-
-        if (launchFlowOperation.Error != Google.Play.Review.ReviewErrorCode.NoError)
-        {
-            Debug.LogError("Review Launch Error : " + launchFlowOperation.Error);
-            yield break;
-        }
-    }
-#endif
 }
