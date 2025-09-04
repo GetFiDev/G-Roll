@@ -10,8 +10,7 @@ public class Coin : Collectable
         
         transform.DOScale(Vector3.zero, .2f)
             .SetDelay(.2f)
-            .SetEase(Ease.InBack)
-            .OnComplete(() => Destroy(gameObject));
+            .SetEase(Ease.InBack);
         
         _magnetTween = transform.DOMove(PlayerController.Instance.transform.position, .2f)
             .SetEase(Ease.OutQuad)

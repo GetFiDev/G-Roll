@@ -148,6 +148,7 @@ GameObject:
   - component: {fileID: 4997908591969926086}
   - component: {fileID: 823240210223408628}
   - component: {fileID: 4951349976914819493}
+  - component: {fileID: 5879056411115651672}
   m_Layer: 5
   m_Name: ShopPanel
   m_TagString: Untagged
@@ -213,3 +214,15 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &5879056411115651672
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8628865604252531773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45548226991598d4e97b7526c953edeb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

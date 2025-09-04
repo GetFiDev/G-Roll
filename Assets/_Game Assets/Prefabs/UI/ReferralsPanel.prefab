@@ -329,6 +329,7 @@ GameObject:
   - component: {fileID: 8916282865827554435}
   - component: {fileID: 1310460346770718549}
   - component: {fileID: 5583806428357723632}
+  - component: {fileID: 3865859188715073148}
   m_Layer: 5
   m_Name: ReferralsPanel
   m_TagString: Untagged
@@ -397,6 +398,18 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &3865859188715073148
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3489144730902972739}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9e13b3019c9a554dbcb0b37cf17ce50, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &3818137818867203678
 GameObject:
   m_ObjectHideFlags: 0

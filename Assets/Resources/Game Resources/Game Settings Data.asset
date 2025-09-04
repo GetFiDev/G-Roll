@@ -12,5 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f065b5d4cac04f7da6fb250de4d6755, type: 3}
   m_Name: Game Settings Data
   m_EditorClassIdentifier: 
-  enableAnalytics: 1
-  enableLogs: 1
+  ignoreUITouches: 1
+  skipReadyState: 0
+  initialInterstitialDuration: 0
+  interstitialInterval: 0
