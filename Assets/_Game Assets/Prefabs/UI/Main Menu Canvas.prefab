@@ -122,7 +122,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   homePanel: {fileID: 8291666229590606656}
   settingsPanel: {fileID: 6034315787587594821}
-  shopPanel: {fileID: 0}
+  shopPanel: {fileID: 8072736734937051066}
   referralPanel: {fileID: 2086370119797656222}
   topPanel: {fileID: 3279975332688161230}
   bottomPanel: {fileID: 7784322646490636387}
@@ -2245,3 +2245,15 @@ RectTransform:
     type: 3}
   m_PrefabInstance: {fileID: 8180538179114279459}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &8072736734937051066 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 112312276598115737, guid: e38f54659e18c4c53873f7a50eba3dfb,
+    type: 3}
+  m_PrefabInstance: {fileID: 8180538179114279459}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45548226991598d4e97b7526c953edeb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
