@@ -171,7 +171,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 1}
+  m_Color: {r: 0.14150941, g: 0.14150941, b: 0.14150941, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -514,8 +514,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Loading ...
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 2b1c4888f80554c538e260a5abf3aafd, type: 2}
-  m_sharedMaterial: {fileID: -5003637956738901159, guid: 2b1c4888f80554c538e260a5abf3aafd,
+  m_fontAsset: {fileID: 11400000, guid: 3f4543bd83b824c22b85082d671375d9, type: 2}
+  m_sharedMaterial: {fileID: 4600944395256576902, guid: 3f4543bd83b824c22b85082d671375d9,
     type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
@@ -548,7 +548,7 @@ MonoBehaviour:
   m_fontSizeMax: 72
   m_fontStyle: 0
   m_HorizontalAlignment: 2
-  m_VerticalAlignment: 512
+  m_VerticalAlignment: 4096
   m_textAlignment: 65535
   m_characterSpacing: 0
   m_wordSpacing: 0
@@ -609,7 +609,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1583161105
 RectTransform:
   m_ObjectHideFlags: 0
@@ -649,7 +649,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: ac841ee8c9b8244abbbbd52487edfe2e, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
