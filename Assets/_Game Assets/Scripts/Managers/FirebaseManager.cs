@@ -55,43 +55,43 @@ public abstract class FirebaseManager
 
     public static void SignInWithGoogle()
     {
-        // Google Sign-In yapılandırması
-        GoogleSignIn.Configuration = new GoogleSignInConfiguration
-        {
-            WebClientId = "926358794548-l5g8nno4kep2vt3hkhts6h3cika2nlts.apps.googleusercontent.com", // Firebase Console → Web client ID
-            RequestIdToken = true
-        };
-
-        GoogleSignIn.DefaultInstance.SignIn().ContinueWith(OnGoogleSignIn);
+        // // Google Sign-In yapılandırması
+        // GoogleSignIn.Configuration = new GoogleSignInConfiguration
+        // {
+        //     WebClientId = "926358794548-l5g8nno4kep2vt3hkhts6h3cika2nlts.apps.googleusercontent.com", // Firebase Console → Web client ID
+        //     RequestIdToken = true
+        // };
+        //
+        // GoogleSignIn.DefaultInstance.SignIn().ContinueWith(OnGoogleSignIn);
     }
 
-    private static void OnGoogleSignIn(Task<GoogleSignInUser> task)
-    {
-        if (task.IsFaulted)
-        {
-            Debug.LogError("Google Sign-In failed: " + task.Exception);
-            return;
-        }
-
-        if (task.IsCanceled)
-        {
-            Debug.LogWarning("Google Sign-In canceled.");
-            return;
-        }
-
-        var idToken = task.Result.IdToken;
-        var credential = GoogleAuthProvider.GetCredential(idToken, null);
-
-        _firebaseAuth.SignInWithCredentialAsync(credential).ContinueWith(authTask =>
-        {
-            if (authTask.IsFaulted)
-            {
-                Debug.LogError("Firebase Sign-In failed: " + authTask.Exception);
-                return;
-            }
-
-            var newUser = authTask.Result;
-            Debug.Log("Firebase user signed in: " + newUser.DisplayName);
-        });
-    }
+    // private static void OnGoogleSignIn(Task<GoogleSignInUser> task)
+    // {
+    //     if (task.IsFaulted)
+    //     {
+    //         Debug.LogError("Google Sign-In failed: " + task.Exception);
+    //         return;
+    //     }
+    //
+    //     if (task.IsCanceled)
+    //     {
+    //         Debug.LogWarning("Google Sign-In canceled.");
+    //         return;
+    //     }
+    //
+    //     var idToken = task.Result.IdToken;
+    //     var credential = GoogleAuthProvider.GetCredential(idToken, null);
+    //
+    //     _firebaseAuth.SignInWithCredentialAsync(credential).ContinueWith(authTask =>
+    //     {
+    //         if (authTask.IsFaulted)
+    //         {
+    //             Debug.LogError("Firebase Sign-In failed: " + authTask.Exception);
+    //             return;
+    //         }
+    //
+    //         var newUser = authTask.Result;
+    //         Debug.Log("Firebase user signed in: " + newUser.DisplayName);
+    //     });
+    // }
 }
