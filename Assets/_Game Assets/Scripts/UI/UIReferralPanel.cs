@@ -1,16 +1,15 @@
+using DG.Tweening;
 using UnityEngine;
 
 public class UIReferralPanel : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    [SerializeField] private CanvasGroup referralCodeModal;
+    
+    public void OnCopyCodeButtonClick()
     {
+        referralCodeModal.DOKill();
         
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        referralCodeModal.alpha = 1;
+        referralCodeModal.DOFade(0, .5f).SetDelay(1f).SetEase(Ease.OutCubic);
     }
 }

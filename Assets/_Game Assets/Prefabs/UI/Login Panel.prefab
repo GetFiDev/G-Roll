@@ -1590,6 +1590,7 @@ GameObject:
   - component: {fileID: 3978550092088557958}
   - component: {fileID: 894836939300322945}
   - component: {fileID: 6436461877675710734}
+  - component: {fileID: 1719614903324876329}
   m_Layer: 5
   m_Name: Login Panel
   m_TagString: Untagged
@@ -1672,8 +1673,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 06e7f08db7a77de4fb7ca1bfb2f3988a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  canvasGroup: {fileID: 1719614903324876329}
   manuelLoginPanel: {fileID: 3991191468453015032}
   loginErrorText: {fileID: 3724461918352714197}
+--- !u!225 &1719614903324876329
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4655937194962432371}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &5224696722705873453
 GameObject:
   m_ObjectHideFlags: 0
