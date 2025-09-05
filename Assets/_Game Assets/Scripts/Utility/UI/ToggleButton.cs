@@ -10,8 +10,9 @@ public class ToggleButton : MonoBehaviour, IPointerDownHandler
     [SerializeField] private Image toggleMainImage;
     [SerializeField] private Sprite toggleMainOn, toggleMainOff;
 
-    [SerializeField] private Transform toggleKnob;
-    [SerializeField] private Transform knobOnPosition, knobOffPosition;
+    [SerializeField] private bool hasKnob = true;
+    [SerializeField, ShowIf(nameof(hasKnob))] private Transform toggleKnob;
+    [SerializeField, ShowIf(nameof(hasKnob))] private Transform knobOnPosition, knobOffPosition;
 
     [SerializeField, ReadOnly] private bool value;
     [SerializeField] private UnityEvent<bool> OnValueChange;
@@ -21,13 +22,15 @@ public class ToggleButton : MonoBehaviour, IPointerDownHandler
         value = state;
 
         toggleMainImage.sprite = value ? toggleMainOn : toggleMainOff;
-        toggleKnob.DOMove(value ? knobOnPosition.position : knobOffPosition.position, .1f);
+
+        if (hasKnob)
+            toggleKnob.DOMove(value ? knobOnPosition.position : knobOffPosition.position, .1f);
     }
-    
+
     public void OnPointerDown(PointerEventData eventData)
     {
         SetValue(!value);
-        
+
         GameManager.Instance.audioManager.PlayUIButtonClick();
         HapticManager.GenerateHaptic(PresetType.Selection);
         OnValueChange?.Invoke(value);

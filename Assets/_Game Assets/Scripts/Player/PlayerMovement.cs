@@ -15,7 +15,7 @@ public class PlayerMovement : MonoBehaviour
 
     [SerializeField] private float boosterSpeed = 1f;
     [SerializeField] private float boosterCollectRange = 2f;
-    
+
     [Header("Jump Options")]
     [SerializeField] private float doubleTapJumpForce = 3f;
 
@@ -29,8 +29,10 @@ public class PlayerMovement : MonoBehaviour
         return this;
     }
 
-    private void Start()
+    private IEnumerator Start()
     {
+        yield return new WaitForSeconds(0.25f);
+
         GameManager.Instance.touchManager.OnSwipe += ChangeDirection;
         GameManager.Instance.touchManager.OnDoubleTap += () => Jump(doubleTapJumpForce);
     }
@@ -60,7 +62,7 @@ public class PlayerMovement : MonoBehaviour
         Speed += changeAmount;
     }
 
-    public void Teleport(Vector3 enterPosition,Vector3 teleportPosition)
+    public void Teleport(Vector3 enterPosition, Vector3 teleportPosition)
     {
         StartCoroutine(TeleportCoroutine(enterPosition, teleportPosition));
     }
@@ -71,23 +73,23 @@ public class PlayerMovement : MonoBehaviour
     {
         _lastSpeed = Speed;
         Speed = 0f;
-        
+
         yield return transform.DOJump(enterPosition + Vector3.down, 2f, 1, .35f).WaitForCompletion();
-        
+
         transform.position = teleportPosition + Vector3.down;
-        
+
         yield return transform.DOJump(teleportPosition + _movementDirection, 2f, 1, .35f).WaitForCompletion();
 
         Speed = _lastSpeed;
     }
 
     private Coroutine _jumpCoroutine;
-    
+
     public void Jump(float jumpForce)
     {
         if (_jumpCoroutine != null || GameManager.Instance.GameState != GameState.Gameplay)
             return;
-        
+
         _jumpCoroutine = StartCoroutine(JumpCoroutine(jumpForce));
     }
 
@@ -119,11 +121,12 @@ public class PlayerMovement : MonoBehaviour
 
             yield return null;
 
-            foreach (var coin in coinList.Where(coin => Vector3.Distance(transform.position, coin.transform.position) < boosterCollectRange))
+            foreach (var coin in coinList.Where(coin =>
+                         Vector3.Distance(transform.position, coin.transform.position) < boosterCollectRange))
             {
                 coin.CollectByMagnet(transform);
                 coinList.Remove(coin);
-                    
+
                 break;
             }
         }

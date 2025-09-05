@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class Coin : Collectable
 {
+    [SerializeField] private AudioClip audioClip;
+    
     public override void OnInteract()
     {
         var activeCollider = gameObject.GetComponent<Collider>();
@@ -21,6 +23,8 @@ public class Coin : Collectable
         
         CurrencyEvents.OnCollected?.Invoke(CurrencyType.SoftCurrency, new CurrencyCollectedData(1, transform.position));
 
+        GameManager.Instance.audioManager.Play(audioClip);
+        
         GameManager.Instance.levelManager.currentLevel.Coins.Remove(this);
     }
 

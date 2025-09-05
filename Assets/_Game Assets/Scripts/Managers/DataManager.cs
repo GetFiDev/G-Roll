@@ -24,11 +24,11 @@ public static class DataManager
     public static Action<bool> OnMusicStateChanged;
     public static bool Music
     {
-        get => PlayerPrefs.GetInt(PlayerPrefKeys.SoundKey, 1) == 1;
+        get => PlayerPrefs.GetInt(PlayerPrefKeys.MusicKey, 1) == 1;
         set
         {
-            PlayerPrefs.SetInt(PlayerPrefKeys.SoundKey, value ? 1 : 0);
-            OnSoundStateChanged?.Invoke(value);
+            PlayerPrefs.SetInt(PlayerPrefKeys.MusicKey, value ? 1 : 0);
+            OnMusicStateChanged?.Invoke(value);
         }
     }
     
@@ -48,7 +48,7 @@ public static class DataManager
     {
         public const string VibrationKey = "Vibration";
         public const string SoundKey = "Sound";
-        public const string MusicKey = "Sound";
+        public const string MusicKey = "Music";
         
         public const string TutorialKey = "Tutorial";
         

@@ -91,7 +91,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ad1357b75f5f9f64fbb18f97a7aa2677, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  pop: {fileID: 8300000, guid: 9458e784eb3424729bbe2d3fe66d5e9f, type: 3}
+  pop: {fileID: 8300000, guid: e6ffa9a087c66284ca8501711e53484a, type: 3}
   masterMixer: {fileID: 24100000, guid: 104af8302fbe64d189fdf09444b25799, type: 2}
 --- !u!1 &1722526843066205088
 GameObject:
@@ -192,6 +192,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3acffa8a012942fcb4471697c32e580, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  doubleTapDuration: 0.2
 --- !u!1 &1722526844466665206
 GameObject:
   m_ObjectHideFlags: 0

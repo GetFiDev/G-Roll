@@ -47,6 +47,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7a7163c8c1d2482ab3bec290392d9505, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  audioClip: {fileID: 8300000, guid: fd2665ca3431e7247b3273a4e60cdffb, type: 3}
 --- !u!135 &7241567696502630686
 SphereCollider:
   m_ObjectHideFlags: 0

@@ -54,7 +54,7 @@ public class AudioManager : MonoBehaviour
         Play(pop);
     }
 
-    private void Play(AudioClip clip)
+    public void Play(AudioClip clip)
     {
         if (!DataManager.Sound)
             return;
@@ -62,7 +62,7 @@ public class AudioManager : MonoBehaviour
         _standard.PlayOneShot(clip);
     }
 
-    private void PlayWithPitch(AudioClip clip, float pitch)
+    public void PlayWithPitch(AudioClip clip, float pitch)
     {
         if (!DataManager.Sound)
             return;

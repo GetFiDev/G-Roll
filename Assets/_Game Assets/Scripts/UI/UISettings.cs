@@ -8,7 +8,7 @@ public class UISettings : MonoBehaviour
     [SerializeField] private ToggleButton soundToggle;
     [SerializeField] private ToggleButton musicToggle;
     
-    [SerializeField] private bool isSoundToggleAlsoEffectTheMusicSettings = true;
+    public const bool IsSoundToggleAlsoEffectTheMusicSettings = false;
     
     private void Start()
     {
@@ -32,7 +32,7 @@ public class UISettings : MonoBehaviour
     public void OnSoundToggled(bool value)
     {
         DataManager.Sound = value;
-        if (isSoundToggleAlsoEffectTheMusicSettings)
+        if (IsSoundToggleAlsoEffectTheMusicSettings)
             DataManager.Music = value;
         
         GameManager.Instance.audioManager.UpdateAudioStates();

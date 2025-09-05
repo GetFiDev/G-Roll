@@ -2,15 +2,8 @@ using UnityEngine;
 
 public class UIHomePanel : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public void OnClickPlayButton()
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        GameManager.Instance.LevelStart();
     }
 }

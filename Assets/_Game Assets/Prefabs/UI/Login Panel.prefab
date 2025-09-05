@@ -75,8 +75,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4278190335
-  m_fontColor: {r: 1, g: 0, b: 0, a: 1}
+    rgba: 255
+  m_fontColor: {r: 1, g: 0, b: 0, a: 0}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -260,7 +260,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 4799220686904405740}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 6436461877675710734}
+        m_TargetAssemblyTypeName: UILoginPanel, Assembly-CSharp
+        m_MethodName: ShowManuelLoginPanelButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &3490979957832745927
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -573,7 +585,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 6596374654846680295}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 6436461877675710734}
+        m_TargetAssemblyTypeName: UILoginPanel, Assembly-CSharp
+        m_MethodName: SignInWithGoogleButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &5853600247472969005
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1073,7 +1097,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &7971553876176301728
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1565,8 +1589,9 @@ GameObject:
   - component: {fileID: 1736848617835267911}
   - component: {fileID: 3978550092088557958}
   - component: {fileID: 894836939300322945}
+  - component: {fileID: 6436461877675710734}
   m_Layer: 5
-  m_Name: LoginPanel
+  m_Name: Login Panel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1635,6 +1660,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &6436461877675710734
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4655937194962432371}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06e7f08db7a77de4fb7ca1bfb2f3988a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  manuelLoginPanel: {fileID: 3991191468453015032}
+  loginErrorText: {fileID: 3724461918352714197}
 --- !u!1 &5224696722705873453
 GameObject:
   m_ObjectHideFlags: 0
@@ -1989,7 +2028,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 109325458827354542}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 6436461877675710734}
+        m_TargetAssemblyTypeName: UILoginPanel, Assembly-CSharp
+        m_MethodName: SignInWithAppleButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &3255633556581078282
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2142,7 +2193,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 8197542994668608984}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 6436461877675710734}
+        m_TargetAssemblyTypeName: UILoginPanel, Assembly-CSharp
+        m_MethodName: ManuelLoginButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1424815589637167249
 MonoBehaviour:
   m_ObjectHideFlags: 0
