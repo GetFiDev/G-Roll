@@ -95,7 +95,7 @@ public class PlayerMovement : MonoBehaviour
 
     private IEnumerator JumpCoroutine(float jumpForce)
     {
-        yield return transform.DOMoveY(jumpForce, .1f).WaitForCompletion();
+        yield return transform.DOMoveY(jumpForce, .35f).WaitForCompletion();
 
         yield return transform.DOMoveY(0f, 1f).WaitForCompletion();
 
