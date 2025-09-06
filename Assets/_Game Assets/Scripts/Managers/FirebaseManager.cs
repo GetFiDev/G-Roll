@@ -1,11 +1,14 @@
-using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using Firebase;
 using Firebase.Analytics;
 using Firebase.Auth;
 using Firebase.Crashlytics;
 using Firebase.Extensions;
-using Google;
+using Firebase.Firestore;
 using UnityEngine;
+using Newtonsoft.Json;
 
 public abstract class FirebaseManager
 {
@@ -14,6 +17,10 @@ public abstract class FirebaseManager
 
     private static FirebaseApp _firebaseApp;
     private static FirebaseAuth _firebaseAuth;
+    private static FirebaseFirestore _firebaseFirestore;
+    
+    // Cache
+    private static List<GalleryElementInfo> _cachedGallery = null;
 
     public static void Initialize()
     {
@@ -35,7 +42,8 @@ public abstract class FirebaseManager
     {
         _firebaseApp = FirebaseApp.DefaultInstance;
         _firebaseAuth = FirebaseAuth.DefaultInstance;
-
+        _firebaseFirestore = FirebaseFirestore.DefaultInstance;
+        
         FirebaseAnalytics.SetAnalyticsCollectionEnabled(true);
 
         Crashlytics.ReportUncaughtExceptionsAsFatal = true;
@@ -51,6 +59,48 @@ public abstract class FirebaseManager
         // FirebaseAnalytics.SetUserId("uber_user_510");
         // // Set default session duration values.
         // FirebaseAnalytics.SetSessionTimeoutDuration(new TimeSpan(0, 30, 0));
+    }
+    
+    public static async UniTask<List<GalleryElementInfo>> GetGalleryElementsAsync(bool forceRefresh = false)
+    {
+        if (!IsFirebaseInitialized)
+            return new List<GalleryElementInfo>();
+
+        if (_cachedGallery != null && !forceRefresh)
+        {
+            Debug.Log("Returning cached gallery elements (Newtonsoft).");
+            return _cachedGallery;
+        }
+
+        try
+        {
+            var docRef = _firebaseFirestore.Document("appdata/gallery-view");
+            var snapshot = await docRef.GetSnapshotAsync().AsUniTask();
+
+            if (!snapshot.Exists)
+            {
+                Debug.LogWarning("Firestore document does not exist!");
+                return new List<GalleryElementInfo>();
+            }
+
+            // Firestore dictionary -> JSON string
+            string json = JsonConvert.SerializeObject(snapshot.ToDictionary());
+
+            // JSON string -> Wrapper class
+            var wrapper = JsonConvert.DeserializeObject<GalleryElementsWrapper>(json);
+
+            if (wrapper?.elements == null)
+                return new List<GalleryElementInfo>();
+
+            _cachedGallery = new List<GalleryElementInfo>(wrapper.elements.Values);
+
+            return _cachedGallery;
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Error fetching gallery elements: {e}");
+            return _cachedGallery ?? new List<GalleryElementInfo>();
+        }
     }
 
     public static void SignInWithGoogle()
