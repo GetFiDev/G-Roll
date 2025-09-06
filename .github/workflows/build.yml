@@ -3,29 +3,22 @@ name: Build Automation 🎮
 on: push
 
 jobs:
-  testRunner:
+  iosBuildAndShip:
     if: startsWith(github.event.head_commit.message, 'build:')
-    name: Test in ${{ matrix.targetPlatform }} ✨
-    runs-on: self-hosted
-    strategy:
-      fail-fast: false
-      matrix:
-        targetPlatform:
-          - iOS
-
+    name: iOS Build & TestFlight ✨
+    runs-on: self-hosted   # (gerekirse kendi label’ını da ekle: [self-hosted, macmini-01])
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: true
 
-      - name: Create LFS file list
+      - name: Prepare LFS cache
         run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
 
       - name: Restore LFS cache
         uses: actions/cache@v3
-        id: lfs-cache
         with:
           path: .git/lfs
           key: ${{ runner.os }}-lfs-${{ hashFiles('.lfs-assets-id') }}
@@ -40,21 +33,36 @@ jobs:
         uses: actions/cache@v3
         with:
           path: Library
-          key: Library-${{ matrix.targetPlatform }}
-          restore-keys: Library-
+          key: Library-iOS
+          restore-keys: |
+            Library-
 
-      - name: Build with Unity
+      - name: Build with Unity (iOS)
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          targetPlatform: ${{ matrix.targetPlatform }}
-          
-      - name: Save build outside workspace
-        run: |
-          ARTIFACTS_DIR=$(dirname "${GITHUB_WORKSPACE}")/artifacts/${{ matrix.targetPlatform }}
-          mkdir -p "$ARTIFACTS_DIR"
-          cp -r build/${{ matrix.targetPlatform }}/* "$ARTIFACTS_DIR"/
-          echo "Build saved to $ARTIFACTS_DIR"
+          targetPlatform: iOS
+          # unityVersion / projectPath gerekiyorsa ekle
+
+      - name: Debug — list build
+        run: ls -laR build/iOS
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+
+      - name: Install fastlane
+        run: gem install fastlane
+
+      - name: Fastlane beta (TestFlight)
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ./AuthKey.p8
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          PROJECT_PATH: build/iOS/Unity-iPhone.xcodeproj
+          SCHEME: Unity-iPhone
+        run: fastlane ios beta
