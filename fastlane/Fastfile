@@ -3,16 +3,30 @@ default_platform(:ios)
 platform :ios do
   lane :beta do
     api_key = app_store_connect_api_key(
-      key_id: ENV['APP_STORE_CONNECT_KEY_ID'],
-      issuer_id: ENV['APP_STORE_CONNECT_ISSUER_ID'],
+      key_id:      ENV['APP_STORE_CONNECT_KEY_ID'],
+      issuer_id:   ENV['APP_STORE_CONNECT_ISSUER_ID'],
       key_filepath: ENV['APP_STORE_CONNECT_API_KEY_PATH']
     )
 
-    build_app(
-      project: ENV['PROJECT_PATH'],
-      scheme:  ENV['SCHEME'],
-      export_method: "app-store"
-    )
+    scheme = ENV.fetch('SCHEME', 'Unity-iPhone')
+    project_path = ENV.fetch('PROJECT_PATH', 'build/iOS/Unity-iPhone.xcodeproj')
+
+    # .xcworkspace ise workspace parametresiyle, değilse project parametresiyle derle
+    if project_path.end_with?('.xcworkspace')
+      build_app(
+        workspace: project_path,
+        scheme: scheme,
+        export_method: "app-store"
+      )
+    elsif project_path.end_with?('.xcodeproj')
+      build_app(
+        project: project_path,
+        scheme: scheme,
+        export_method: "app-store"
+      )
+    else
+      UI.user_error!("PROJECT_PATH must point to a .xcworkspace or .xcodeproj, got: #{project_path}")
+    end
 
     upload_to_testflight(api_key: api_key)
   end
