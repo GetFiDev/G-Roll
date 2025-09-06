@@ -36,6 +36,13 @@ jobs:
           git add .
           git reset --hard
 
+      - name: Restore Library cache
+        uses: actions/cache@v3
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}
+          restore-keys: Library-
+
       - name: Build with Unity
         uses: game-ci/unity-builder@v4
         env:
@@ -51,10 +58,3 @@ jobs:
           mkdir -p "$ARTIFACTS_DIR"
           cp -r build/${{ matrix.targetPlatform }}/* "$ARTIFACTS_DIR"/
           echo "Build saved to $ARTIFACTS_DIR"
-
-      - name: Restore Library cache
-        uses: actions/cache@v3
-        with:
-          path: Library
-          key: Library-${{ matrix.targetPlatform }}
-          restore-keys: Library-
