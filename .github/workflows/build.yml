@@ -45,11 +45,12 @@ jobs:
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
           
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Build-${{ matrix.targetPlatform }}
-          path: build/${{ matrix.targetPlatform }}
+      - name: Save build outside workspace
+        run: |
+          ARTIFACTS_DIR=$(dirname "${GITHUB_WORKSPACE}")/artifacts/${{ matrix.targetPlatform }}
+          mkdir -p "$ARTIFACTS_DIR"
+          cp -r build/${{ matrix.targetPlatform }}/* "$ARTIFACTS_DIR"/
+          echo "Build saved to $ARTIFACTS_DIR"
 
       - name: Restore Library cache
         uses: actions/cache@v3
