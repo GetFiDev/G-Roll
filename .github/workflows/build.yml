@@ -47,20 +47,23 @@ jobs:
           targetPlatform: iOS
           # unityVersion / projectPath gerekiyorsa ekle
 
-      - name: Debug — list build
-        run: ls -laR build/iOS
+      - name: Ensure toolcache dirs exist (and writable)
+        run: |
+          mkdir -p "${RUNNER_TOOL_CACHE}" "${RUNNER_TEMP}"
+          ls -la
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.1
+          bundler-cache: false
 
       - name: Install fastlane
         run: gem install fastlane
 
       - name: Fastlane beta (TestFlight)
         env:
-          APP_STORE_CONNECT_API_KEY_PATH: /Users/cagilfirat/Documents/Projects
+          APP_STORE_CONNECT_API_KEY_PATH: ./AuthKey.p8
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           PROJECT_PATH: build/iOS/Unity-iPhone.xcodeproj
