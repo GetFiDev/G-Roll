@@ -46,7 +46,32 @@ jobs:
         with:
           targetPlatform: iOS
           # unityVersion / projectPath gerekiyorsa ekle
-
+          
+      - name: Debug — list build tree
+        run: |
+          echo "---- build/ directory ----"
+          find build -maxdepth 3 -print || true
+      
+      - name: Locate Xcode project/workspace
+        id: locate_xcode
+        shell: bash
+        run: |
+          set -e
+          # Önce .xcworkspace ara (Pods kullanıyorsan tercih edilmesi gerekir)
+          P=$(find build -maxdepth 3 -name "*.xcworkspace" -print -quit || true)
+          if [ -z "$P" ]; then
+            # Bulunamazsa .xcodeproj ara
+            P=$(find build -maxdepth 3 -name "*.xcodeproj" -print -quit || true)
+          fi
+      
+          if [ -z "$P" ]; then
+            echo "❌ Xcode proje/workspace bulunamadı."
+            exit 1
+          fi
+      
+          echo "✅ Found: $P"
+          echo "PROJECT_PATH=$P" >> "$GITHUB_ENV"
+  
       - name: Check Ruby & Fastlane
         shell: bash
         run: |
@@ -54,9 +79,11 @@ jobs:
           ruby -v     || true
           which fastlane || true
           fastlane --version || true
-
+  
       - name: Fastlane beta (TestFlight)
         env:
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
           APP_STORE_CONNECT_API_KEY_PATH: /Users/cagilfirat/Documents/Projects/AuthKey_9KH97P3Z7G.p8
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
