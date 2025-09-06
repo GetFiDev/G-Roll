@@ -60,7 +60,7 @@ jobs:
 
       - name: Fastlane beta (TestFlight)
         env:
-          APP_STORE_CONNECT_API_KEY_PATH: ./AuthKey.p8
+          APP_STORE_CONNECT_API_KEY_PATH: /Users/cagilfirat/Documents/Projects
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           PROJECT_PATH: build/iOS/Unity-iPhone.xcodeproj
