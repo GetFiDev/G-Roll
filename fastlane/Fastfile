@@ -12,25 +12,26 @@ platform :ios do
     project_path = ENV['PROJECT_PATH']
     UI.user_error!("PROJECT_PATH not set") if project_path.to_s.empty?
 
-    team_id = ENV['APPLE_TEAM_ID'] # Örn: ABCDE12345
+    team_id = ENV['APPLE_TEAM_ID'] # ör. ABCDE12345
+    signing_xcargs = "-allowProvisioningUpdates CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{team_id}"
 
     if project_path.end_with?('.xcworkspace')
       build_app(
         workspace: project_path,
         scheme: scheme,
         export_method: "app-store",
-        team_id: team_id,
         export_team_id: team_id,
-        xcargs: "-allowProvisioningUpdates CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{team_id}"
+        xcargs: signing_xcargs,
+        export_options: { signingStyle: "automatic", teamID: team_id }
       )
     elsif project_path.end_with?('.xcodeproj')
       build_app(
         project: project_path,
         scheme: scheme,
         export_method: "app-store",
-        team_id: team_id,
         export_team_id: team_id,
-        xcargs: "-allowProvisioningUpdates CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{team_id}"
+        xcargs: signing_xcargs,
+        export_options: { signingStyle: "automatic", teamID: team_id }
       )
     else
       UI.user_error!("PROJECT_PATH must be .xcworkspace or .xcodeproj, got: #{project_path}")
