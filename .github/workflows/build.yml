@@ -73,7 +73,7 @@ jobs:
         env:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
-          APP_STORE_CONNECT_API_KEY_PATH: /Users/cagilfirat/Documents/Projects/AuthKey_***.p8
+          APP_STORE_CONNECT_API_KEY_PATH: /Users/cagilfirat/Documents/Projects/AuthKey_9KH97P3Z7G.p8
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           SCHEME: Unity-iPhone
