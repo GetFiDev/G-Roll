@@ -53,22 +53,11 @@ jobs:
           find build -maxdepth 3 -print || true
       
       - name: Locate Xcode project/workspace
-        id: locate_xcode
-        shell: bash
         run: |
-          set -e
-          # Önce .xcworkspace ara (Pods kullanıyorsan tercih edilmesi gerekir)
-          P=$(find build -maxdepth 3 -name "*.xcworkspace" -print -quit || true)
-          if [ -z "$P" ]; then
-            # Bulunamazsa .xcodeproj ara
-            P=$(find build -maxdepth 3 -name "*.xcodeproj" -print -quit || true)
-          fi
-      
-          if [ -z "$P" ]; then
-            echo "❌ Xcode proje/workspace bulunamadı."
-            exit 1
-          fi
-      
+          set -euo pipefail
+          P="$(/usr/bin/find build -maxdepth 3 -type d \( -name '*.xcworkspace' -o -name '*.xcodeproj' \) -print -quit || true)"
+          if [[ -z "${P:-}" ]]; then
+            echo "❌ Xcode container not found under build/"; exit 1; fi
           echo "✅ Found: $P"
           echo "PROJECT_PATH=$P" >> "$GITHUB_ENV"
   
@@ -84,9 +73,11 @@ jobs:
         env:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
-          APP_STORE_CONNECT_API_KEY_PATH: /Users/cagilfirat/Documents/Projects/AuthKey_9KH97P3Z7G.p8
+          APP_STORE_CONNECT_API_KEY_PATH: /Users/cagilfirat/Documents/Projects/AuthKey_***.p8
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          PROJECT_PATH: build/iOS/Unity-iPhone.xcodeproj
           SCHEME: Unity-iPhone
-        run: fastlane ios beta
+          PROJECT_PATH: ${{ env.PROJECT_PATH }}   # <-- locate adımının yazdığı değer
+        run: |
+          echo "Using PROJECT_PATH=$PROJECT_PATH"
+          fastlane ios beta
