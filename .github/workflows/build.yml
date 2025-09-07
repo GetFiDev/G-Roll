@@ -78,6 +78,7 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           SCHEME: Unity-iPhone
           PROJECT_PATH: ${{ env.PROJECT_PATH }}   # <-- locate adımının yazdığı değer
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }} 
         run: |
           echo "Using PROJECT_PATH=$PROJECT_PATH"
           fastlane ios beta
