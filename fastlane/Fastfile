@@ -2,41 +2,51 @@ default_platform(:ios)
 
 platform :ios do
   lane :beta do
+    # Locale uyarılarını sustur
+    ENV['LANG']  ||= 'en_US.UTF-8'
+    ENV['LC_ALL'] ||= 'en_US.UTF-8'
+
+    # App Store Connect API key (ENV'den geliyor)
     api_key = app_store_connect_api_key(
       key_id:       ENV['APP_STORE_CONNECT_KEY_ID'],
       issuer_id:    ENV['APP_STORE_CONNECT_ISSUER_ID'],
       key_filepath: ENV['APP_STORE_CONNECT_API_KEY_PATH']
     )
 
+    # Gerekli ENV kontrolleri
     scheme       = ENV.fetch('SCHEME', 'Unity-iPhone')
     project_path = ENV['PROJECT_PATH']
     UI.user_error!("PROJECT_PATH not set") if project_path.to_s.empty?
 
-    team_id = ENV['APPLE_TEAM_ID'] # ör. ABCDE12345
+    team_id = ENV['APPLE_TEAM_ID'] # Örn: ABCDE12345
+    UI.user_error!("APPLE_TEAM_ID not set") if team_id.to_s.empty?
+
+    # Xcode'u otomatik imzaya zorla + profil indirme izni
     signing_xcargs = "-allowProvisioningUpdates CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{team_id}"
 
+    # Ortak build seçenekleri
+    common_build_opts = {
+      scheme: scheme,
+      configuration: "Release",
+      export_method: "app-store",
+      export_team_id: team_id,
+      export_options: { signingStyle: "automatic", teamID: team_id },
+      xcargs: signing_xcargs,
+      disable_xcpretty: true,           # Tam Xcode çıktısını göster (hata ayıklama kolay)
+      suppress_xcode_output: false,
+      buildlog_path: "fastlane/build_logs"
+    }
+
+    # Workspace/proje ayrımı
     if project_path.end_with?('.xcworkspace')
-      build_app(
-        workspace: project_path,
-        scheme: scheme,
-        export_method: "app-store",
-        export_team_id: team_id,
-        xcargs: signing_xcargs,
-        export_options: { signingStyle: "automatic", teamID: team_id }
-      )
+      build_app(common_build_opts.merge(workspace: project_path))
     elsif project_path.end_with?('.xcodeproj')
-      build_app(
-        project: project_path,
-        scheme: scheme,
-        export_method: "app-store",
-        export_team_id: team_id,
-        xcargs: signing_xcargs,
-        export_options: { signingStyle: "automatic", teamID: team_id }
-      )
+      build_app(common_build_opts.merge(project: project_path))
     else
       UI.user_error!("PROJECT_PATH must be .xcworkspace or .xcodeproj, got: #{project_path}")
     end
 
+    # TestFlight yükleme
     upload_to_testflight(api_key: api_key)
   end
 end
