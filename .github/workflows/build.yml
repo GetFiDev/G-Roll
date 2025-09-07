@@ -68,6 +68,21 @@ jobs:
           ruby -v     || true
           which fastlane || true
           fastlane --version || true
+# login keychain'i aç ve codesign erişim izni ver
+      - name: Unlock keychain & allow codesign
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.MAC_LOGIN_PASSWORD }}   # Mac'teki kullanıcının şifresi
+        run: |
+          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db || true
+          # codesign'ın etkileşimsiz erişimi için partition list ayarla
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db || true
+      
+      # Makinede gerçekten Distribution sertifika var mı?
+      - name: Show code signing identities
+        run: |
+          security find-identity -p codesigning -v || true
+          ls -l ~/Library/MobileDevice/Provisioning\ Profiles || true
   
       - name: Fastlane beta (TestFlight)
         env:
