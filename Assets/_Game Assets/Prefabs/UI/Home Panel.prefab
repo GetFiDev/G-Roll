@@ -3413,8 +3413,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Earn a Total of 25 GET
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: e9a200eb2cb824d7e9f564b29e6b7b75, type: 2}
-  m_sharedMaterial: {fileID: 1180735160840877271, guid: e9a200eb2cb824d7e9f564b29e6b7b75,
+  m_fontAsset: {fileID: 11400000, guid: 56041fbc5a91e4762b7a812623b07a4e, type: 2}
+  m_sharedMaterial: {fileID: 1180735160840877271, guid: 56041fbc5a91e4762b7a812623b07a4e,
     type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
