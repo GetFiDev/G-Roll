@@ -10,16 +10,9 @@ public class UILoginPanel : MonoBehaviour
 
     [SerializeField] private TextMeshProUGUI loginErrorText;
 
-    private static bool isShown = false;
-
     private void Awake()
     {
-        if (isShown)
-        {
-            gameObject.SetActive(false);
-        }
-        
-        isShown = true;
+        gameObject.SetActive(true);
     }
 
     public void SignInWithGoogleButtonClick()
