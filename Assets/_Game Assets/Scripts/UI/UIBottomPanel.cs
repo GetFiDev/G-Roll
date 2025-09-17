@@ -4,21 +4,19 @@ using UnityEngine.UI;
 public class UIBottomPanel : MonoBehaviour
 {
     [Header("Buttons")]
-    [SerializeField] private Button homeButton;
     [SerializeField] private Image homeIcon;
     
-    [SerializeField] private Button settingsButton;
     [SerializeField] private Image settingsIcon;
     
-    [SerializeField] private Button shopButton;
     [SerializeField] private Image shopIcon;
 
-    [SerializeField] private Button referralButton;
     [SerializeField] private Image referralIcon;
 
     [Header("Settings")]
     [SerializeField] private Color defaultColor;
     [SerializeField] private Color selectedColor;
+    public UITopPanel topPanel;
+
 
     private void Start()
     {
@@ -28,24 +26,27 @@ public class UIBottomPanel : MonoBehaviour
     public void OnClickHomeButton()
     {
         ChangeAllColorToDefault();
+        topPanel.ChangeAllColorToDefault();
         
         homeIcon.color = selectedColor;
         
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Home);
     }
 
-    public void OnClickSettingsButton()
+    public void OnClickCustomizationButton()
     {
         ChangeAllColorToDefault();
+        topPanel.ChangeAllColorToDefault();
         
         settingsIcon.color = selectedColor;
         
-        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Settings);
+        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Customization);
     }
 
     public void OnClickPlayButton()
     {
         ChangeAllColorToDefault();
+        topPanel.ChangeAllColorToDefault();
         
         GameManager.Instance.LevelStart();
     }
@@ -53,22 +54,24 @@ public class UIBottomPanel : MonoBehaviour
     public void OnClickShopButton()
     {
         ChangeAllColorToDefault();
+        topPanel.ChangeAllColorToDefault();
         
         shopIcon.color = selectedColor;
         
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Shop);
     }
 
-    public void OnClickReferralButton()
+    public void OnClickRankingButton()
     {
         ChangeAllColorToDefault();
+        topPanel.ChangeAllColorToDefault();
         
         referralIcon.color = selectedColor;
         
-        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Referral);
+        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Ranking);
     }
 
-    private void ChangeAllColorToDefault()
+    public void ChangeAllColorToDefault()
     {
         homeIcon.color = defaultColor;
         settingsIcon.color = defaultColor;
