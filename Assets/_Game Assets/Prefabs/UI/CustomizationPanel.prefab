@@ -1381,7 +1381,6 @@ GameObject:
   - component: {fileID: 336779980529527110}
   - component: {fileID: 7871952549906068112}
   - component: {fileID: 3633509629539862581}
-  - component: {fileID: 5383826778545185721}
   m_Layer: 5
   m_Name: CustomizationPanel
   m_TagString: Untagged
@@ -1450,19 +1449,6 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &5383826778545185721
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5727053945969607814}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a9e13b3019c9a554dbcb0b37cf17ce50, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  referralCodeModal: {fileID: 0}
 --- !u!1 &6595463934889004868
 GameObject:
   m_ObjectHideFlags: 0
