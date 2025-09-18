@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using System.Threading.Tasks;
+using NetworkingData;
 
 public class UserStatManager : MonoBehaviour
 {

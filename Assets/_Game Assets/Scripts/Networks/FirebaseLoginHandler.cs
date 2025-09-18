@@ -1,12 +1,15 @@
 using UnityEngine;
 using TMPro;
+using System.Threading.Tasks;
 
 public class FirebaseLoginHandler : MonoBehaviour
 {
     public UserDatabaseManager manager;
 
     [Header("UI Refs")]
-    public UILoginPanel loginPanel; // 🎯 Login başarılı olunca kapatmak için
+    public UILoginPanel loginPanel;          // Login panel (SetName bunun içinde)
+    public UISetNamePanel setNamePanel;      // SetName step (loginPanel’in çocuğu)
+    public UserDataEditHandler editHandler;  // username yazmak için
 
     public TMP_InputField registerEmailInput;
     public TMP_InputField registerPasswordInput;
@@ -17,6 +20,15 @@ public class FirebaseLoginHandler : MonoBehaviour
 
     public TMP_Text logText;
 
+    // login tamamlandıktan sonra true olur
+    private bool _authReady = false;
+
+    private void Start()
+    {
+        // ÖNEMLİ: Burada artık isim kontrolü YAPMIYORUZ.
+        // Panel yalnızca login/register başarıdan sonra kontrol edilecek.
+    }
+
     private void OnEnable()
     {
         if (manager == null) return;
@@ -24,7 +36,13 @@ public class FirebaseLoginHandler : MonoBehaviour
         manager.OnLoginSucceeded += HandleLoginSuccess;
         manager.OnLoginFailed += HandleLoginFail;
         manager.OnRegisterFailed += HandleRegisterFail;
-        // OnRegisterSucceeded dinlemek şart değil; Register -> LoginSucceeded zaten tetikleniyor.
+
+        // Done butonunu garanti bağla (Inspector’dan da bağlayabilirsin)
+        if (setNamePanel != null && setNamePanel.doneButton != null)
+        {
+            setNamePanel.doneButton.onClick.RemoveListener(OnSetNameDone);
+            setNamePanel.doneButton.onClick.AddListener(OnSetNameDone);
+        }
     }
 
     private void OnDisable()
@@ -34,6 +52,9 @@ public class FirebaseLoginHandler : MonoBehaviour
         manager.OnLoginSucceeded -= HandleLoginSuccess;
         manager.OnLoginFailed -= HandleLoginFail;
         manager.OnRegisterFailed -= HandleRegisterFail;
+
+        if (setNamePanel != null && setNamePanel.doneButton != null)
+            setNamePanel.doneButton.onClick.RemoveListener(OnSetNameDone);
     }
 
     void Log(string msg)
@@ -73,22 +94,71 @@ public class FirebaseLoginHandler : MonoBehaviour
     }
 
     // --- Event Handlers ---
-    private void HandleLoginSuccess()
+    private async void HandleLoginSuccess()
     {
         Log("Login success");
-        if (loginPanel != null)
+        _authReady = true;
+
+        // İsim gerekiyor mu?
+        var needs = await NeedsUsernameAsync();
+
+        if (needs)
         {
-            loginPanel.CloseManualLoginPanel();
+            // Login panel açık kalsın, SetName adımı görünsün
+            if (loginPanel != null) loginPanel.gameObject.SetActive(true);
+            if (setNamePanel != null) setNamePanel.Open();
+        }
+        else
+        {
+            // İsim varsa login panel kapanır, ana menüye geçersin
+            if (loginPanel != null) loginPanel.CloseManualLoginPanel();
         }
     }
 
-    private void HandleLoginFail(string msg)
+    private void HandleLoginFail(string msg)   { Log("Login failed: " + msg); }
+    private void HandleRegisterFail(string msg){ Log("Register failed: " + msg); }
+
+    // --- Username kontrolü ---
+    private async Task<bool> NeedsUsernameAsync()
     {
-        Log("Login failed: " + msg);
+        if (setNamePanel == null || editHandler == null) return false;
+
+        // Sadece login SONRASI kontrol edelim
+        if (!_authReady) return false;
+
+        if (setNamePanel.handler == null) setNamePanel.handler = editHandler;
+
+        var data = await editHandler.GetUserDataAsync();
+        return (data == null) || string.IsNullOrWhiteSpace(data.username);
     }
 
-    private void HandleRegisterFail(string msg)
+    // --- Done: username yaz ve paneli kapat ---
+    public async void OnSetNameDone()
     {
-        Log("Register failed: " + msg);
+        if (setNamePanel == null || editHandler == null) return;
+
+        var name = setNamePanel.CurrentName;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            Log("Username cannot be empty");
+            return;
+        }
+
+        if (setNamePanel.doneButton != null)
+            setNamePanel.doneButton.interactable = false;
+
+        bool ok = await editHandler.SetUsernameAsync(name);
+        if (ok)
+        {
+            Log("Username set: " + name);
+            setNamePanel.Close();
+            if (loginPanel != null) loginPanel.CloseManualLoginPanel();
+        }
+        else
+        {
+            Log("Failed to set username");
+            if (setNamePanel.doneButton != null)
+                setNamePanel.doneButton.interactable = true;
+        }
     }
 }

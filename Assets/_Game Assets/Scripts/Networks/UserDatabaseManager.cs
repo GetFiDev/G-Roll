@@ -5,21 +5,7 @@ using UnityEngine;
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
-
-// --- Kullanıcı verisi (tek konteyner) ---
-[FirestoreData]
-public class UserData
-{
-    [FirestoreProperty] public string mail { get; set; } = "";
-    [FirestoreProperty] public string username { get; set; } = "";
-    [FirestoreProperty] public float currency { get; set; } = 0f;
-    [FirestoreProperty] public Timestamp lastLogin { get; set; } = Timestamp.GetCurrentTimestamp();
-    [FirestoreProperty] public bool hasElitePass { get; set; } = false; // opsiyonel alan
-    [FirestoreProperty] public int streak { get; set; } = 0;
-    [FirestoreProperty] public int referrals { get; set; } = 0;
-    [FirestoreProperty] public int rank { get; set; } = 0;
-
-}
+using NetworkingData;
 
 public class UserDatabaseManager : MonoBehaviour
 {
@@ -29,6 +15,8 @@ public class UserDatabaseManager : MonoBehaviour
     public event Action<string> OnRegisterFailed;
     public event Action OnLoginSucceeded;
     public event Action<string> OnLoginFailed;
+    public event Action<UserData> OnUserDataSaved;
+
 
     // Main-thread güvenli dispatch için
     private readonly ConcurrentQueue<Action> _mainThreadQueue = new ConcurrentQueue<Action>();
@@ -52,7 +40,7 @@ public class UserDatabaseManager : MonoBehaviour
             {
                 auth = FirebaseAuth.DefaultInstance;
                 db = FirebaseFirestore.GetInstance(Firebase.FirebaseApp.DefaultInstance, "getfi");
-                
+
                 if (auth.CurrentUser == null)
                 {
                     auth.SignInAnonymouslyAsync().ContinueWithOnMainThread(t =>
@@ -129,28 +117,43 @@ public class UserDatabaseManager : MonoBehaviour
             currentLoggedUserID = currentUser?.UserId;
             EmitLog($"✅ Login succeed, UID: {currentLoggedUserID}");
 
-            var doc = UserDoc();
+            var doc  = UserDoc();
             var snap = await doc.GetSnapshotAsync();
+
+            NetworkingData.UserData userData;
 
             if (!snap.Exists)
             {
-                var data = new UserData
+                // İlk kez giren kullanıcı için default doküman
+                var data = new NetworkingData.UserData
                 {
-                    mail = currentUser?.Email ?? "",
-                    username = "",
-                    currency = 0,
+                    mail      = currentUser?.Email ?? "",
+                    username  = "",
+                    currency  = 0f,
                     lastLogin = Timestamp.GetCurrentTimestamp()
                 };
+
                 await doc.SetAsync(data);
                 EmitLog("ℹ️ User doc created after login (didn't exist)");
+                userData = data; // az önce yazdığımız veri
             }
             else
             {
+                // Sadece lastLogin'i güncelle, sonra güncel veriyi tekrar çek
                 await doc.SetAsync(new { lastLogin = Timestamp.GetCurrentTimestamp() }, SetOptions.MergeAll);
                 EmitLog("✅ lastLogin updated");
+
+                var freshSnap = await doc.GetSnapshotAsync();
+                userData = freshSnap.Exists ? freshSnap.ConvertTo<NetworkingData.UserData>()
+                                            : new NetworkingData.UserData { mail = currentUser?.Email ?? "" };
             }
 
-            EnqueueMain(() => OnLoginSucceeded?.Invoke());
+            // UI'ler login + stat refresh'i aynı frame'de alabilsin
+            EnqueueMain(() =>
+            {
+                OnLoginSucceeded?.Invoke();
+                OnUserDataSaved?.Invoke(userData); // <-- stat view'ler bu event'i dinleyip refresh eder
+            });
         }
         catch (Exception e)
         {
@@ -158,6 +161,7 @@ public class UserDatabaseManager : MonoBehaviour
             EnqueueMain(() => OnLoginFailed?.Invoke(e.Message));
         }
     }
+
 
     // --- LOAD ---
     public async Task<UserData> LoadUserData()
@@ -195,6 +199,7 @@ public class UserDatabaseManager : MonoBehaviour
             else await UserDoc().SetAsync(data);
 
             EmitLog("✅ User data saved");
+            EnqueueMain(() => OnUserDataSaved?.Invoke(data));   // ⬅️ username “Done” sonrası HUD otomatik yenilensin
         }
         catch (Exception e)
         {
