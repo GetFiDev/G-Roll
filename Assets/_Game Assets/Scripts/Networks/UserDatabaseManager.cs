@@ -52,6 +52,23 @@ public class UserDatabaseManager : MonoBehaviour
             {
                 auth = FirebaseAuth.DefaultInstance;
                 db = FirebaseFirestore.GetInstance(Firebase.FirebaseApp.DefaultInstance, "getfi");
+                
+                if (auth.CurrentUser == null)
+                {
+                    auth.SignInAnonymouslyAsync().ContinueWithOnMainThread(t =>
+                    {
+                        if (t.IsCompletedSuccessfully)
+                        {
+                            currentUser = auth.CurrentUser;
+                            EmitLog("✅ Anonymous signed in: " + currentUser?.UserId);
+                        }
+                        else
+                        {
+                            EmitLog("❌ Anonymous sign-in failed: " + t.Exception?.Message);
+                        }
+                    });
+                }
+
                 EmitLog("✅ Firebase ready");
             }
             else
