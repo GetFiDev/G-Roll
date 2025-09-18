@@ -6,28 +6,31 @@ using UnityEngine;
 public class UILoginPanel : MonoBehaviour
 {
     [SerializeField] private CanvasGroup canvasGroup;
-    [SerializeField] private GameObject manuelLoginPanel;
+    [SerializeField] private GameObject loginGroup;
+    [SerializeField] private GameObject registerGroup;
 
-    [SerializeField] private TextMeshProUGUI loginErrorText;
+
+    [SerializeField] private GameObject manuelLoginPanel;
 
     private void Awake()
     {
         gameObject.SetActive(true);
     }
 
-    public void SignInWithGoogleButtonClick()
+    public void ShowRegisterGroup()
     {
-        ShowErrorText();
+        DeactivateAllLoginGroups();
+        registerGroup.SetActive(true);
     }
-
-    public void SignInWithAppleButtonClick()
+    public void ShowLoginGroup()
     {
-        ShowErrorText();
+        DeactivateAllLoginGroups();
+        loginGroup.SetActive(true);
     }
-
-    public void ShowManuelLoginPanelButtonClick()
+    public void DeactivateAllLoginGroups()
     {
-        manuelLoginPanel.SetActive(true);
+        loginGroup.SetActive(false);
+        registerGroup.SetActive(false);
     }
 
     public void ManuelLoginButtonClick()
@@ -37,11 +40,11 @@ public class UILoginPanel : MonoBehaviour
             .OnComplete(() => gameObject.SetActive(false));
     }
 
-    private void ShowErrorText()
+    public void ShowManuelLoginPanelButtonClick()
     {
-        loginErrorText.DOKill();
-
-        loginErrorText.color = Color.red;
-        loginErrorText.DOFade(0, .5f).SetDelay(.5f).SetEase(Ease.OutCubic);
+        DeactivateAllLoginGroups();
+        ShowLoginGroup();
+        manuelLoginPanel.SetActive(true);
     }
+
 }
