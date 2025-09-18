@@ -10,21 +10,27 @@ using System.Threading.Tasks;
 [FirestoreData]
 public class UserData
 {
-    [FirestoreProperty] public string    mail       { get; set; } = "";
-    [FirestoreProperty] public string    username   { get; set; } = "";
-    [FirestoreProperty] public long      currency   { get; set; } = 0;
-    [FirestoreProperty] public Timestamp lastLogin  { get; set; } = Timestamp.GetCurrentTimestamp();
+    [FirestoreProperty] public string mail { get; set; } = "";
+    [FirestoreProperty] public string username { get; set; } = "";
+    [FirestoreProperty] public float currency { get; set; } = 0f;
+    [FirestoreProperty] public Timestamp lastLogin { get; set; } = Timestamp.GetCurrentTimestamp();
+    [FirestoreProperty] public bool hasElitePass { get; set; } = false; // opsiyonel alan
+    [FirestoreProperty] public int streak { get; set; } = 0;
+    [FirestoreProperty] public int referrals { get; set; } = 0;
+    [FirestoreProperty] public int rank { get; set; } = 0;
 
-    // Yarın ekleyeceğin alanlar sadece buraya property olarak gelsin:
-    // [FirestoreProperty] public bool hasElitePass { get; set; } = false;
 }
 
 public class UserDatabaseManager : MonoBehaviour
 {
-    // --- Basit Log Event ---
+    // --- Log & Durum Event'leri ---
     public event Action<string> OnLog;
+    public event Action OnRegisterSucceeded;
+    public event Action<string> OnRegisterFailed;
+    public event Action OnLoginSucceeded;
+    public event Action<string> OnLoginFailed;
 
-    // Main-thread güvenli event dispatch için kuyruk
+    // Main-thread güvenli dispatch için
     private readonly ConcurrentQueue<Action> _mainThreadQueue = new ConcurrentQueue<Action>();
     private void EnqueueMain(Action a) { if (a != null) _mainThreadQueue.Enqueue(a); }
     private void Update() { while (_mainThreadQueue.TryDequeue(out var a)) a?.Invoke(); }
@@ -33,6 +39,8 @@ public class UserDatabaseManager : MonoBehaviour
     private FirebaseAuth auth;
     private FirebaseUser currentUser;
     private FirebaseFirestore db;
+
+    [Sirenix.OdinInspector.ReadOnly] public string currentLoggedUserID;
 
     void Start() => InitializeFirebase();
 
@@ -62,22 +70,33 @@ public class UserDatabaseManager : MonoBehaviour
         {
             var r = await auth.CreateUserWithEmailAndPasswordAsync(email, password);
             currentUser = r.User;
-            EmitLog($"✅ Register Successful, UID: {currentUser.UserId}");
+            currentLoggedUserID = currentUser?.UserId;
+            EmitLog($"✅ Register Successful, UID: {currentLoggedUserID}");
 
+            // Default user doc
             var data = new UserData
             {
-                mail      = currentUser.Email ?? "",
-                username  = "",
-                currency  = 0,
+                mail = currentUser?.Email ?? "",
+                username = "",
+                currency = 0,
                 lastLogin = Timestamp.GetCurrentTimestamp()
             };
 
-            await UserDoc().SetAsync(data); // tam doküman yaz
+            await UserDoc().SetAsync(data); // dokümanı oluştur
             EmitLog("✅ Created user doc with defaults");
+
+            // Firebase CreateUser sonrası zaten login olmuş durumdasın:
+            // UI'lar aynı akışı kullansın diye login succeeded event'i yayınlıyoruz.
+            EnqueueMain(() =>
+            {
+                OnRegisterSucceeded?.Invoke();
+                OnLoginSucceeded?.Invoke(); // UI kapanması için tetik
+            });
         }
         catch (Exception e)
         {
             EmitLog("❌ Register error: " + e.Message);
+            EnqueueMain(() => OnRegisterFailed?.Invoke(e.Message));
         }
     }
 
@@ -90,7 +109,8 @@ public class UserDatabaseManager : MonoBehaviour
         {
             var r = await auth.SignInWithEmailAndPasswordAsync(email, password);
             currentUser = r.User;
-            EmitLog($"✅ Login succeed, UID: {currentUser.UserId}");
+            currentLoggedUserID = currentUser?.UserId;
+            EmitLog($"✅ Login succeed, UID: {currentLoggedUserID}");
 
             var doc = UserDoc();
             var snap = await doc.GetSnapshotAsync();
@@ -99,9 +119,9 @@ public class UserDatabaseManager : MonoBehaviour
             {
                 var data = new UserData
                 {
-                    mail      = currentUser.Email ?? "",
-                    username  = "",
-                    currency  = 0,
+                    mail = currentUser?.Email ?? "",
+                    username = "",
+                    currency = 0,
                     lastLogin = Timestamp.GetCurrentTimestamp()
                 };
                 await doc.SetAsync(data);
@@ -112,10 +132,13 @@ public class UserDatabaseManager : MonoBehaviour
                 await doc.SetAsync(new { lastLogin = Timestamp.GetCurrentTimestamp() }, SetOptions.MergeAll);
                 EmitLog("✅ lastLogin updated");
             }
+
+            EnqueueMain(() => OnLoginSucceeded?.Invoke());
         }
         catch (Exception e)
         {
             EmitLog("❌ Login error: " + e.Message);
+            EnqueueMain(() => OnLoginFailed?.Invoke(e.Message));
         }
     }
 
@@ -133,7 +156,7 @@ public class UserDatabaseManager : MonoBehaviour
                 return null;
             }
 
-            var data = snap.ConvertTo<UserData>(); // Eksik alanlar property defaultlarına düşer
+            var data = snap.ConvertTo<UserData>(); // Eksikler property defaultlarına düşer
             EmitLog("✅ User data loaded");
             return data;
         }
@@ -152,7 +175,7 @@ public class UserDatabaseManager : MonoBehaviour
         try
         {
             if (merge) await UserDoc().SetAsync(data, SetOptions.MergeAll);
-            else       await UserDoc().SetAsync(data);
+            else await UserDoc().SetAsync(data);
 
             EmitLog("✅ User data saved");
         }
@@ -171,6 +194,47 @@ public class UserDatabaseManager : MonoBehaviour
     private void EmitLog(string msg)
     {
         Debug.Log(msg);
-        EnqueueMain(() => OnLog?.Invoke(msg)); // UI güvenli: main thread’e taşır
+        EnqueueMain(() => OnLog?.Invoke(msg)); // UI güvenli
     }
+
+    public async Task<float> GetCurrencyAsync()
+{
+    if (currentUser == null) { EmitLog("❌ No Login"); return 0f; }
+
+    try
+    {
+        var snap = await UserDoc().GetSnapshotAsync();
+        if (!snap.Exists)
+        {
+            EmitLog("⚠️ User doc not found");
+            return 0f;
+        }
+
+        var data = snap.ConvertTo<UserData>();
+        if (data != null) return data.currency;
+
+        // İhtiyaten sözlükten okuma (eski kayıtlar int/double olabilir)
+        var dict = snap.ToDictionary();
+        if (dict != null && dict.TryGetValue("currency", out var v))
+        {
+            if (v is float f)   return f;
+            if (v is double d)  return (float)d;
+            if (v is long l)    return (float)l;
+            if (v is int i)     return i;
+            if (v is string s && float.TryParse(s,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                return parsed;
+        }
+
+        EmitLog("ℹ️ 'currency' not set, returning 0");
+        return 0f;
+    }
+    catch (Exception e)
+    {
+        EmitLog("❌ GetCurrency error: " + e.Message);
+        return 0f;
+    }
+}
+
 }

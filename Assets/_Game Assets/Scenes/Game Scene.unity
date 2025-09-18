@@ -307,6 +307,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b22c14ac8c8b34a148c47478e5fd17de, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  currentLoggedUserID: 
 --- !u!4 &109920472
 Transform:
   m_ObjectHideFlags: 0
@@ -710,6 +711,51 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &515607530
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 515607532}
+  - component: {fileID: 515607531}
+  m_Layer: 0
+  m_Name: FirestoreRemoteFetcher
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &515607531
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515607530}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b22c14ac8c8b34a148c47478e5fd17de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  currentLoggedUserID: 
+--- !u!4 &515607532
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515607530}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 488.14722, y: 1449.8768, z: -1.0751584}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &569595528
 GameObject:
   m_ObjectHideFlags: 0
@@ -16447,6 +16493,7 @@ GameObject:
   - component: {fileID: 6054384755369742814}
   - component: {fileID: 5204135860047574342}
   - component: {fileID: 2338010640923698805}
+  - component: {fileID: 6054384755369742815}
   m_Layer: 5
   m_Name: UserStatView
   m_TagString: Untagged
@@ -64258,6 +64305,23 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1337317357403133963}
   m_CullTransparentMesh: 1
+--- !u!114 &6054384755369742815
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1337317357403133963}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02a696e13fa2a4695bcc215e38e2f8cc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  userDB: {fileID: 109920471}
+  currencyStatTMP: {fileID: 8559084053421876514}
+  referralStatTMP: {fileID: 8373025213226649248}
+  streakStatTMP: {fileID: 4210534044816789872}
+  rankingStatTMP: {fileID: 8775581818143843701}
 --- !u!224 &6055612811556835344
 RectTransform:
   m_ObjectHideFlags: 0
@@ -65515,6 +65579,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   manager: {fileID: 109920471}
+  loginPanel: {fileID: 2550678548139434168}
   registerEmailInput: {fileID: 970528850622483255}
   registerPasswordInput: {fileID: 3763432973518079453}
   registerSecondPasswordInput: {fileID: 2251003872413474714}
@@ -100148,3 +100213,4 @@ SceneRoots:
   - {fileID: 146125288}
   - {fileID: 592078666}
   - {fileID: 109920472}
+  - {fileID: 515607532}

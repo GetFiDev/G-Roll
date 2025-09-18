@@ -33,7 +33,7 @@ public class UILoginPanel : MonoBehaviour
         registerGroup.SetActive(false);
     }
 
-    public void ManuelLoginButtonClick()
+    public void CloseManualLoginPanel()
     {
         canvasGroup.DOKill();
         canvasGroup.DOFade(0, 0.25f).SetDelay(.75f).SetEase(Ease.OutCubic)
