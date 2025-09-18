@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro;
 
-public class FirebaseTestUI : MonoBehaviour
+public class FirebaseLoginHandler : MonoBehaviour
 {
     public UserDatabaseManager manager;
 

@@ -14,9 +14,7 @@ public class AppManager : MonoSingleton<AppManager>
     }
 
     private void Start()
-    {
-        FirebaseManager.Initialize();
-        
+    {        
         ReviewManager.Initialize();
         HapticManager.Initialize();
         AnalyticsManager.Initialize();
