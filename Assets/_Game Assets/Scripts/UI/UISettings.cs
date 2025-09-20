@@ -7,9 +7,7 @@ public class UISettings : MonoBehaviour
     [SerializeField] private ToggleButton hapticToggle;
     [SerializeField] private ToggleButton soundToggle;
     [SerializeField] private ToggleButton musicToggle;
-    
-    public const bool IsSoundToggleAlsoEffectTheMusicSettings = false;
-    
+        
     private void Start()
     {
         hapticToggle.SetValue(DataManager.Vibration);
@@ -32,8 +30,6 @@ public class UISettings : MonoBehaviour
     public void OnSoundToggled(bool value)
     {
         DataManager.Sound = value;
-        if (IsSoundToggleAlsoEffectTheMusicSettings)
-            DataManager.Music = value;
         
         GameManager.Instance.audioManager.UpdateAudioStates();
     }

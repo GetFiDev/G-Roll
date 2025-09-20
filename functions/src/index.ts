@@ -351,3 +351,167 @@ export const applyReferralCode = onCall(async (req) => {
   const result = await applyReferralCodeToUser(uid, code);
   return result;
 });
+
+/**
+ * Auth'lu kullanıcının "referredByUid == me" olan kullanıcılarını listeler.
+ * İsteğe bağlı: includeEarnings=true ise, users/{me}/referralsChildren/{child}
+ * doc'undan earnedTotal'ı da (varsa) ekler. Yoksa 0 döner.
+ * NOT: Büyük listeler için sayfalama eklenebilir; burada limit parametresi var.
+ */
+export const listReferredUsers = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const limit = Math.max(1, Math.min(Number(req.data?.limit ?? 100), 500));
+  const includeEarnings = !!req.data?.includeEarnings;
+
+  const usersCol = db.collection("users");
+
+  const mapDoc = async (doc: FirebaseFirestore.DocumentSnapshot) => {
+    const d = doc.data() || {};
+    const childUid = doc.id;
+    const username =
+      (typeof d.username === "string" ? d.username : "").trim() || "Guest";
+    const currency = typeof d.currency === "number" ? d.currency : 0;
+
+    const createdAt = (
+      d.createdAt as Timestamp | undefined
+    )?.toDate()?.toISOString() ?? null;
+    const referralAppliedAt = (
+      d.referralAppliedAt as Timestamp | undefined
+    )?.toDate()?.toISOString() ?? null;
+
+    let earnedTotal = 0;
+    if (includeEarnings) {
+      const rcRef = usersCol
+        .doc(uid)
+        .collection("referralsChildren")
+        .doc(childUid);
+      const rcSnap = await rcRef.get();
+      if (rcSnap.exists) {
+        const et = rcSnap.get("earnedTotal");
+        earnedTotal = typeof et === "number" ? et : 0;
+      }
+    }
+
+    return {
+      uid: childUid,
+      username,
+      currency,
+      createdAt,
+      referralAppliedAt,
+      earnedTotal,
+    };
+  };
+
+  try {
+    const q = usersCol
+      .where("referredByUid", "==", uid)
+      .orderBy("createdAt", "desc")
+      .limit(limit);
+
+    const snap = await q.get();
+    const items = await Promise.all(snap.docs.map(mapDoc));
+    return {ok: true, sorted: true, items};
+  } catch (err: any) {
+    const msg = String(err?.message ?? "");
+    const needsIndex = err?.code === 9 || /index/i.test(msg);
+    if (!needsIndex) {
+      console.error("listReferredUsers error:", err);
+      throw new HttpsError("internal", "Query failed.");
+    }
+
+    // Fallback: same filter without orderBy (no composite index needed)
+    try {
+      const snap = await usersCol
+        .where("referredByUid", "==", uid)
+        .limit(limit)
+        .get();
+      const items = await Promise.all(snap.docs.map(mapDoc));
+      return {
+        ok: true,
+        sorted: false,
+        note:
+          "Add composite index on users: referredByUid ASC, createdAt DESC (database 'getfi') to enable sorted results.",
+        items,
+      };
+    } catch (e2: any) {
+      console.error("listReferredUsers fallback error:", e2);
+      throw new HttpsError("internal", "Query failed (fallback).");
+    }
+  }
+});
+
+export const getGalleryItems = onCall(async (req) => {
+  const collectionPath =
+    (req.data?.collectionPath as string) ||
+    "appdata/galleryitems/itemdata";
+
+  let ids: string[] = Array.isArray(req.data?.ids)
+    ? req.data.ids.slice(0, 10).map((x: any) => String(x))
+    : ["galleryview_1", "galleryview_2", "galleryview_3"];
+
+  if (!collectionPath.startsWith("appdata/")) {
+    throw new HttpsError("permission-denied", "Invalid collectionPath");
+  }
+
+  const pickString = (obj: Record<string, any>, keys: string[]): string => {
+    for (const k of keys) {
+      const v = obj?.[k];
+      if (typeof v === "string" && v.trim().length > 0) return v;
+    }
+    return "";
+  };
+
+  try {
+    const col = db.collection(collectionPath);
+    const snaps = await Promise.all(ids.map((id) => col.doc(id).get()));
+
+    const items = snaps
+      .filter((s) => s.exists)
+      .map((s) => {
+        const d = s.data() || {};
+
+        // Çoklu isim varyasyonları:
+        const pngUrl = pickString(d, [
+          "png_url",
+          "pngUrl",
+          "image_url",
+          "imageUrl",
+          "url",
+        ]);
+
+        const descriptionText = pickString(d, [
+          "description_text",
+          "descriptionText",
+          "desc",
+          "text",
+        ]);
+
+        const guidanceKey = pickString(d, [
+          "guidance_string_key",
+          "guidanceKey",
+          "guidance",
+          "action",
+        ]);
+
+        // Sunucu logu (debug)
+        console.log(
+          `[getGalleryItems] ${s.id} pngUrl='${pngUrl}' guidance='${guidanceKey}' descLen=${descriptionText.length}`
+        );
+
+        return {
+          id: s.id,
+          pngUrl,
+          descriptionText,
+          guidanceKey,
+        };
+      });
+
+    return {ok: true, items};
+    
+  } catch (e) {
+    console.error("getGalleryItems error:", e);
+    throw new HttpsError("internal", "Failed to fetch gallery items.");
+  }
+});

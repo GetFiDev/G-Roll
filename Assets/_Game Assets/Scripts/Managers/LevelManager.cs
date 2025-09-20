@@ -12,9 +12,9 @@ public class LevelManager : MonoBehaviour
 
     public LevelManager Initialize()
     {
-        if (FindObjectOfType<LevelController>())
+        if (FindAnyObjectByType<LevelController>())
         {
-            currentLevel = FindObjectOfType<LevelController>()?.Initialize();
+            currentLevel = FindAnyObjectByType<LevelController>()?.Initialize();
             
             Debug.LogWarning("Level Initialized From Scene !".LogColor(Color.yellow), this);
             return this;

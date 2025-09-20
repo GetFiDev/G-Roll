@@ -27,8 +27,8 @@ public class CameraResizer : MonoBehaviour
     {
         return;
         
-        orthographicCamera ??= GetComponent<Camera>();
-        ResizeCamera();
+        //orthographicCamera ??= GetComponent<Camera>();
+        //ResizeCamera();
     }
 #endif
 }

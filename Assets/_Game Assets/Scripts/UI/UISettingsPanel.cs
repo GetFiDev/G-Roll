@@ -16,8 +16,6 @@ public class UISettingsPanel : MonoBehaviour
     public void OnSoundToggled(bool value)
     {
         DataManager.Sound = value;
-        if (UISettings.IsSoundToggleAlsoEffectTheMusicSettings)
-            DataManager.Music = value;
         
         GameManager.Instance.audioManager.UpdateAudioStates();
     }

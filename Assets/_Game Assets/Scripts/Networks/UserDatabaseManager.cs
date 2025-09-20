@@ -259,6 +259,86 @@ public class UserDatabaseManager : MonoBehaviour
         }
     }
 
+    public async Task<System.Collections.Generic.List<NetworkingData.ReferredUser>>
+        ListMyReferredUsersAsync(int limit = 100, bool includeEarnings = true)
+    {
+        var result = new System.Collections.Generic.List<NetworkingData.ReferredUser>();
+
+        if (_funcs == null)
+        {
+            EmitLog("❌ Functions null");
+            return result;
+        }
+
+        try
+        {
+            var payload = new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "limit", limit },
+                { "includeEarnings", includeEarnings }
+            };
+
+            var callable = _funcs.GetHttpsCallable("listReferredUsers");
+            var resp = await callable.CallAsync(payload);
+
+            if (resp?.Data is System.Collections.IDictionary root &&
+                root.Contains("items") &&
+                root["items"] is System.Collections.IList arr)
+            {
+                foreach (var it in arr)
+                {
+                    if (it is System.Collections.IDictionary d)
+                    {
+                        string uid = d.Contains("uid") ? d["uid"] as string : "";
+                        string username = d.Contains("username") ? d["username"] as string : "Guest";
+
+                        float currency = 0f;
+                        if (d.Contains("currency"))
+                        {
+                            var _c = d["currency"];
+                            if (_c is double dd) currency = (float)dd;
+                            else if (_c is long ll) currency = ll;
+                            else if (_c is int ii) currency = ii;
+                            else if (_c is float ff) currency = ff;
+                            else if (_c is string ss && float.TryParse(ss, out var parsed)) currency = parsed;
+                        }
+
+                        float earned = 0f;
+                        if (d.Contains("earnedTotal"))
+                        {
+                            var _e = d["earnedTotal"];
+                            if (_e is double d2) earned = (float)d2;
+                            else if (_e is long l2) earned = l2;
+                            else if (_e is int i2) earned = i2;
+                            else if (_e is float f2) earned = f2;
+                            else if (_e is string s2 && float.TryParse(s2, out var p2)) earned = p2;
+                        }
+
+                        string createdAtIso = d.Contains("createdAt") ? d["createdAt"] as string : null;
+                        string referralAppliedIso = d.Contains("referralAppliedAt") ? d["referralAppliedAt"] as string : null;
+
+                        result.Add(new NetworkingData.ReferredUser
+                        {
+                            uid = uid,
+                            username = string.IsNullOrWhiteSpace(username) ? "Guest" : username,
+                            currency = currency,
+                            earnedTotal = earned,
+                            createdAtIso = createdAtIso,
+                            referralAppliedAtIso = referralAppliedIso
+                        });
+                    }
+                }
+            }
+
+            EmitLog($"✅ listReferredUsers: {result.Count} items");
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ listReferredUsers error: " + e.Message);
+        }
+
+        return result;
+    }
     // --- Helpers ---
     private DocumentReference UserDoc()
     {
@@ -344,7 +424,7 @@ public class UserDatabaseManager : MonoBehaviour
         }
         return list;
     }
-    
+
     private async Task EnsureUserProfileAsync(string referralCode = null)
     {
         if (_funcs == null) return;
@@ -364,4 +444,39 @@ public class UserDatabaseManager : MonoBehaviour
         }
     }
 
+    public async Task<float> FetchMyReferralEarningsAsync()
+    {
+        if (currentUser == null) { EmitLog("❌ No Login"); return 0f; }
+        try
+        {
+            var s = await UserDoc().GetSnapshotAsync();
+            if (!s.Exists) return 0f;
+
+            if (s.TryGetValue("referralEarnings", out object v))
+            {
+                if (v is double d) return (float)d;
+                if (v is long   l) return (float)l;
+                if (v is int    i) return i;
+                if (v is float  f) return f;
+                if (v is string s2 && float.TryParse(s2, out var p)) return p;
+            }
+        }
+        catch (Exception e) { EmitLog("❌ FetchMyReferralEarningsAsync error: " + e.Message); }
+        return 0f;
+    }
+
+    public async Task<string> GetReferralKeyAsync()
+    {
+        if (currentUser == null) return "-";
+        try
+        {
+            var s = await UserDoc().GetSnapshotAsync();
+            if (!s.Exists) return "-";
+
+            if (s.TryGetValue("referralKey", out string key) && !string.IsNullOrEmpty(key)) return key;
+            if (s.TryGetValue("referralKey", out object v) && v is string k && !string.IsNullOrEmpty(k)) return k;
+        }
+        catch (Exception e) { EmitLog("❌ GetReferralKeyAsync error: " + e.Message); }
+        return "-";
+    }
 }

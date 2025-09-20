@@ -15,7 +15,7 @@ public abstract class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T
             if (_mInstance != null)
                 return _mInstance;
 
-            _mInstance = FindObjectOfType(typeof(T)) as T;
+            _mInstance = FindAnyObjectByType(typeof(T)) as T;
 
             // Object not found, we create a temporary one
             if (_mInstance == null)

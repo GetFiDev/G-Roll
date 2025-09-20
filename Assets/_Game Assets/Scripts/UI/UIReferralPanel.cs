@@ -1,15 +1,88 @@
-using DG.Tweening;
+using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 
 public class UIReferralPanel : MonoBehaviour
 {
-    [SerializeField] private CanvasGroup referralCodeModal;
-    
-    public void OnCopyCodeButtonClick()
+    [Header("Refs")] public ReferralManager manager;
+
+    [Header("List UI")]
+    public Transform listParent;          // VerticalLayout
+    public UIReferralDisplay itemPrefab;  // one per referred user
+    public GameObject loadingPanel;
+
+    // Race-condition guard for fast open/close or multiple refresh calls
+    private int _refreshSeq = 0;
+
+    private void OnEnable()
     {
-        referralCodeModal.DOKill();
-        
-        referralCodeModal.alpha = 1;
-        referralCodeModal.DOFade(0, .5f).SetDelay(1f).SetEase(Ease.OutCubic);
+        StartRefresh();
+    }
+
+    private void OnDisable()
+    {
+        // Hide loader when panel is disabled
+        ShowLoading(false);
+        // Bump sequence so any in-flight RefreshAsync won't touch UI after disable
+        _refreshSeq++;
+    }
+
+    /// <summary>
+    /// Public entry to (re)load the list. Safe to call multiple times.
+    /// </summary>
+    public void StartRefresh()
+    {
+        int token = ++_refreshSeq;
+        _ = RefreshAsync(token);
+    }
+
+    private void ShowLoading(bool on)
+    {
+        if (loadingPanel && loadingPanel.activeSelf != on)
+            loadingPanel.SetActive(on);
+    }
+
+    private async Task RefreshAsync(int token)
+    {
+        // Open loader immediately
+        ShowLoading(true);
+
+        if (manager == null)
+        {
+            // Close loader only if still the latest refresh
+            if (_refreshSeq == token) ShowLoading(false);
+            return;
+        }
+
+        try
+        {
+            await manager.RefreshCacheAsync(100, includeEarnings: true);
+
+            // If a newer refresh started meanwhile, abort UI updates
+            if (_refreshSeq != token) return;
+
+            // clear old items
+            if (listParent)
+            {
+                for (int i = listParent.childCount - 1; i >= 0; i--)
+                    Destroy(listParent.GetChild(i).gameObject);
+            }
+
+            var items = manager.Cached;
+            if (items != null && items.Count > 0)
+            {
+                foreach (var r in items)
+                {
+                    if (!itemPrefab || !listParent) break;
+                    var go = Instantiate(itemPrefab, listParent);
+                    go.Set(r.username, r.earnedTotal);
+                }
+            }
+        }
+        finally
+        {
+            // Close loader only if this is still the latest refresh
+            if (_refreshSeq == token) ShowLoading(false);
+        }
     }
 }

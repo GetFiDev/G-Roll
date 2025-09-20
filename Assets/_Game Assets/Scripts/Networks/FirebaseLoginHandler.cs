@@ -22,11 +22,16 @@ public class FirebaseLoginHandler : MonoBehaviour
 
     public TMP_Text logText;
 
+    [Header("Loading")]
+    public GameObject loginLoadingPanel; // Spinner panel (no text)
+
     // login tamamlandıktan sonra true olur
     private bool _authReady = false;
 
     private void Start()
     {
+        // Başlangıçta loader kapalı
+        SetLoading(false);
         // ÖNEMLİ: Burada artık isim kontrolü YAPMIYORUZ.
         // Panel yalnızca login/register başarıdan sonra kontrol edilecek.
     }
@@ -57,12 +62,20 @@ public class FirebaseLoginHandler : MonoBehaviour
 
         if (setNamePanel != null && setNamePanel.doneButton != null)
             setNamePanel.doneButton.onClick.RemoveListener(OnSetNameDone);
+
+        SetLoading(false);
     }
 
     void Log(string msg)
     {
         Debug.Log("[UI] " + msg);
         if (logText != null) logText.text = msg;
+    }
+
+    private void SetLoading(bool on)
+    {
+        if (loginLoadingPanel && loginLoadingPanel.activeSelf != on)
+            loginLoadingPanel.SetActive(on);
     }
 
     // --- UI Callbacks ---
@@ -76,6 +89,7 @@ public class FirebaseLoginHandler : MonoBehaviour
 
         if (registerPasswordInput.text == registerSecondPasswordInput.text)
         {
+            SetLoading(true);
             manager.Register(registerEmailInput.text, registerPasswordInput.text,referralCodeInput.text);
         }
         else
@@ -92,12 +106,14 @@ public class FirebaseLoginHandler : MonoBehaviour
             return;
         }
 
+        SetLoading(true);
         manager.Login(loginEmailInput.text, loginPasswordInput.text);
     }
 
     // --- Event Handlers ---
     private async void HandleLoginSuccess()
     {
+        SetLoading(false);
         Log("Login success");
         _authReady = true;
 
@@ -117,8 +133,16 @@ public class FirebaseLoginHandler : MonoBehaviour
         }
     }
 
-    private void HandleLoginFail(string msg)   { Log("Login failed: " + msg); }
-    private void HandleRegisterFail(string msg){ Log("Register failed: " + msg); }
+    private void HandleLoginFail(string msg)
+    {
+        SetLoading(false);
+        Log("Login failed: " + msg);
+    }
+    private void HandleRegisterFail(string msg)
+    {
+        SetLoading(false);
+        Log("Register failed: " + msg);
+    }
 
     // --- Username kontrolü ---
     private async Task<bool> NeedsUsernameAsync()
