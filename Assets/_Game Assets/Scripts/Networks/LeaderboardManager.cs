@@ -14,8 +14,9 @@ public class LeaderboardManager : MonoBehaviour
 
     // Cache (sadece bu sınıf yazar)
     public List<LBEntry> TopCached { get; private set; } = new();
-    public string MyRankText { get; private set; } = ""; // ilk 50’de değilse ""
+    public string MyUsername { get; private set; } = "Guest";
     public int    MyScore    { get; private set; } = 0;
+    public string MyRankText { get; private set; } = "";   // ilk 50’de değilse boş kalsın
 
     public event Action OnCacheUpdated;
 
@@ -52,25 +53,27 @@ public class LeaderboardManager : MonoBehaviour
     {
         if (userDB == null) return;
 
-        // ➋ await ile UserData çek
+        // 1) Kendi verin
         UserData me = await userDB.LoadUserData();
-        MyScore = me?.score ?? 0;
+        MyUsername = string.IsNullOrWhiteSpace(me?.username) ? "Guest" : me.username;
+        MyScore    = me?.score ?? 0;
 
-        // ➌ await ile TopN fetch
+        // 2) TopN
         List<LBEntry> top = await userDB.FetchLeaderboardTopAsync(topN);
         TopCached = top ?? new List<LBEntry>();
 
-        // ➍ rank hesapla (ilk 50’de değilse boş metin)
+        // 3) Sıralama (ilk 50’de değilse boş kalsın)
         MyRankText = "";
         var myUid = userDB.currentLoggedUserID;
         if (!string.IsNullOrEmpty(myUid))
         {
             int idx = TopCached.FindIndex(e => e.uid == myUid);
-            if (idx >= 0) MyRankText = (idx + 1).ToString();
+            if (idx >= 0) MyRankText = (idx + 1).ToString(); // 1-based
         }
 
         OnCacheUpdated?.Invoke();
     }
+
 
     public void ManualRefresh()
     {
