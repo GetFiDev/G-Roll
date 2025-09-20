@@ -1304,7 +1304,7 @@ GameObject:
   - component: {fileID: 254790392}
   - component: {fileID: 254790395}
   - component: {fileID: 254790394}
-  - component: {fileID: 254790393}
+  - component: {fileID: 254790396}
   m_Layer: 5
   m_Name: AutoPilotInfoPanel
   m_TagString: Untagged
@@ -1332,18 +1332,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &254790393
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 254790391}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 77f80986fe42b4672bd4cf6d98f6011b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &254790394
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1382,6 +1370,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 254790391}
   m_CullTransparentMesh: 1
+--- !u!114 &254790396
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 254790391}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3bf804b807dda4ff09a711a50410c35a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &280772486
 GameObject:
   m_ObjectHideFlags: 0
@@ -4754,7 +4754,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1279289875}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 7749307218173998934}
+        m_TargetAssemblyTypeName: UIMainMenu, Assembly-CSharp
+        m_MethodName: OnAutoPilotInfoButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1279289875
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6965,7 +6977,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1965872534}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 7749307218173998934}
+        m_TargetAssemblyTypeName: UIMainMenu, Assembly-CSharp
+        m_MethodName: OnElitePassButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1965872534
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7017,7 +7041,7 @@ GameObject:
   - component: {fileID: 1992809713}
   - component: {fileID: 1992809712}
   m_Layer: 5
-  m_Name: Purchase_IAP
+  m_Name: GetElitePass
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7086,7 +7110,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1992809713}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 7749307218173998934}
+        m_TargetAssemblyTypeName: UIMainMenu, Assembly-CSharp
+        m_MethodName: OnElitePassButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1992809713
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22345,7 +22381,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 3669744198191949906}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 7749307218173998934}
+        m_TargetAssemblyTypeName: UIMainMenu, Assembly-CSharp
+        m_MethodName: OnElitePassButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &1510572256347711940
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -48921,7 +48969,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &4229962968201572694
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -60364,7 +60412,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 36812146931755861}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 7749307218173998934}
+        m_TargetAssemblyTypeName: UIMainMenu, Assembly-CSharp
+        m_MethodName: OnAutoPilotInfoButtonClick
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &5535984490489238173
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -85191,8 +85251,8 @@ RectTransform:
   - {fileID: 1391068693805995894}
   - {fileID: 5575397251749575416}
   - {fileID: 2701452920409628945}
-  - {fileID: 1366057406}
   - {fileID: 254790392}
+  - {fileID: 1366057406}
   - {fileID: 1300527896742923053}
   - {fileID: 7074510444522127089}
   m_Father: {fileID: 7749307217227116382}
@@ -85268,6 +85328,8 @@ MonoBehaviour:
   rankingPanel: {fileID: 6603964987481214888}
   TaskPanel: {fileID: 6042210443479384946}
   profilePanel: {fileID: 8928828888345399237}
+  autoPilotpanel: {fileID: 254790396}
+  elitePassPanel: {fileID: 1366057407}
   topPanel: {fileID: 4222041482128493025}
   bottomPanel: {fileID: 8868744627416072268}
 --- !u!114 &7749307218173998935

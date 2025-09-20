@@ -13,6 +13,9 @@ public class UIMainMenu : MonoBehaviour
     [SerializeField] private UIRankingPanel rankingPanel;
     [SerializeField] private UITaskPanel TaskPanel;
     [SerializeField] private UIProfilePanel profilePanel;
+    [SerializeField] private UIAutoPilotPanel autoPilotpanel;
+    [SerializeField] private UIElitePassPanel elitePassPanel;
+
 
 
     [Header("Elements")]
@@ -21,7 +24,7 @@ public class UIMainMenu : MonoBehaviour
 
     public enum PanelType
     {
-        Home, Settings, Shop, Referral, Customization, Ranking, Task, Profile
+        Home, Settings, Shop, Referral, Customization, Ranking, Task, Profile, ElitePass, AutoPilot
     }
 
     private Dictionary<PanelType, GameObject> panels;
@@ -37,7 +40,10 @@ public class UIMainMenu : MonoBehaviour
             { PanelType.Customization, customizationPanel.gameObject },
             { PanelType.Ranking, rankingPanel.gameObject },
             { PanelType.Task, TaskPanel.gameObject },
-            { PanelType.Profile, profilePanel.gameObject }
+            { PanelType.Profile, profilePanel.gameObject },
+            { PanelType.ElitePass, elitePassPanel.gameObject },
+            { PanelType.AutoPilot, autoPilotpanel.gameObject }
+
         };
     }
 
@@ -47,6 +53,15 @@ public class UIMainMenu : MonoBehaviour
             panel.SetActive(false);
 
         panels[type].SetActive(true);
+    }
+    public void TogglePanel(PanelType type)
+    {
+        if (panels[type].activeSelf) {
+            panels[type].SetActive(false);
+        }
+        else {
+            panels[type].SetActive(true);
+        };
     }
 
     public void OnReferralsPanelClick()
@@ -61,5 +76,13 @@ public class UIMainMenu : MonoBehaviour
         topPanel.ChangeAllColorToDefault();
         bottomPanel.ChangeAllColorToDefault();
         ShowPanel(PanelType.Task);
+    }
+    public void OnElitePassButtonClick()
+    {
+        TogglePanel(PanelType.ElitePass);
+    }
+    public void OnAutoPilotInfoButtonClick()
+    {
+        TogglePanel(PanelType.AutoPilot);
     }
 }
