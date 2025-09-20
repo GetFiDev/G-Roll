@@ -14,6 +14,8 @@ public class FirebaseLoginHandler : MonoBehaviour
     public TMP_InputField registerEmailInput;
     public TMP_InputField registerPasswordInput;
     public TMP_InputField registerSecondPasswordInput;
+    public TMP_InputField referralCodeInput;
+
 
     public TMP_InputField loginEmailInput;
     public TMP_InputField loginPasswordInput;
@@ -74,7 +76,7 @@ public class FirebaseLoginHandler : MonoBehaviour
 
         if (registerPasswordInput.text == registerSecondPasswordInput.text)
         {
-            manager.Register(registerEmailInput.text, registerPasswordInput.text);
+            manager.Register(registerEmailInput.text, registerPasswordInput.text,referralCodeInput.text);
         }
         else
         {

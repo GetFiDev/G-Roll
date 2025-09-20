@@ -20,7 +20,9 @@ public class UserDataEditHandler : MonoBehaviour
 
     /// <summary>
     /// TEK METOT: UserData'yı yükler, 'mutate' ile değiştirir ve MergeAll ile kaydeder.
-    /// userDB.SaveUserData'ı kullanır (Auth/DB erişimi bu sınıfta yok).
+    /// DİKKAT: Server-only alanlar (hasElitePass, elitePassExpiresAt, score, lastLogin,
+    /// createdAt, updatedAt, referralKey, referredByKey, referredByUid, referralAppliedAt)
+    /// client tarafından yazılamaz; SaveUserData patch sürecinde bu alanlar otomatik ayıklanır.
     /// </summary>
     /// <param name="mutate">UserData üzerinde yapmak istediğin değişiklikler</param>
     /// <param name="createIfMissing">Doküman yoksa default bir UserData yaratıp kaydetsin mi?</param>
@@ -60,7 +62,9 @@ public class UserDataEditHandler : MonoBehaviour
         }
     }
 
-    // ---- İsteğe bağlı kısa yardımcılar (tamamen syntactic sugar) ----
+    // ---- İsteğe bağlı kısa yardımcılar (rules'a UYGUN alanlar) ----
+    // username, currency, streak, referrals gibi alanlar client yazabilir.
+    // (score/lastLogin/elitePass/referralKey vs. server-only'dir — burada helper yok.)
 
     public Task<bool> SetUsernameAsync(string newName)
         => EditAsync(u => u.username = newName ?? "");
@@ -71,18 +75,9 @@ public class UserDataEditHandler : MonoBehaviour
     public Task<bool> SetCurrencyAsync(float value)
         => EditAsync(u => u.currency = value);
 
-    public Task<bool> TouchLastLoginAsync()
-        => EditAsync(u => u.lastLogin = Firebase.Firestore.Timestamp.GetCurrentTimestamp());
-
-    public Task<bool> SetHasElitePassAsync(bool v)
-        => EditAsync(u => u.hasElitePass = v);
-
     public Task<bool> IncrementStreakAsync(int delta = 1)
         => EditAsync(u => u.streak += delta);
 
     public Task<bool> IncrementReferralsAsync(int delta = 1)
         => EditAsync(u => u.referrals += delta);
-
-    public Task<bool> SetRankAsync(int value)
-        => EditAsync(u => u.rank = value);
 }

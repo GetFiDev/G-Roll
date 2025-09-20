@@ -12,7 +12,7 @@ namespace NetworkingData
 
         // Elite Pass
         [FirestoreProperty] public bool       hasElitePass         { get; set; } = false;
-        [FirestoreProperty] public Timestamp? elitePassExpiresAt   { get; set; } = null; // ⬅️ YENİ
+        [FirestoreProperty] public Timestamp elitePassExpiresAt { get; set; }
 
         // Diğerleri
         [FirestoreProperty] public int streak    { get; set; } = 0;

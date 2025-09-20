@@ -1,6 +1,7 @@
 using Firebase.Auth;
 using Firebase.Extensions;
 using Firebase.Firestore;
+using Firebase.Functions;
 using UnityEngine;
 using System;
 using System.Collections.Concurrent;
@@ -27,6 +28,23 @@ public class UserDatabaseManager : MonoBehaviour
     private FirebaseAuth auth;
     private FirebaseUser currentUser;
     private FirebaseFirestore db;
+    private FirebaseFunctions _funcs;
+
+    // Server-only alanlar: client bu alanları asla yazmamalı (rules ile de yasak)
+    private static readonly string[] SERVER_ONLY_KEYS = new[] {
+        "hasElitePass", "elitePassExpiresAt",
+        "score", "lastLogin", "createdAt", "updatedAt",
+        "referralKey", "referredByKey", "referredByUid", "referralAppliedAt"
+    };
+
+    private static void StripServerOnlyKeys(System.Collections.Generic.Dictionary<string, object> dict)
+    {
+        if (dict == null) return;
+        foreach (var k in SERVER_ONLY_KEYS)
+        {
+            if (dict.ContainsKey(k)) dict.Remove(k);
+        }
+    }
 
     [Sirenix.OdinInspector.ReadOnly] public string currentLoggedUserID;
 
@@ -58,6 +76,8 @@ public class UserDatabaseManager : MonoBehaviour
                 }
 
                 EmitLog("✅ Firebase ready");
+                _funcs = FirebaseFunctions.GetInstance("us-central1");
+                EmitLog("✅ Functions bound to us-central1");
             }
             else
             {
@@ -67,7 +87,7 @@ public class UserDatabaseManager : MonoBehaviour
     }
 
     // --- REGISTER ---
-    public async void Register(string email, string password)
+    public async void Register(string email, string password, string referralCode)
     {
         if (auth == null) { EmitLog("❌ Auth null"); return; }
 
@@ -78,26 +98,17 @@ public class UserDatabaseManager : MonoBehaviour
             currentLoggedUserID = currentUser?.UserId;
             EmitLog($"✅ Register Successful, UID: {currentLoggedUserID}");
 
-            // Default user doc
-            var data = new UserData
-            {
-                mail = currentUser?.Email ?? "",
-                username = "",
-                currency = 0,
-                lastLogin = Timestamp.GetCurrentTimestamp(),
-                score     = 0
+            // Sunucuda profil oluşturulduğundan (Auth trigger) emin olmak için callable:
+            await EnsureUserProfileAsync(referralCode);
 
-            };
+            // Taze veriyi çek ve UI’a yayınla
+            var data = await LoadUserData();
 
-            await UserDoc().SetAsync(data); // dokümanı oluştur
-            EmitLog("✅ Created user doc with defaults");
-
-            // Firebase CreateUser sonrası zaten login olmuş durumdasın:
-            // UI'lar aynı akışı kullansın diye login succeeded event'i yayınlıyoruz.
             EnqueueMain(() =>
             {
                 OnRegisterSucceeded?.Invoke();
-                OnLoginSucceeded?.Invoke(); // UI kapanması için tetik
+                OnLoginSucceeded?.Invoke();        // UI kapanması için
+                if (data != null) OnUserDataSaved?.Invoke(data); // HUD/istatistikler yenilensin
             });
         }
         catch (Exception e)
@@ -119,43 +130,16 @@ public class UserDatabaseManager : MonoBehaviour
             currentLoggedUserID = currentUser?.UserId;
             EmitLog($"✅ Login succeed, UID: {currentLoggedUserID}");
 
-            var doc  = UserDoc();
-            var snap = await doc.GetSnapshotAsync();
+            // Profil var/yok normalize et (lastLogin güncellemesini artık server yapıyor)
+            await EnsureUserProfileAsync();
 
-            NetworkingData.UserData userData;
+            // En güncel user data
+            var data = await LoadUserData();
 
-            if (!snap.Exists)
-            {
-                // İlk kez giren kullanıcı için default doküman
-                var data = new NetworkingData.UserData
-                {
-                    mail = currentUser?.Email ?? "",
-                    username = "",
-                    currency = 0f,
-                    lastLogin = Timestamp.GetCurrentTimestamp(),
-                    score     = 0
-                };
-
-                await doc.SetAsync(data);
-                EmitLog("ℹ️ User doc created after login (didn't exist)");
-                userData = data; // az önce yazdığımız veri
-            }
-            else
-            {
-                // Sadece lastLogin'i güncelle, sonra güncel veriyi tekrar çek
-                await doc.SetAsync(new { lastLogin = Timestamp.GetCurrentTimestamp() }, SetOptions.MergeAll);
-                EmitLog("✅ lastLogin updated");
-
-                var freshSnap = await doc.GetSnapshotAsync();
-                userData = freshSnap.Exists ? freshSnap.ConvertTo<NetworkingData.UserData>()
-                                            : new NetworkingData.UserData { mail = currentUser?.Email ?? "" };
-            }
-
-            // UI'ler login + stat refresh'i aynı frame'de alabilsin
             EnqueueMain(() =>
             {
                 OnLoginSucceeded?.Invoke();
-                OnUserDataSaved?.Invoke(userData); // <-- stat view'ler bu event'i dinleyip refresh eder
+                if (data != null) OnUserDataSaved?.Invoke(data);  // HUD tazele
             });
         }
         catch (Exception e)
@@ -195,18 +179,83 @@ public class UserDatabaseManager : MonoBehaviour
     public async void SaveUserData(UserData data, bool merge = true)
     {
         if (currentUser == null) { EmitLog("❌ No Login"); return; }
+        if (data == null) { EmitLog("❌ SaveUserData: data null"); return; }
 
         try
         {
-            if (merge) await UserDoc().SetAsync(data, SetOptions.MergeAll);
-            else await UserDoc().SetAsync(data);
+            // Yalnızca client'ın yazmasına izin verilen alanları patch olarak gönder
+            var patch = new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "mail",      data.mail ?? string.Empty },
+                { "username",  data.username ?? string.Empty },
+                { "currency",  data.currency },
+                { "streak",    data.streak },
+                { "referrals", data.referrals },
+                { "rank",      data.rank }
+            };
 
-            EmitLog("✅ User data saved");
-            EnqueueMain(() => OnUserDataSaved?.Invoke(data));   // ⬅️ username “Done” sonrası HUD otomatik yenilensin
+            // Güvenlik: yanlışlıkla server-only key girilirse ayıkla
+            StripServerOnlyKeys(patch);
+
+            await UserDoc().SetAsync(patch, SetOptions.MergeAll);
+
+            EmitLog("✅ User data saved (patch)");
+            EnqueueMain(() => OnUserDataSaved?.Invoke(data)); // HUD otomatik yenilensin
         }
         catch (Exception e)
         {
             EmitLog("❌ Data save error: " + e.Message);
+        }
+    }
+
+    // --- Safe field updaters (client-allowed) ---
+    public async Task<bool> SetUsernameAsync(string newUsername)
+    {
+        if (currentUser == null) { EmitLog("❌ No Login"); return false; }
+        newUsername = (newUsername ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(newUsername)) { EmitLog("❌ Username empty"); return false; }
+
+        try
+        {
+            var patch = new System.Collections.Generic.Dictionary<string, object> { { "username", newUsername } };
+            StripServerOnlyKeys(patch);
+            await UserDoc().SetAsync(patch, SetOptions.MergeAll);
+            EmitLog("✅ Username updated");
+            // Lokal event’i tetikle (LoadUserData ile güncel nesneyi elde etmek istersen ayrıca çağırabilirsin)
+            EnqueueMain(async () =>
+            {
+                var fresh = await LoadUserData();
+                if (fresh != null) OnUserDataSaved?.Invoke(fresh);
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ SetUsernameAsync error: " + e.Message);
+            return false;
+        }
+    }
+
+    public async Task<bool> SetCurrencyAsync(float value)
+    {
+        if (currentUser == null) { EmitLog("❌ No Login"); return false; }
+        try
+        {
+            var patch = new System.Collections.Generic.Dictionary<string, object> { { "currency", value } };
+            StripServerOnlyKeys(patch);
+            await UserDoc().SetAsync(patch, SetOptions.MergeAll);
+            EmitLog("✅ Currency updated");
+            EnqueueMain(async () =>
+            {
+                var fresh = await LoadUserData();
+                if (fresh != null) OnUserDataSaved?.Invoke(fresh);
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ SetCurrencyAsync error: " + e.Message);
+            return false;
         }
     }
 
@@ -278,10 +327,10 @@ public class UserDatabaseManager : MonoBehaviour
                 {
                     if (o is System.Collections.Generic.Dictionary<string, object> d)
                     {
-                        var uid      = d.TryGetValue("uid", out var _uid) ? _uid as string : "";
+                        var uid = d.TryGetValue("uid", out var _uid) ? _uid as string : "";
                         var username = d.TryGetValue("username", out var _un) ? _un as string : "Guest";
                         var scoreObj = d.TryGetValue("score", out var _sc) ? _sc : 0;
-                        int score    = System.Convert.ToInt32(scoreObj);
+                        int score = System.Convert.ToInt32(scoreObj);
 
                         if (!string.IsNullOrEmpty(uid))
                             list.Add(new LBEntry { uid = uid, username = username ?? "Guest", score = score });
@@ -294,6 +343,25 @@ public class UserDatabaseManager : MonoBehaviour
             EmitLog("❌ FetchLeaderboardTopAsync error: " + e.Message);
         }
         return list;
+    }
+    
+    private async Task EnsureUserProfileAsync(string referralCode = null)
+    {
+        if (_funcs == null) return;
+        try
+        {
+            var callable = _funcs.GetHttpsCallable("ensureUserProfile");
+            var payload = new System.Collections.Generic.Dictionary<string, object>();
+            if (!string.IsNullOrWhiteSpace(referralCode))
+                payload["referralCode"] = referralCode;
+
+            await callable.CallAsync(payload);
+            EmitLog("✅ ensureUserProfile ok");
+        }
+        catch (Exception e)
+        {
+            EmitLog("⚠️ ensureUserProfile error: " + e.Message);
+        }
     }
 
 }
