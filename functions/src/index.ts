@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import * as functionsV1 from "firebase-functions/v1";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {setGlobalOptions} from "firebase-functions/v2/options";
 import {Firestore, Timestamp, FieldValue} from "@google-cloud/firestore";
@@ -162,4 +163,182 @@ export const checkElitePass = onCall(async (req) => {
   const exp = snap.get("elitePassExpiresAt") as Timestamp | null;
   const active = !!exp && exp.toMillis() > now.toMillis();
   return {active, expiresAt: exp?.toDate().toISOString() ?? null};
+});
+
+// ---------- helpers ----------
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // benzer karakterleri çıkardık
+function randomReferralKey(len = 12): string {
+  let s = "";
+  for (let i = 0; i < len; i++) {
+    s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  }
+  return s;
+}
+
+// Benzersiz KEY ayırt; referralKeys/{KEY} = {ownerUid}
+async function reserveUniqueReferralKey(uid: string): Promise<string> {
+  for (let i = 0; i < 6; i++) { // 6 deneme yeterli
+    const k = randomReferralKey(12);
+    const ref = db.collection("referralKeys").doc(k);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set({ownerUid: uid, createdAt: Timestamp.now()});
+      return k;
+    }
+  }
+  throw new Error("Could not allocate unique referral key");
+}
+
+async function ensureReferralKeyFor(uid: string): Promise<string> {
+  const userRef = db.collection("users").doc(uid);
+  return await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new Error("user doc missing");
+    const current = (snap.get("referralKey") as string) || "";
+
+    if (current) return current;
+
+    const key = await reserveUniqueReferralKey(uid);
+    tx.set(
+      userRef,
+      {
+        referralKey: key,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+    return key;
+  });
+}
+
+async function applyReferralCodeToUser(
+  uid: string,
+  codeRaw: string,
+): Promise<{applied: boolean; referredByUid?: string}> {
+  const code = (codeRaw || "").toUpperCase().trim();
+  if (!/^[A-Z0-9]{12}$/.test(code)) {
+    throw new HttpsError("invalid-argument", "Invalid referral code");
+  }
+
+  const keyRef = db.collection("referralKeys").doc(code);
+  const keySnap = await keyRef.get();
+  if (!keySnap.exists) {
+    throw new HttpsError("not-found", "Referral code not found");
+  }
+  const ownerUid = (keySnap.get("ownerUid") as string) || "";
+  if (!ownerUid || ownerUid === uid) {
+    throw new HttpsError("failed-precondition", "Cannot use this code");
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const ownerRef = db.collection("users").doc(ownerUid);
+
+  await db.runTransaction(async (tx) => {
+    const u = await tx.get(userRef);
+    if (!u.exists) throw new HttpsError("failed-precondition", "User doc missing");
+
+    // daha önce set edilmiş mi?
+    const already = (u.get("referredByKey") as string) || "";
+    if (already) return; // idempotent: ikinci kez yazma
+
+    tx.set(
+      userRef,
+      {
+        referredByKey: code,
+        referredByUid: ownerUid,
+        referralAppliedAt: Timestamp.now(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+
+    // referansı verenin sayacını +1 (field yoksa 0'dan başlar)
+    tx.set(
+      ownerRef,
+      {referrals: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()},
+      {merge: true},
+    );
+  });
+
+  return {applied: true, referredByUid: ownerUid};
+}
+
+export const createUserProfile = functionsV1
+  .region("us-central1")
+  .auth.user()
+  .onCreate(async (user) => {
+    const { uid, email } = user;
+    const userRef = db.collection("users").doc(uid);
+
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      if (snap.exists) return; // idempotent
+
+      tx.set(userRef, {
+        mail: email ?? "",
+        username: "",
+        currency: 0,
+        score: 0,
+        hasElitePass: false,           // server-only
+        elitePassExpiresAt: null,      // ⬅️ alanı baştan oluştur (satın alınca set edilecek)
+        lastLogin: Timestamp.now(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    // profil oluşturulduktan sonra referralKey ver
+    await ensureReferralKeyFor(uid);
+  });
+
+// ---------- 2) login sonrası: profili garantiye al + opsiyonel referral code uygula ----------
+export const ensureUserProfile = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  const email = req.auth?.token?.email ?? "";
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const userRef = db.collection("users").doc(uid);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) {
+      tx.set(userRef, {
+        mail: email,
+        username: "",
+        currency: 0,
+        score: 0,
+        hasElitePass: false,
+        lastLogin: Timestamp.now(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      tx.set(
+        userRef,
+        {lastLogin: Timestamp.now(), updatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+    }
+  });
+
+  // referralKey garanti
+  const key = await ensureReferralKeyFor(uid);
+
+  // İsteğe bağlı referralCode varsa uygula (ilk login’de UI’dan gelebilir)
+  const code = (req.data?.referralCode ?? "").toString();
+  if (code) {
+    await applyReferralCodeToUser(uid, code);
+  }
+
+  return {ok: true, referralKey: key};
+});
+
+// ---------- 3) (opsiyonel) sonradan kod girme ----------
+export const applyReferralCode = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const code = (req.data?.referralCode ?? "").toString();
+  const result = await applyReferralCodeToUser(uid, code);
+  return result;
 });
