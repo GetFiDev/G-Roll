@@ -1,7 +1,8 @@
 import * as admin from "firebase-admin";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {setGlobalOptions} from "firebase-functions/v2/options";
-import {Firestore, FieldValue} from "@google-cloud/firestore";
+import {Firestore, Timestamp, FieldValue} from "@google-cloud/firestore";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
 
 admin.initializeApp();
 
@@ -76,3 +77,89 @@ export const syncLeaderboard = onDocumentWritten(
     });
   },
 );
+/**
+ * Elite Pass satın alma:
+ * - Sadece auth'lu kullanıcı
+ * - Süre: aktifse kalan + 30 gün, değilse şimdi + 30 gün
+ * - İsteğe bağlı: purchaseId ile idempotent (çifte yazmayı önler)
+ * Döner: { active: boolean, expiresAt: ISO string | null }
+ */
+export const purchaseElitePass = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const purchaseId = (req.data?.purchaseId ?? "").toString().trim();
+  const now = Timestamp.now();
+  const userRef = db.collection("users").doc(uid);
+
+  // Idempotency: aynı purchaseId geldiyse tekrarlama
+  if (purchaseId) {
+    const pRef = userRef.collection("elitePassPurchases").doc(purchaseId);
+    const pSnap = await pRef.get();
+    if (pSnap.exists) {
+      const uSnap = await userRef.get();
+      const exp = uSnap.exists ?
+        (uSnap.get("elitePassExpiresAt") as Timestamp | null) :
+        null;
+      const active = !!exp && exp.toMillis() > now.toMillis();
+      return {active, expiresAt: exp?.toDate().toISOString() ?? null};
+    }
+  }
+
+  await db.runTransaction(async (tx) => {
+    const uSnap = await tx.get(userRef);
+    const existing: Timestamp | null = uSnap.exists ?
+      (uSnap.get("elitePassExpiresAt") as Timestamp | null) :
+      null;
+
+    const baseMillis =
+      existing && existing.toMillis() > now.toMillis() ?
+        existing.toMillis() :
+        now.toMillis();
+
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const newExpiry = Timestamp.fromMillis(baseMillis + thirtyDaysMs);
+
+    tx.set(
+      userRef,
+      {
+        hasElitePass: true,
+        elitePassExpiresAt: newExpiry,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+
+    if (purchaseId) {
+      tx.set(
+        userRef.collection("elitePassPurchases").doc(purchaseId),
+        {processedAt: now, newExpiry},
+        {merge: true},
+      );
+    }
+  });
+
+  const finalSnap = await userRef.get();
+  const exp = finalSnap.get("elitePassExpiresAt") as Timestamp | null;
+  const active = !!exp && exp.toMillis() > now.toMillis();
+  return {active, expiresAt: exp?.toDate().toISOString() ?? null};
+});
+
+/**
+ * Elite Pass kontrol:
+ * - Sadece auth'lu kullanıcı
+ * - Sunucuda "şimdi" ile expiry karşılaştırır
+ * Döner: { active: boolean, expiresAt: ISO string | null }
+ */
+export const checkElitePass = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const now = Timestamp.now();
+  const snap = await db.collection("users").doc(uid).get();
+  if (!snap.exists) return {active: false, expiresAt: null};
+
+  const exp = snap.get("elitePassExpiresAt") as Timestamp | null;
+  const active = !!exp && exp.toMillis() > now.toMillis();
+  return {active, expiresAt: exp?.toDate().toISOString() ?? null};
+});
