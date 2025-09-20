@@ -84,7 +84,9 @@ public class UserDatabaseManager : MonoBehaviour
                 mail = currentUser?.Email ?? "",
                 username = "",
                 currency = 0,
-                lastLogin = Timestamp.GetCurrentTimestamp()
+                lastLogin = Timestamp.GetCurrentTimestamp(),
+                score     = 0
+
             };
 
             await UserDoc().SetAsync(data); // dokümanı oluştur
@@ -127,10 +129,11 @@ public class UserDatabaseManager : MonoBehaviour
                 // İlk kez giren kullanıcı için default doküman
                 var data = new NetworkingData.UserData
                 {
-                    mail      = currentUser?.Email ?? "",
-                    username  = "",
-                    currency  = 0f,
-                    lastLogin = Timestamp.GetCurrentTimestamp()
+                    mail = currentUser?.Email ?? "",
+                    username = "",
+                    currency = 0f,
+                    lastLogin = Timestamp.GetCurrentTimestamp(),
+                    score     = 0
                 };
 
                 await doc.SetAsync(data);
@@ -220,43 +223,77 @@ public class UserDatabaseManager : MonoBehaviour
     }
 
     public async Task<float> GetCurrencyAsync()
-{
-    if (currentUser == null) { EmitLog("❌ No Login"); return 0f; }
-
-    try
     {
-        var snap = await UserDoc().GetSnapshotAsync();
-        if (!snap.Exists)
+        if (currentUser == null) { EmitLog("❌ No Login"); return 0f; }
+
+        try
         {
-            EmitLog("⚠️ User doc not found");
+            var snap = await UserDoc().GetSnapshotAsync();
+            if (!snap.Exists)
+            {
+                EmitLog("⚠️ User doc not found");
+                return 0f;
+            }
+
+            var data = snap.ConvertTo<UserData>();
+            if (data != null) return data.currency;
+
+            // İhtiyaten sözlükten okuma (eski kayıtlar int/double olabilir)
+            var dict = snap.ToDictionary();
+            if (dict != null && dict.TryGetValue("currency", out var v))
+            {
+                if (v is float f) return f;
+                if (v is double d) return (float)d;
+                if (v is long l) return (float)l;
+                if (v is int i) return i;
+                if (v is string s && float.TryParse(s,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    return parsed;
+            }
+
+            EmitLog("ℹ️ 'currency' not set, returning 0");
             return 0f;
         }
-
-        var data = snap.ConvertTo<UserData>();
-        if (data != null) return data.currency;
-
-        // İhtiyaten sözlükten okuma (eski kayıtlar int/double olabilir)
-        var dict = snap.ToDictionary();
-        if (dict != null && dict.TryGetValue("currency", out var v))
+        catch (Exception e)
         {
-            if (v is float f)   return f;
-            if (v is double d)  return (float)d;
-            if (v is long l)    return (float)l;
-            if (v is int i)     return i;
-            if (v is string s && float.TryParse(s,
-                System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-                return parsed;
+            EmitLog("❌ GetCurrency error: " + e.Message);
+            return 0f;
         }
-
-        EmitLog("ℹ️ 'currency' not set, returning 0");
-        return 0f;
     }
-    catch (Exception e)
+    public async Task<System.Collections.Generic.List<LBEntry>> FetchLeaderboardTopAsync(int topN = 50)
     {
-        EmitLog("❌ GetCurrency error: " + e.Message);
-        return 0f;
+        var list = new System.Collections.Generic.List<LBEntry>();
+        try
+        {
+            var docRef = db.Collection("leaderboards").Document("current")
+                        .Collection("meta").Document($"top{topN}");
+
+            var snap = await docRef.GetSnapshotAsync();
+            if (!snap.Exists) return list;
+
+            if (snap.TryGetValue("entries", out System.Collections.Generic.List<object> raw))
+            {
+                foreach (var o in raw)
+                {
+                    if (o is System.Collections.Generic.Dictionary<string, object> d)
+                    {
+                        var uid      = d.TryGetValue("uid", out var _uid) ? _uid as string : "";
+                        var username = d.TryGetValue("username", out var _un) ? _un as string : "Guest";
+                        var scoreObj = d.TryGetValue("score", out var _sc) ? _sc : 0;
+                        int score    = System.Convert.ToInt32(scoreObj);
+
+                        if (!string.IsNullOrEmpty(uid))
+                            list.Add(new LBEntry { uid = uid, username = username ?? "Guest", score = score });
+                    }
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            EmitLog("❌ FetchLeaderboardTopAsync error: " + e.Message);
+        }
+        return list;
     }
-}
 
 }
