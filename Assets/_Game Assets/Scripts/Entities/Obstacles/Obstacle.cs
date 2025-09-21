@@ -2,8 +2,7 @@
 
 public abstract class Obstacle : MonoBehaviour, IPlayerInteractable
 {
-    public virtual void OnInteract()
+    public virtual void OnInteract(PlayerController player)
     {
-        GameManager.Instance.LevelFinish(false);
     }
 }

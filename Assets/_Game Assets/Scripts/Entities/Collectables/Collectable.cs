@@ -3,7 +3,7 @@ using UnityEngine;
 
 public abstract class Collectable : MonoBehaviour, IPlayerInteractable
 {
-    public virtual void OnInteract()
+    public virtual void OnInteract(PlayerController player)
     {
         var activeCollider = gameObject.GetComponent<Collider>();
         activeCollider.enabled = false;

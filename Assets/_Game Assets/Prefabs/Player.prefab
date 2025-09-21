@@ -83,7 +83,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.375
+  m_Radius: 0.2625
   m_Center: {x: 0, y: 0.375, z: 0}
 --- !u!114 &6942240846770388991
 MonoBehaviour:
@@ -112,10 +112,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85dabb79aeaa6be4bbddad37e1758abe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  movementSpeed: 5
+  movementSpeed: 3
   boosterDuration: 10
   boosterSpeed: 1
   boosterCollectRange: 10
+  doubleTapJumpForce: 3
 --- !u!114 &6942240846770388984
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -217,17 +218,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: b18a01cbb3f9f422ab8b29e145640463,
         type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.375
+      value: 0.2625
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b18a01cbb3f9f422ab8b29e145640463,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.375
+      value: 0.2625
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b18a01cbb3f9f422ab8b29e145640463,
         type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.375
+      value: 0.2625
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b18a01cbb3f9f422ab8b29e145640463,
         type: 3}
@@ -278,6 +279,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: b18a01cbb3f9f422ab8b29e145640463,
+        type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: b18a01cbb3f9f422ab8b29e145640463,
         type: 3}

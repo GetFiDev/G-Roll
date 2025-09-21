@@ -5,7 +5,7 @@ public class Coin : Collectable
 {
     [SerializeField] private AudioClip audioClip;
     
-    public override void OnInteract()
+    public override void OnInteract(PlayerController player)
     {
         var activeCollider = gameObject.GetComponent<Collider>();
         activeCollider.enabled = false;

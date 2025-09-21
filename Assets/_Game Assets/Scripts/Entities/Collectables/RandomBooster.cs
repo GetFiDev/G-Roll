@@ -5,8 +5,8 @@ public class RandomBooster : Collectable
 {
     [SerializeField] private List<Collectable> boosters;
 
-    public override void OnInteract()
+    public override void OnInteract(PlayerController player)
     {
-        boosters.RandomItem().OnInteract();
+        boosters.RandomItem().OnInteract(player);
     }
 }

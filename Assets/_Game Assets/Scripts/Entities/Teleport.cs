@@ -7,7 +7,7 @@ public class Teleport : MonoBehaviour, IPlayerInteractable
     private const float SuspendDuration = 1f;
     private float _suspendedTime;
 
-    public void OnInteract()
+    public void OnInteract(PlayerController player)
     {
         if (_suspendedTime > Time.time)
             return;

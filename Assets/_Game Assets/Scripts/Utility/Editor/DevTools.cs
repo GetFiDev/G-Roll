@@ -66,12 +66,12 @@ namespace _Game_Assets.Scripts.Utility.Editor
 
         private static void ControlTimeScale()
         {
-            Time.timeScale = Application.isPlaying switch
-            {
-                true when Input.GetKey(KeyCode.S) => Input.GetKey(KeyCode.LeftShift) ? 7.5f : 2.5f,
-                true when Input.GetKey(KeyCode.D) => Input.GetKey(KeyCode.LeftShift) ? .1f : .25f,
-                _ => 1f
-            };
+            //Time.timeScale = Application.isPlaying switch
+            //{
+            //    true when Input.GetKey(KeyCode.S) => Input.GetKey(KeyCode.LeftShift) ? 7.5f : 2.5f,
+            //    true when Input.GetKey(KeyCode.D) => Input.GetKey(KeyCode.LeftShift) ? .1f : .25f,
+            //    _ => 1f
+            //};
         }
     }
 }

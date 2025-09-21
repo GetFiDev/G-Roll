@@ -1,4 +1,5 @@
 using UnityEngine;
+using DG.Tweening;
 
 public class UILevelEnd : MonoBehaviour
 {
@@ -22,21 +23,25 @@ public class UILevelEnd : MonoBehaviour
 
     private void ShowSuccessPanel()
     {
+        successPanel.GetComponent<CanvasGroup>().alpha = 0;
         successPanel.SetActive(true);
+        successPanel.GetComponent<CanvasGroup>().DOFade(1, 0.5f);
     }
 
     private void ShowFailPanel()
     {
+        failPanel.GetComponent<CanvasGroup>().alpha = 0;
         failPanel.SetActive(true);
+        failPanel.GetComponent<CanvasGroup>().DOFade(1, 0.5f);
     }
 
     public void OnNextLevelButtonClick()
     {
-        LevelManager.ReloadScene();
+        //LevelManager.ReloadScene();
     }
 
     public void OnRestartLevelButtonClick()
     {
-        LevelManager.ReloadScene();
+        //LevelManager.ReloadScene();
     }
 }
