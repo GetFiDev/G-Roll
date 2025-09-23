@@ -3,7 +3,7 @@ using DG.Tweening;
 
 public class Teleport : MonoBehaviour, IPlayerInteractable
 {
-    [SerializeField] private Teleport otherPortal;
+    [SerializeField] public Teleport otherPortal;
 
     [Header("Vortex In")]
     [SerializeField] private float vortexDuration = 0.5f;          // deliğe giriş süresi

@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -18,7 +19,8 @@ public class BuildMenuUI : MonoBehaviour
             var btn = Instantiate(buttonTemplate, buttonContainer);
             btn.gameObject.SetActive(true);
             var txt = btn.GetComponentInChildren<TMPro.TextMeshProUGUI>();
-            var img = btn.GetComponentInChildren<Image>();
+            var img = btn.GetComponentsInChildren<Image>(includeInactive: true)
+                 .FirstOrDefault(img => img.gameObject != btn.gameObject);
 
             if (txt) txt.text = item.displayName;
             if (img && item.icon) img.sprite = item.icon;

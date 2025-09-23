@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f7a3bd0116c0474ea9714e0c162d0a9, type: 3}
+  m_Name: Item_Portal
+  m_EditorClassIdentifier: 
+  displayName: Portal
+  icon: {fileID: 21300000, guid: 679379620bf104a1eb85a195d70f9bef, type: 3}
+  prefab: {fileID: 4911152218414738132, guid: 3f097e9f61ec44876b6ce48ca97f0bf3, type: 3}
+  size: {x: 2, y: 2}
