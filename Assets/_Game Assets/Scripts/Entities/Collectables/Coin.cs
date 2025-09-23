@@ -25,7 +25,7 @@ public class Coin : Collectable
 
         GameManager.Instance.audioManager.Play(audioClip);
         
-        GameManager.Instance.levelManager.currentLevel.Coins.Remove(this);
+        //GameManager.Instance.levelManager.currentLevel.Coins.Remove(this);
     }
 
     private Tweener _magnetTween;

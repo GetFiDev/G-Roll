@@ -11,14 +11,6 @@ public class Teleport : MonoBehaviour, IPlayerInteractable
     [SerializeField] private float vortexScaleFactor = 0.85f;      // girişte küçülme
     [SerializeField] private Ease vortexMoveEase = Ease.InCubic;   // giriş hareket eğrisi
 
-    [Header("Approach Jump")]
-    [SerializeField] private float approachDuration = 0.45f;       // portala doğru zıplama süresi
-    [SerializeField] private float approachJumpHeight = 2.5f;      // zıplama tepe yüksekliği
-    [SerializeField] private Ease  approachEase = Ease.OutCubic;   // yaklaşma eğrisi
-
-    [Header("Vortex Spiral In")]
-    [SerializeField] private float spiralStartRadius = 1.0f;       // spiral başlangıç yarıçapı (m)
-
     [Header("Exit Jump")]
     [SerializeField] private float exitJumpHeight = 3.0f;          // çıkışta zıplama yüksekliği
     [SerializeField] private bool  alignExitYawToOther = true;     // çıkışta diğer portalın Y rotasyonunu al

@@ -23,7 +23,6 @@ public class GameManager : MonoSingleton<GameManager>
     public TouchManager touchManager;
 
     [ReadOnly, Required] public AudioManager audioManager;
-    [ReadOnly, Required] public LevelManager levelManager;
     [ReadOnly, Required] public CameraManager cameraManager;
     [ReadOnly, Required] public ObjectPoolingManager objectPoolingManager;
 
@@ -42,9 +41,8 @@ public class GameManager : MonoSingleton<GameManager>
 
         objectPoolingManager = GetComponentInChildren<ObjectPoolingManager>(true).Initialize();
         cameraManager = GetComponentInChildren<CameraManager>(true).Initialize();
-        touchManager = GetComponentInChildren<TouchManager>(true).Initialize();
+        touchManager = GetComponentInChildren<TouchManager>();
         audioManager = GetComponentInChildren<AudioManager>(true).Initialize(); //This depends on CameraManager
-        levelManager = GetComponentInChildren<LevelManager>(true).Initialize();
         
         UIManager.Instance.Initialize();
     }
@@ -106,7 +104,6 @@ public class GameManager : MonoSingleton<GameManager>
     {
         touchManager = GetComponentInChildren<TouchManager>(true);
         audioManager = GetComponentInChildren<AudioManager>(true);
-        levelManager = GetComponentInChildren<LevelManager>(true);
         cameraManager = GetComponentInChildren<CameraManager>(true);
         objectPoolingManager = GetComponentInChildren<ObjectPoolingManager>(true);
     }

@@ -4,7 +4,6 @@ using DG.Tweening; // en üst using’lere ekle
 public class PlayerCollision : MonoBehaviour
 {
     private PlayerController _playerController;
-    private bool _crashHandled = false;
     // PlayerCollision sınıfının İÇİNDE (fields bölümüne) ekle:
     [SerializeField] private PlayerMovement movement;        // Inspector’dan tak; yoksa Awake’te GetComponent
     [SerializeField] private float knockbackDistance = 1.25f;

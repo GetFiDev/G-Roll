@@ -32,7 +32,7 @@ public class GameSROptions
     [Category("Levels")]
     public void ReloadScene()
     {
-        LevelManager.ReloadScene();
+        //LevelManager.ReloadScene();
     }
 
     [Category("Levels")]

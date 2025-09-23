@@ -49,8 +49,8 @@ public class UIReferralPanel : MonoBehaviour
 
         if (manager == null)
         {
-            // Close loader only if still the latest refresh
-            if (_refreshSeq == token) ShowLoading(false);
+            // Manager yoksa loader'ı yine de kapat; yeni bir refresh başlarsa tekrar açacaktır
+            ShowLoading(false);
             return;
         }
 
@@ -81,8 +81,8 @@ public class UIReferralPanel : MonoBehaviour
         }
         finally
         {
-            // Close loader only if this is still the latest refresh
-            if (_refreshSeq == token) ShowLoading(false);
+            // Her durumda bu refresh bitince loader'ı kapat; daha yeni bir refresh varsa kendi başında tekrar açar
+            ShowLoading(false);
         }
     }
 }

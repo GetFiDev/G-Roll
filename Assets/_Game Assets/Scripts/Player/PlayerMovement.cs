@@ -3,6 +3,7 @@ using System.Collections;
 using System.Linq;
 using DG.Tweening;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -11,16 +12,9 @@ public class PlayerMovement : MonoBehaviour
     public bool IsJumping { get; private set; } = false;
 
     [SerializeField] private float movementSpeed = 5f;
-
-    [Header("Booster Options")]
-    [SerializeField] private float boosterDuration = 10f;
-
-    [SerializeField] private float boosterSpeed = 1f;
-    [SerializeField] private float boosterCollectRange = 2f;
-
     [Header("Jump Options")]
     [SerializeField] private float doubleTapJumpForce = 3f;
-    [SerializeField] private float baseAirTime = 0.9f;                 // referans hızda toplam havada kalma süresi
+    [SerializeField] private float baseAirTime = 0.9f;
     [SerializeField] private float referenceSpeed = 5f;               // bu hızda baseAirTime geçerli sayılır
     [SerializeField] private float minAirTime = 0.45f;                // taban
     [SerializeField] private float maxAirTime = 1.2f;                 // tavan
@@ -47,7 +41,6 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float baseTurnSpeed = 360f;        // deg/sec – normal dönüş hızı
     [SerializeField] private float turnBoostMultiplier = 4f;    // yön değiştiğinde hız çarpanı
     [SerializeField] private float turnSnapAngle = 2f;          // hedef yöne bu açıdan daha yakınsa boost biter
-
     private float _currentTurnSpeed;                            // anlık dönüş hızı (speed'den bağımsız)
     private Coroutine _turnBoostRoutine;
 
@@ -66,15 +59,11 @@ public class PlayerMovement : MonoBehaviour
     [Header("Crash / Knockback")]
     [SerializeField] private float defaultKnockbackDistance = 1.25f;
     [SerializeField] private float defaultKnockbackDuration = 0.25f;
-    [SerializeField] private Ease  knockbackEase = Ease.OutCubic;
+    [SerializeField] private Ease knockbackEase = Ease.OutCubic;
 
     private bool _isFrozen = false;
     private Tween _knockbackTween;
     private Tween _jumpTween;
-    public event Action KnockbackCompleted;           // ⬅️ dışarıya sinyal
-
-    [SerializeField] private bool autoUnfreezeIfNoCallback = true; // ⬅️ fallback
-
     private PlayerController _playerController;
     public ParticleSystem landingParticlePrefab;
     public Vector3 landingParticleOffset = Vector3.zero;
@@ -100,7 +89,6 @@ public class PlayerMovement : MonoBehaviour
     {
         if (GameManager.Instance.GameState == GameState.Gameplay)
         {
-            PollDesktopControls();
             Move();
             RotateTowardsMovement();
         }
@@ -140,40 +128,10 @@ public class PlayerMovement : MonoBehaviour
         StartTurnBoost();
     }
 
-    private void PollDesktopControls()
-    {
-        if (!enableDesktopControls) return;
-        if (_isFrozen) return;
-
-        // Jump
-        if (Input.GetKeyDown(jumpKey))
-        {
-            Jump(doubleTapJumpForce);
-        }
-
-        // Directions (cardinal)
-        if (Input.GetKeyDown(keyUp) || Input.GetKeyDown(keyUpAlt))
-        {
-            SetDirection(Vector3.forward);
-        }
-        else if (Input.GetKeyDown(keyDown) || Input.GetKeyDown(keyDownAlt))
-        {
-            SetDirection(Vector3.back);
-        }
-        else if (Input.GetKeyDown(keyLeft) || Input.GetKeyDown(keyLeftAlt))
-        {
-            SetDirection(Vector3.left);
-        }
-        else if (Input.GetKeyDown(keyRight) || Input.GetKeyDown(keyRightAlt))
-        {
-            SetDirection(Vector3.right);
-        }
-    }
-
     private void ChangeDirection(SwipeDirection swipeDirection)
     {
         if (_isFrozen) return;
-        _movementDirection = SwipeDirectionHelper.SwipeDirectionToWorld(swipeDirection);
+        _movementDirection = SwipeToWorld(swipeDirection);
         StartTurnBoost();
     }
 
@@ -255,7 +213,7 @@ public class PlayerMovement : MonoBehaviour
         float downDur = totalAir - upDur;
 
         float startY = useLocal ? t.localPosition.y : t.position.y;
-        float apexY  = startY + jumpHeight;
+        float apexY = startY + jumpHeight;
 
         var seq = DOTween.Sequence();
         // çıkış
@@ -278,12 +236,14 @@ public class PlayerMovement : MonoBehaviour
             seq.Append(t.DOLocalMoveY(startY, downDur).SetEase(descentEase));
             if (enableJumpArcScale)
                 seq.Join(t.DOScale(Vector3.one, downDur).SetEase(jumpArcEaseDown));
+            seq.AppendCallback(() => { PlayLandingParticle(); IsJumping = false; });
         }
         else
         {
             seq.Append(t.DOMoveY(startY, downDur).SetEase(descentEase));
             if (enableJumpArcScale)
                 seq.Join(t.DOScale(Vector3.one, downDur).SetEase(jumpArcEaseDown));
+            seq.AppendCallback(() => { PlayLandingParticle(); IsJumping = false; });
         }
 
         // squash/strech görselde
@@ -296,13 +256,10 @@ public class PlayerMovement : MonoBehaviour
         _jumpTween = seq;
         _jumpTween.OnComplete(() =>
         {
-            PlayLandingParticle();       // Jump tamamen bittiğinde tek sefer oyna
-            IsJumping = false;           // ⬅️ zemine indi
             _jumpTween = null;
         });
         _jumpTween.OnKill(() =>
         {
-            // Tween bir sebeple erken iptal edilirse havada kalma durumu takılı kalmasın
             IsJumping = false;
         });
     }
@@ -314,47 +271,24 @@ public class PlayerMovement : MonoBehaviour
 
     private IEnumerator BoosterCoroutine(float boosterValue)
     {
-        Speed += boosterSpeed;
-        _lastSpeed += boosterSpeed;
-
-        var timeLeft = boosterDuration;
-        var coinList = GameManager.Instance.levelManager.currentLevel.Coins;
-
-        while (timeLeft > 0)
-        {
-            timeLeft -= Time.deltaTime;
-
-            yield return null;
-
-            foreach (var coin in coinList.Where(coin =>
-                         Vector3.Distance(transform.position, coin.transform.position) < boosterCollectRange))
-            {
-                coin.CollectByMagnet(transform);
-                coinList.Remove(coin);
-
-                break;
-            }
-        }
-
-        Speed -= boosterSpeed;
-        _lastSpeed -= boosterSpeed;
+        yield return new WaitForEndOfFrame();
     }
     public void BeginCrashKnockback(
         Vector3 hitNormal,
         float? distance = null,
         float? duration = null,
-        Ease?  ease     = null,
+        Ease? ease = null,
         System.Action onCompleted = null)
     {
         _isFrozen = true; // Move / Rotate guard’ları varsa otomatik durur
 
-        Vector3 velDir  = _movementDirection.sqrMagnitude > 0.0001f ? _movementDirection.normalized : Vector3.zero;
+        Vector3 velDir = _movementDirection.sqrMagnitude > 0.0001f ? _movementDirection.normalized : Vector3.zero;
         Vector3 pushDir = velDir != Vector3.zero ? -velDir :
                         (hitNormal.sqrMagnitude > 0.0001f ? -hitNormal.normalized : -transform.forward);
 
         float dist = distance ?? defaultKnockbackDistance;
-        float dur  = duration ?? defaultKnockbackDuration;
-        Ease  ez   = ease ?? knockbackEase;
+        float dur = duration ?? defaultKnockbackDuration;
+        Ease ez = ease ?? knockbackEase;
 
         IsJumping = false;        // ⬅️ çarpışmada jump state sıfırla
         _jumpTween?.Kill();       // aktif bir zıplama varsa iptal et
@@ -383,5 +317,17 @@ public class PlayerMovement : MonoBehaviour
             Destroy(fx.gameObject, Mathf.Max(0.1f, life + 0.1f));
         }
         catch (Exception) { /* sessizce geç */ }
+    }
+    
+    private static Vector3 SwipeToWorld(SwipeDirection dir)
+    {
+        switch (dir)
+        {
+            case SwipeDirection.Up:    return Vector3.forward; // +Z
+            case SwipeDirection.Down:  return Vector3.back;    // -Z
+            case SwipeDirection.Left:  return Vector3.left;    // -X
+            case SwipeDirection.Right: return Vector3.right;   // +X
+            default:                   return Vector3.zero;
+        }
     }
 }

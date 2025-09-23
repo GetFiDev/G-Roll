@@ -1,99 +1,164 @@
 ﻿using System;
-using Lean.Touch;
-using Sirenix.OdinInspector;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using ISTouchPhase = UnityEngine.InputSystem.TouchPhase;
+using ETouch = UnityEngine.InputSystem.EnhancedTouch;
+
+public enum SwipeDirection { Up, Down, Left, Right }
 
 public class TouchManager : MonoBehaviour
 {
-    public bool IsTouching => _activeFinger != null;
-    [SerializeField] private float doubleTapDuration = 0.2f;
-    
+    [Header("General")] public bool ignoreUITouches = true;
+    public bool singleFingerOnly = true;
+
+    [Header("Double Tap")] [Range(0.05f, 0.5f)] public float doubleTapDuration = 0.25f;
+    public float doubleTapMaxDistancePx = 40f;
+
+    [Header("Swipe")] public float swipeThresholdPx = 60f;
+
     public Action<Vector2> OnTouchBegin;
     public Action<Vector2> OnTouchMoveScreen;
     public Action<Vector2> OnTouchEnd;
-    
     public Action<SwipeDirection> OnSwipe;
     public Action OnDoubleTap;
-    
-    [ShowInInspector, ReadOnly] private LeanFinger _activeFinger;
-    private float _doubleTapTimer;
 
-    public TouchManager Initialize()
+    public bool IsTouching => _activeFinger != null;
+
+    ETouch.Finger _activeFinger;
+    Vector2 _startPos;
+    Vector2 _prevPos;
+    Vector2 _accumulatedDelta;
+
+    float _lastTapTime = -999f;
+    Vector2 _lastTapPos;
+
+    void OnEnable()
     {
-        return this;
+        if (!ETouch.EnhancedTouchSupport.enabled)
+            ETouch.EnhancedTouchSupport.Enable();
+#if UNITY_EDITOR
+        ETouch.TouchSimulation.Enable();
+#endif
     }
 
-    private void OnEnable()
+    void OnDisable()
     {
-        LeanTouch.OnFingerDown += OnFingerDown;
-        LeanTouch.OnFingerUpdate += OnFingerUpdate;
-        LeanTouch.OnFingerUp += OnFingerUp;
-
-        LeanTouch.OnFingerSwipe += OnFingerSwipe;
+#if UNITY_EDITOR
+        ETouch.TouchSimulation.Disable();
+#endif
+        if (ETouch.EnhancedTouchSupport.enabled)
+            ETouch.EnhancedTouchSupport.Disable();
     }
 
-    private void OnDisable()
+    void Update()
     {
-        LeanTouch.OnFingerDown -= OnFingerDown;
-        LeanTouch.OnFingerUpdate -= OnFingerUpdate;
-        LeanTouch.OnFingerUp -= OnFingerUp;
-        
-        LeanTouch.OnFingerSwipe -= OnFingerSwipe;
-    }
+        var touches = ETouch.Touch.activeTouches;
+        if (touches.Count == 0 && _activeFinger == null) return;
 
-    private void OnFingerDown(LeanFinger finger)
-    {
-        if (ValidateFinger(finger)) 
-            return;
-
-        _activeFinger = finger;
-        
-        OnTouchBegin?.Invoke(finger.ScreenPosition);
-    }
-
-    private void OnFingerUpdate(LeanFinger finger)
-    {
-        if (ValidateFinger(finger)) 
-            return;
-
-        OnTouchMoveScreen?.Invoke(finger.ScaledDelta);
-    }
-
-    private void OnFingerUp(LeanFinger finger)
-    {
-        if (ValidateFinger(finger)) 
-            return;
-
-        _activeFinger = null;
-
-        if (_doubleTapTimer < Time.time)
+        if (_activeFinger == null)
         {
-            _doubleTapTimer = Time.time + doubleTapDuration;
+            for (int i = 0; i < touches.Count; i++)
+            {
+                var t = touches[i];
+                if (ignoreUITouches && IsOverUI(t)) continue;
+
+                if (t.phase == ISTouchPhase.Began)
+                {
+                    if (singleFingerOnly && _activeFinger != null) break;
+
+                    _activeFinger = t.finger;
+                    _startPos = t.screenPosition;
+                    _prevPos = _startPos;
+                    _accumulatedDelta = Vector2.zero;
+                    OnTouchBegin?.Invoke(_startPos);
+                    break;
+                }
+            }
+            return;
+        }
+
+        ETouch.Touch? maybe = null;
+        for (int i = 0; i < touches.Count; i++)
+        {
+            if (touches[i].finger == _activeFinger)
+            {
+                maybe = touches[i];
+                break;
+            }
+        }
+
+        if (maybe.HasValue)
+        {
+            var t = maybe.Value;
+            if (ignoreUITouches && IsOverUI(t)) return;
+
+            var delta = t.screenPosition - _prevPos;
+            if (delta.sqrMagnitude > 0.001f)
+            {
+                _accumulatedDelta += delta;
+                OnTouchMoveScreen?.Invoke(delta);
+                _prevPos = t.screenPosition;
+            }
+
+            if (t.phase == ISTouchPhase.Canceled || t.phase == ISTouchPhase.Ended)
+            {
+                HandleDoubleTap(t.screenPosition);
+                HandleSwipe(t.screenPosition);
+                OnTouchEnd?.Invoke(t.screenPosition);
+
+                _activeFinger = null;
+                _accumulatedDelta = Vector2.zero;
+            }
         }
         else
         {
-            OnDoubleTap?.Invoke();
-            _doubleTapTimer = 0f;
+            HandleDoubleTap(_prevPos);
+            HandleSwipe(_prevPos);
+            OnTouchEnd?.Invoke(_prevPos);
+            _activeFinger = null;
+            _accumulatedDelta = Vector2.zero;
         }
-
-        if (finger.Old)
-            return;
-        
-        OnTouchEnd?.Invoke(finger.ScreenPosition);
-    }
-    
-    private void OnFingerSwipe(LeanFinger finger)
-    {
-        var swipeDirection = SwipeDirectionHelper.CalculateSwipeDirection(finger.SwipeScaledDelta.normalized);
-        
-        OnSwipe?.Invoke(swipeDirection);
     }
 
-    private bool ValidateFinger(LeanFinger finger)
+    void HandleDoubleTap(Vector2 upPos)
     {
-        if (_activeFinger != finger)
-            return false;
+        var now = Time.unscaledTime;
+        float dt = now - _lastTapTime;
+        bool closeInTime = dt <= doubleTapDuration;
+        bool closeInSpace = (_lastTapPos - upPos).magnitude <= doubleTapMaxDistancePx;
 
-        return finger.IsOverGui && GameSettingsData.Instance.ignoreUITouches;
+        if (closeInTime && closeInSpace)
+        {
+            OnDoubleTap?.Invoke();
+            _lastTapTime = -999f;
+        }
+        else
+        {
+            _lastTapTime = now;
+            _lastTapPos = upPos;
+        }
+    }
+
+    void HandleSwipe(Vector2 currentPos)
+    {
+        var total = currentPos - _startPos;
+        if (total.magnitude < swipeThresholdPx) return;
+
+        var dir = DetectDirection(total);
+        OnSwipe?.Invoke(dir);
+    }
+
+    bool IsOverUI(ETouch.Touch t)
+    {
+        if (EventSystem.current == null) return false;
+        return EventSystem.current.IsPointerOverGameObject(t.finger.index);
+    }
+
+    static SwipeDirection DetectDirection(Vector2 v)
+    {
+        if (Mathf.Abs(v.x) > Mathf.Abs(v.y))
+            return v.x > 0f ? SwipeDirection.Right : SwipeDirection.Left;
+        else
+            return v.y > 0f ? SwipeDirection.Up : SwipeDirection.Down;
     }
 }

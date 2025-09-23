@@ -8,6 +8,6 @@ public class CameraSpeedBooster : Collectable
     {
         base.OnInteract(player);
         
-        GameManager.Instance.levelManager.currentLevel.CameraController.ChangeSpeed(speedChangeAmount);
+        //GameManager.Instance.levelManager.currentLevel.CameraController.ChangeSpeed(speedChangeAmount);
     }
 }
