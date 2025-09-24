@@ -42,13 +42,4 @@ public class GroundMaterialSwitcher : MonoBehaviour
             }
         }
     }
-
-    // İsteğe bağlı: 1-4 kısayolu
-    void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Alpha1)) Apply(0);
-        if (Input.GetKeyDown(KeyCode.Alpha2)) Apply(1);
-        if (Input.GetKeyDown(KeyCode.Alpha3)) Apply(2);
-        if (Input.GetKeyDown(KeyCode.Alpha4)) Apply(3);
-    }
 }

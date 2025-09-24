@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   displayName: MovingGreenWall
   icon: {fileID: 21300000, guid: e78c2882576794e6e81ac4f24a7b37f9, type: 3}
-  prefab: {fileID: 2761655118320511732, guid: fc9989ab1d7a24bdeb0fb08b258ecb35, type: 3}
+  prefab: {fileID: 2761655118320511732, guid: 45bdd8db11d304a8da09c16116cea475, type: 3}
   size: {x: 11, y: 1}

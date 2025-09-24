@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   displayName: MovingYellowWall
   icon: {fileID: 21300000, guid: 1f21caf43a5074ad7a69e7e45043f6a9, type: 3}
-  prefab: {fileID: 2761655118320511732, guid: 3e4fbab3ad9094a73a50dacbb0315dbb, type: 3}
+  prefab: {fileID: 2761655118320511732, guid: 06e0837e75c3a475f8272945fba3f239, type: 3}
   size: {x: 11, y: 1}

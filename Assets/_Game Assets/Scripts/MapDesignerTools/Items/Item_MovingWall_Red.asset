@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   displayName: MovingRedWall
   icon: {fileID: 21300000, guid: d53704b230f1c411d86a1198ccaa3c68, type: 3}
-  prefab: {fileID: 2761655118320511732, guid: ec730452b0d5d9148a71a67466132aef, type: 3}
+  prefab: {fileID: 2761655118320511732, guid: 2d16a9ea2c69c4402bab6de34bd5c578, type: 3}
   size: {x: 11, y: 1}
