@@ -15,10 +15,7 @@ public class MovingWall : Wall
     }
 
     private void Update()
-    {
-        if (!PlayerController.Instance.playerMovement.IsMoving)
-            return;
-            
+    {     
         var remainingDistance = (_targetPosition.position - transform.position).magnitude;
 
         if (remainingDistance > 0.1f)
