@@ -311,6 +311,10 @@ public class GridPlacer : MonoBehaviour
     {
         var pos = grid.GetCellCenterWorld(x, z);
         var go  = Instantiate(item.prefab, pos, transform.rotation, placedParent);
+        // Attach and initialize PlacedItemData for save system
+        var placedData = go.AddComponent<PlacedItemData>();
+        if (placedData == null) placedData = go.AddComponent<PlacedItemData>();
+        placedData.Init(item, x, z);
 
         if (enablePortalPairing)
         {

@@ -1,0 +1,120 @@
+{
+    "savedAtIso": "2025-09-25T02:10:36.8189880+03:00",
+    "items": [
+        {
+            "displayName": "MovingRedWall",
+            "gridX": 0,
+            "gridY": 111
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 1,
+            "gridY": 81
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 73
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 5,
+            "gridY": 74
+        },
+        {
+            "displayName": "Camera Speed Decreaser",
+            "gridX": 5,
+            "gridY": 78
+        },
+        {
+            "displayName": "MovingRedWall",
+            "gridX": 4,
+            "gridY": 107
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 3,
+            "gridY": 91
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 9,
+            "gridY": 95
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 7,
+            "gridY": 90
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 12,
+            "gridY": 81
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 74
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 11,
+            "gridY": 91
+        },
+        {
+            "displayName": "CameraSpeedBooster",
+            "gridX": 10,
+            "gridY": 77
+        },
+        {
+            "displayName": "PlayerSpeedBooster",
+            "gridX": 4,
+            "gridY": 84
+        },
+        {
+            "displayName": "BlueMovingWall",
+            "gridX": 3,
+            "gridY": 104
+        },
+        {
+            "displayName": "PlayerSpeedDecreaser",
+            "gridX": 10,
+            "gridY": 81
+        },
+        {
+            "displayName": "PlayerSpeedBooster",
+            "gridX": 10,
+            "gridY": 84
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 6,
+            "gridY": 74
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 8,
+            "gridY": 99
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 3,
+            "gridY": 100
+        },
+        {
+            "displayName": "BlueWall",
+            "gridX": 0,
+            "gridY": 110
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 7,
+            "gridY": 113
+        },
+        {
+            "displayName": "PlayerSpeedDecreaser",
+            "gridX": 4,
+            "gridY": 81
+        }
+    ]
+}
