@@ -417,6 +417,15 @@ public class GridPlacer : MonoBehaviour
         return null;
     }
 
+    TeleportLinkRuntime GetRuntimeOfTeleport(Teleport t)
+    {
+        if (t == null) return null;
+        var rootGO = GetPlacedRootFromHit(t.transform);
+        if (rootGO == null) return null;
+        // TeleportLinkRuntime can live on a child; include inactive children just in case
+        return rootGO.GetComponentInChildren<TeleportLinkRuntime>(true);
+    }
+
     void PairPortals(Teleport a, Teleport b)
     {
         if (a == null || b == null || a == b) return;
@@ -438,8 +447,17 @@ public class GridPlacer : MonoBehaviour
         Unpair(a);
         Unpair(b);
 
+        // Link Teleport side (visual/logic the game already uses)
         a.otherPortal = b;
         b.otherPortal = a;
+
+        // Link Pair-ID side: find corresponding TeleportLinkRuntime components and assign a new pair id
+        var ra = GetRuntimeOfTeleport(a);
+        var rb = GetRuntimeOfTeleport(b);
+        if (ra != null && rb != null)
+        {
+            TeleportLinkRuntime.AssignPair(ra, rb);
+        }
 
         // feedback
         if (a.transform && b.transform)
@@ -461,6 +479,12 @@ public class GridPlacer : MonoBehaviour
             if (other.otherPortal == t) other.otherPortal = null;
             t.otherPortal = null;
 
+            // also clear Pair-ID flags on both ends, if present
+            var rt = GetRuntimeOfTeleport(t);
+            var ro = GetRuntimeOfTeleport(other);
+            if (rt != null) rt.ClearPairFlag();
+            if (ro != null) ro.ClearPairFlag();
+
             // light feedback on the partner to indicate unlink
             if (other.transform)
             {
@@ -468,6 +492,12 @@ public class GridPlacer : MonoBehaviour
                 other.transform.DOKill();
                 other.transform.DOScale(s * 1.02f, 0.08f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
             }
+        }
+        else
+        {
+            // no partner; ensure this side's Pair-ID is reset if needed
+            var rt = GetRuntimeOfTeleport(t);
+            if (rt != null) rt.ClearPairFlag();
         }
     }
 }
