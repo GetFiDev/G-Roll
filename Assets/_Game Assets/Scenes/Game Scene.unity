@@ -7251,7 +7251,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1072273746}
-  - component: {fileID: 1072273745}
   m_Layer: 0
   m_Name: LeanTouch
   m_TagString: Untagged
@@ -7259,18 +7258,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1072273745
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1072273744}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1fc98219a83dff145947365dc914d06e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!4 &1072273746
 Transform:
   m_ObjectHideFlags: 0
@@ -17168,13 +17155,60 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2186828eb46114cb2a712c7ea93dc0bd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mapJson: "{\n    \"savedAtIso\": \"2025-09-28T18:18:29.6182320+03:00\",\n    \"mapName\":
-    \"easy1_28/09/25 - 18:18:29\",\n    \"mapDisplayName\": \"easy1\",\n    \"difficultyTag\":
-    1,\n    \"backgroundMaterialId\": 4,\n    \"items\": [\n        {\n           
-    \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n            \"gridY\":
-    60,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"GetCoin\",\n            \"gridX\": 6,\n            \"gridY\": 54,\n           
-    \"linkedPortalId\": -1\n        }\n    ]\n}"
+  mapJson: "{\n    \"savedAtIso\": \"2025-09-28T19:41:22.6296310+03:00\",\n    \"mapName\":
+    \"testmap_easy_28/09/25 - 19:41:22\",\n    \"mapDisplayName\": \"testmap_easy\",\n   
+    \"difficultyTag\": 1,\n    \"backgroundMaterialId\": 1,\n    \"items\": [\n       
+    {\n            \"displayName\": \"BoosterInstaFill\",\n            \"gridX\":
+    4,\n            \"gridY\": 42,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"Portal\",\n            \"gridX\": 0,\n           
+    \"gridY\": 56,\n            \"linkedPortalId\": 0\n        },\n        {\n           
+    \"displayName\": \"BoosterInstaFill\",\n            \"gridX\": 7,\n           
+    \"gridY\": 39,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 5,\n            \"gridY\":
+    63,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"Portal\",\n            \"gridX\": 7,\n            \"gridY\": 65,\n           
+    \"linkedPortalId\": 0\n        },\n        {\n            \"displayName\": \"Fan\",\n           
+    \"gridX\": 7,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"MovingYellowWall\",\n           
+    \"gridX\": 5,\n            \"gridY\": 105,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    9,\n            \"gridY\": 60,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"PlayerSpeedBooster\",\n            \"gridX\":
+    11,\n            \"gridY\": 62,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    4,\n            \"gridY\": 71,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 4,\n           
+    \"gridY\": 63,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"PlayerSpeedDecreaser\",\n            \"gridX\": 4,\n           
+    \"gridY\": 61,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"Portal\",\n            \"gridX\": 5,\n            \"gridY\":
+    49,\n            \"linkedPortalId\": 0\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 2,\n            \"gridY\": 52,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"Portal\",\n           
+    \"gridX\": 7,\n            \"gridY\": 56,\n            \"linkedPortalId\": 0\n       
+    },\n        {\n            \"displayName\": \"Fan\",\n            \"gridX\":
+    7,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"MovingYellowWall\",\n            \"gridX\":
+    4,\n            \"gridY\": 45,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 5,\n           
+    \"gridY\": 68,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BoosterInstaFill\",\n            \"gridX\": 12,\n           
+    \"gridY\": 40,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"PlayerSpeedDecreaser\",\n            \"gridX\": 11,\n           
+    \"gridY\": 56,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"MovingYellowWall\",\n            \"gridX\": 5,\n           
+    \"gridY\": 75,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"Fan\",\n            \"gridX\": 8,\n            \"gridY\":
+    99,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 2,\n            \"gridY\": 65,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 2,\n            \"gridY\": 48,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"MovingYellowWall\",\n           
+    \"gridX\": 4,\n            \"gridY\": 83,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    7,\n            \"gridY\": 52,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 3,\n           
+    \"gridY\": 56,\n            \"linkedPortalId\": -1\n        }\n    ]\n}"
   buildDatabase: {fileID: 11400000, guid: a97246f7cd4124aff9123c8ffd694e49, type: 2}
   gridUtility: {fileID: 368847192316393680}
   contentParent: {fileID: 1738669335}

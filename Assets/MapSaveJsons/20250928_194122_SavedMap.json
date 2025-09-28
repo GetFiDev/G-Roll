@@ -1,0 +1,171 @@
+{
+    "savedAtIso": "2025-09-28T19:41:22.6296310+03:00",
+    "mapName": "testmap_easy_28/09/25 - 19:41:22",
+    "mapDisplayName": "testmap_easy",
+    "difficultyTag": 1,
+    "backgroundMaterialId": 1,
+    "items": [
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 4,
+            "gridY": 42,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 0,
+            "gridY": 56,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 7,
+            "gridY": 39,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 63,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 7,
+            "gridY": 65,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 7,
+            "gridY": 72,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingYellowWall",
+            "gridX": 5,
+            "gridY": 105,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 9,
+            "gridY": 60,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "PlayerSpeedBooster",
+            "gridX": 11,
+            "gridY": 62,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 4,
+            "gridY": 71,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 4,
+            "gridY": 63,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "PlayerSpeedDecreaser",
+            "gridX": 4,
+            "gridY": 61,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 5,
+            "gridY": 49,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 2,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 7,
+            "gridY": 56,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 7,
+            "gridY": 80,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingYellowWall",
+            "gridX": 4,
+            "gridY": 45,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 5,
+            "gridY": 68,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 12,
+            "gridY": 40,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "PlayerSpeedDecreaser",
+            "gridX": 11,
+            "gridY": 56,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingYellowWall",
+            "gridX": 5,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 8,
+            "gridY": 99,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 2,
+            "gridY": 65,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 2,
+            "gridY": 48,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingYellowWall",
+            "gridX": 4,
+            "gridY": 83,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 7,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 3,
+            "gridY": 56,
+            "linkedPortalId": -1
+        }
+    ]
+}

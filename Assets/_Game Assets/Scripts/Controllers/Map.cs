@@ -32,6 +32,14 @@ public class Map : MonoBehaviour
     [Tooltip("Background materials list. Index is 'backgroundMaterialId' from JSON.")]
     [SerializeField] private List<Material> backgroundMaterials = new List<Material>();
 
+    // ---- Portals (collected during build, linked after build) ----
+    private class SpawnedPortal
+    {
+        public Teleport teleport;
+        public int linkId;
+    }
+    private readonly List<SpawnedPortal> _spawnedPortals = new List<SpawnedPortal>();
+
     // One-click build from Inspector
     [Button("Build From JSON"), GUIColor(0.2f, 0.7f, 1f)]
     public void Initialize()
@@ -59,12 +67,13 @@ public class Map : MonoBehaviour
 
         var parent = contentParent != null ? contentParent : transform;
         if (clearBeforeBuild) ClearChildren(parent);
+        _spawnedPortals.Clear();
 
         // Apply background material (simple index lookup)
         if (backgroundMaterials != null && backgroundMaterials.Count > 0)
         {
             var idx = Mathf.Clamp(data.backgroundMaterialId, 0, backgroundMaterials.Count - 1);
-            var mat = backgroundMaterials[idx];
+            var mat = backgroundMaterials[idx-1];
             if (mat != null && backgroundRenderers != null)
             {
                 for (int i = 0; i < backgroundRenderers.Length; i++)
@@ -97,8 +106,37 @@ public class Map : MonoBehaviour
             if (renameInstancesWithIds && !string.IsNullOrEmpty(it.displayName))
                 go.name = $"{it.displayName} ({it.gridX},{it.gridY})";
 
+            // If this item is a Portal, strip runtime link components and collect for linking
+            if (string.Equals(it.displayName, "Portal", StringComparison.OrdinalIgnoreCase))
+            {
+                // Destroy TeleportLinkRuntime components on any children of this portal instance
+                var linkRuntimes = go.GetComponentsInChildren<TeleportLinkRuntime>(true);
+                for (int k = 0; k < linkRuntimes.Length; k++)
+                {
+                    DestroyImmediate(linkRuntimes[k]);
+                }
+
+                // Find Teleport component (on a child) to link later
+                var tele = go.GetComponentInChildren<Teleport>(true);
+                if (tele != null)
+                {
+                    _spawnedPortals.Add(new SpawnedPortal
+                    {
+                        teleport = tele,
+                        linkId = it.linkedPortalId
+                    });
+                }
+                else
+                {
+                    Debug.LogWarning("[Map] Spawned Portal has no Teleport component in children.");
+                }
+            }
+
             spawned++;
         }
+
+        // Link portals after all items are spawned
+        LinkSpawnedPortals();
 
         Debug.Log($"[Map] Build complete. Spawned={spawned} " +
                   $"difficulty={data.difficultyTag} bgMatId={data.backgroundMaterialId}");
@@ -115,6 +153,47 @@ public class Map : MonoBehaviour
     #else
             Destroy(c.gameObject);
     #endif
+        }
+    }
+
+    private void LinkSpawnedPortals()
+    {
+        if (_spawnedPortals.Count == 0) return;
+
+        // Group portals by their linkedPortalId
+        var groups = new Dictionary<int, List<Teleport>>();
+        for (int i = 0; i < _spawnedPortals.Count; i++)
+        {
+            var sp = _spawnedPortals[i];
+            if (!groups.TryGetValue(sp.linkId, out var list))
+            {
+                list = new List<Teleport>();
+                groups[sp.linkId] = list;
+            }
+            if (sp.teleport != null) list.Add(sp.teleport);
+        }
+
+        // For each group, assign otherPortal references
+        foreach (var kv in groups)
+        {
+            var list = kv.Value;
+            if (list == null || list.Count < 2) continue; // needs at least a pair
+
+            if (list.Count == 2)
+            {
+                // Standard pair: A <-> B
+                list[0].otherPortal = list[1];
+                list[1].otherPortal = list[0];
+            }
+            else
+            {
+                // More than 2 with the same link id: link in a ring (A->B->C->A)
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var next = list[(i + 1) % list.Count];
+                    list[i].otherPortal = next;
+                }
+            }
         }
     }
 
