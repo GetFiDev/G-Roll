@@ -30,9 +30,9 @@ public class GameManager : MonoSingleton<GameManager>
     {
         base.Init();
 
-        GameState = GameState.Loading;
+        GameState = GameState.MetaState;
 
-        Application.targetFrameRate = 60;
+        Application.targetFrameRate = 120;
         Screen.sleepTimeout = SleepTimeout.NeverSleep;
 
         HapticManager.SetHapticsActive(DataManager.Vibration);
@@ -49,23 +49,19 @@ public class GameManager : MonoSingleton<GameManager>
 
     private void Start()
     {
-        GameState = GameState.Ready;
-
-        if (GameSettingsData.Instance.skipReadyState)
-            LevelStart();
+        GameState = GameState.MetaState;
     }
 
-    public void LevelStart()
+    public void StartTheGameplay()
     {
-        if (GameState != GameState.Ready)
+        if (GameState != GameState.GameplayRun)
         {
-            Debug.LogError("Game State is not Ready", this);
+            Debug.Log("Game State is not Ready", this);
             return;
         }
 
-        GameState = GameState.Gameplay;
+        GameState = GameState.GameplayLoading;
 
-        AnalyticsManager.OnLevelStart();
     }
 
     private GameState _previousGameState;
@@ -84,15 +80,13 @@ public class GameManager : MonoSingleton<GameManager>
 
     public void LevelFinish(bool isSuccess)
     {
-        if (GameState != GameState.Gameplay)
+        if (GameState != GameState.GameplayRun)
         {
-            Debug.LogError("Game State is not Gameplay", this);
+            Debug.LogError("Game State is not GameplayRun", this);
             return;
         }
 
         GameState = isSuccess ? GameState.Complete : GameState.Fail;
-
-        AnalyticsManager.OnLevelFinish(isSuccess ? EndType.Success : EndType.Fail);
 
         if (isSuccess)
         {

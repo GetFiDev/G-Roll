@@ -40,7 +40,7 @@ public class UIGalleryElement : MonoBehaviour
         }
         else
         {
-            GameManager.Instance.LevelStart();
+            GameManager.Instance.StartTheGameplay();
         }
     }
 

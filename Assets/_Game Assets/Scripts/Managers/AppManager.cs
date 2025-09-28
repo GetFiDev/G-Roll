@@ -17,7 +17,6 @@ public class AppManager : MonoSingleton<AppManager>
     {        
         ReviewManager.Initialize();
         HapticManager.Initialize();
-        AnalyticsManager.Initialize();
         NotificationManager.Initialize();
         AdManager.Initialize();
         
@@ -35,30 +34,4 @@ public class AppManager : MonoSingleton<AppManager>
     {
         OnApplicationPauseListener?.Invoke(paused);
     }
-
-    // // ReSharper disable once InconsistentNaming
-    // private void FBInitCallback()
-    // {
-    //     if (Facebook.Unity.FB.IsInitialized)
-    //     {
-    //         LogManager.Log("Facebook Initialized");
-    //         
-    //         Facebook.Unity.FB.ActivateApp();
-    //     }
-    //     else
-    //     {
-    //         LogManager.LogError("Facebook Initialized Failed", this);
-    //     }
-    // }
-    //
-    // private void OnApplicationPause(bool paused)
-    // {
-    //     if (paused)
-    //         return;
-    //     
-    //     if (Facebook.Unity.FB.IsInitialized)
-    //     {
-    //         Facebook.Unity.FB.ActivateApp();
-    //     }
-    // }
 }

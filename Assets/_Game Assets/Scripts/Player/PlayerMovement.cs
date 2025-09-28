@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 
 public class PlayerMovement : MonoBehaviour
 {
-    public bool IsMoving => GameManager.Instance.GameState == GameState.Gameplay && _movementDirection.magnitude > 0.1f;
+    public bool IsMoving => GameManager.Instance.GameState == GameState.GameplayRun && _movementDirection.magnitude > 0.1f;
     public float Speed { get; private set; }
     public bool IsJumping { get; private set; } = false;
 
@@ -75,7 +75,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        if (GameManager.Instance.GameState == GameState.Gameplay)
+        if (GameManager.Instance.GameState == GameState.GameplayRun)
         {
             Move();
             RotateTowardsMovement();
@@ -184,7 +184,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (_isFrozen) return;
         if (_jumpTween != null && _jumpTween.IsActive()) return;
-        if (GameManager.Instance.GameState != GameState.Gameplay) return;
+        if (GameManager.Instance.GameState != GameState.GameplayRun) return;
 
         IsJumping = true;
 

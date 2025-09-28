@@ -48,7 +48,7 @@ public class UIBottomPanel : MonoBehaviour
         ChangeAllColorToDefault();
         topPanel.ChangeAllColorToDefault();
         
-        GameManager.Instance.LevelStart();
+        GameManager.Instance.StartTheGameplay();
     }
 
     public void OnClickShopButton()

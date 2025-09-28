@@ -8,6 +8,8 @@ public class UIManager : MonoSingleton<UIManager>
     public UIGamePlay gamePlay;
     public UILevelEnd levelEnd;
     public UIOverlay overlay;
+
+    public UIGameplayLoading gameplayLoading;
     
     public UISettings settings;
 
@@ -22,9 +24,9 @@ public class UIManager : MonoSingleton<UIManager>
     {
         switch (GameManager.Instance.GameState)
         {
-            case GameState.Loading:
+            case GameState.Booting:
                 break;
-            case GameState.Ready:
+            case GameState.MetaState:
                 if (GameSettingsData.Instance.skipReadyState)
                     return;
                 
@@ -32,7 +34,12 @@ public class UIManager : MonoSingleton<UIManager>
                 gamePlay.gameObject.SetActive(false);
                 levelEnd.gameObject.SetActive(false);
                 break;
-            case GameState.Gameplay:
+            case GameState.GameplayLoading:
+                mainMenu.gameObject.SetActive(false);
+                gamePlay.gameObject.SetActive(true);
+                levelEnd.gameObject.SetActive(false);
+                break;
+            case GameState.GameplayRun:
                 mainMenu.gameObject.SetActive(false);
                 gamePlay.gameObject.SetActive(true);
                 levelEnd.gameObject.SetActive(false);

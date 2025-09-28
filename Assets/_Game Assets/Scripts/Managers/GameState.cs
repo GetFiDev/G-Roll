@@ -1,9 +1,10 @@
 public enum GameState
 {
-    Loading = 0,
-    Ready = 1,
-    Gameplay = 2,
-    Paused = 3,
-    Complete = 4,
-    Fail = 5
+    Booting = 0,
+    MetaState = 1,
+    GameplayLoading = 2,
+    GameplayRun = 3,
+    Paused = 4,
+    Complete = 5,
+    Fail = 6
 }
