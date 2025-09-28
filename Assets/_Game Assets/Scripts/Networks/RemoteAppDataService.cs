@@ -4,7 +4,8 @@ using System.Threading.Tasks;
 using System.Diagnostics;                     // Stopwatch
 using Firebase;                               // FirebaseException
 using Firebase.Functions;
-using Firebase.Extensions;                    // ContinueWithOnMainThread (gerekirse)
+using Firebase.Firestore;
+using Firebase.Auth;                  // Firestore
 using UnityEngine;
 
 namespace RemoteApp
@@ -30,6 +31,11 @@ namespace RemoteApp
 
         [Tooltip("Firebase Functions region")]
         public string region = "us-central1";
+
+        [Header("Firestore (Maps JSON)")]
+        [Tooltip("Root collection for app data")] public string appdataCollection = "appdata";
+        [Tooltip("Document under appdata that groups maps")] public string mapsDocument = "maps";
+        private FirebaseFirestore _db; // lazy
 
         private FirebaseFunctions _funcs;
 
@@ -87,6 +93,35 @@ namespace RemoteApp
             _funcs = FirebaseFunctions.GetInstance(app, region);
             D($"Functions instance created? {_funcs != null}");
             return _funcs != null;
+        }
+        private async Task EnsureSignedInAsync()
+        {
+            var auth = FirebaseAuth.DefaultInstance;
+            if (auth.CurrentUser != null) return;
+            var cred = await auth.SignInAnonymouslyAsync();
+            D($"Auth: signed in anonymously uid={cred?.User?.UserId}");
+        }
+
+        /// <summary>Ensure Firestore is ready (lazy init, safe to call many times)</summary>
+        private async Task<bool> EnsureFirestoreReadyAsync()
+        {
+            if (_db != null) return true;
+            D("EnsureFirestoreReadyAsync: Checking Firebase dependencies...");
+            var status = await FirebaseApp.CheckAndFixDependenciesAsync();
+            if (status != DependencyStatus.Available)
+            {
+                E($"Dependencies not available (Firestore): {status}");
+                return false;
+            }
+            var app = FirebaseApp.DefaultInstance;
+            if (app == null)
+            {
+                E("DefaultInstance is null after dependencies check (Firestore).");
+                return false;
+            }
+            _db = FirebaseFirestore.GetInstance(Firebase.FirebaseApp.DefaultInstance, "getfi");
+            D($"Firestore instance created? {_db != null}");
+            return _db != null;
         }
 
         public async Task<List<GalleryItemDTO>> FetchGalleryItemsAsync(
@@ -303,6 +338,64 @@ namespace RemoteApp
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Writes the given JSON string into Firestore at:
+        ///   appdata/{mapsDocument}/{mapId}/raw  with a single field named {fieldKey} holding the JSON string.
+        /// - mapId: typically userGivenName_{timestamp} (sanitize '/' yourself on caller if needed)
+        /// - fieldKey: typically same as mapId (field name); will be sanitized to avoid illegal characters
+        /// </summary>
+        public async Task SaveMapJsonAsync(string mapId, string fieldKey, string jsonString)
+        {
+            if (string.IsNullOrWhiteSpace(jsonString)) { E("SaveMapJsonAsync: jsonString is empty"); return; }
+            if (string.IsNullOrWhiteSpace(mapId))      { E("SaveMapJsonAsync: mapId is empty"); return; }
+
+            mapId    = SanitizeId(mapId);
+            fieldKey = SanitizeFieldKey(string.IsNullOrWhiteSpace(fieldKey) ? mapId : fieldKey);
+
+            // Ensure we have a signed-in user (Anonymous Auth is fine for rules)
+            await EnsureSignedInAsync();
+
+            if (!await EnsureFirestoreReadyAsync())
+            {
+                E("SaveMapJsonAsync: Firestore init failed");
+                return;
+            }
+
+            try
+            {
+                // Path: appdata/maps/{mapId}/raw
+                var doc = _db.Collection(appdataCollection)
+                             .Document(mapsDocument)
+                             .Collection(mapId)
+                             .Document("raw");
+
+                var payload = new Dictionary<string, object>
+                {
+                    { fieldKey, jsonString }
+                };
+
+                D($"SaveMapJsonAsync → path: {appdataCollection}/{mapsDocument}/{mapId}/raw | field='{fieldKey}' size={jsonString?.Length ?? 0}");
+                await doc.SetAsync(payload, SetOptions.MergeAll);
+                D("SaveMapJsonAsync: Firestore write OK");
+            }
+            catch (Exception ex)
+            {
+                E($"SaveMapJsonAsync exception: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        private static string SanitizeId(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "untitled";
+            return s.Replace('/', '_').Replace('\\', '_').Replace(':', '_');
+        }
+        private static string SanitizeFieldKey(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "map";
+            // Avoid Firestore dotted path semantics and slashes
+            return s.Replace('.', '_').Replace('/', '_').Replace('\\', '_').Replace(':', '_');
         }
     }
 

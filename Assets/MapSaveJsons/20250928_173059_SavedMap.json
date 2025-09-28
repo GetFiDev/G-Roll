@@ -1,0 +1,21 @@
+{
+    "savedAtIso": "2025-09-28T17:30:59.0882090+03:00",
+    "mapName": "123_28/09/25 - 17:30:59",
+    "mapDisplayName": "123",
+    "difficultyTag": 3,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "BlueWall",
+            "gridX": 9,
+            "gridY": 56,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "BlueWall",
+            "gridX": 7,
+            "gridY": 51,
+            "linkedPortalId": -1
+        }
+    ]
+}

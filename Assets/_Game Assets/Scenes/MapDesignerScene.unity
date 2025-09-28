@@ -1370,6 +1370,54 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 624937560}
   m_CullTransparentMesh: 1
+--- !u!1 &672055947
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 672055949}
+  - component: {fileID: 672055948}
+  m_Layer: 0
+  m_Name: RemoteAppDataService
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &672055948
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 672055947}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 625046aba3bbd49f686e28ff2b123b51, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableDebugLogs: 1
+  region: us-central1
+  appdataCollection: appdata
+  mapsDocument: maps
+--- !u!4 &672055949
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 672055947}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 81.98442, y: 838.9812, z: -0.7510761}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &677167738
 GameObject:
   m_ObjectHideFlags: 0
@@ -4748,22 +4796,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 419f8e2c680804159be08c47352c1b46, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mapNameInput: {fileID: 273210158}
-  difficultyDropdown: {fileID: 685792596}
-  groundMaterialSwitcher: {fileID: 1870410924}
-  groundColorPaletteUI: {fileID: 1870410923}
+  mapNameInput: {fileID: 273210159}
+  difficultyDropdown: {fileID: 685792597}
   backgroundRenderer: {fileID: 2086273394}
   knownBackgroundMaterials:
   - {fileID: 2100000, guid: 30324cf402cea4118b3b44e12b768099, type: 2}
   - {fileID: 2100000, guid: 8036df38c412d44878cad1c07dbc1e22, type: 2}
   - {fileID: 2100000, guid: c1ef2717107f94b8cad0d8a600eb9691, type: 2}
   - {fileID: 2100000, guid: d5378d5fb574c47f991e49ada5a7dd5b, type: 2}
-  fallbackDifficultyTag: 1
   fallbackBackgroundIndex: 1
-  autoScanUIInHierarchy: 1
   saveToast: {fileID: 216627507}
   toastDuration: 3
-  searchRoot: {fileID: 0}
+  remoteService: {fileID: 672055948}
+  uploadToFirestoreOnSave: 1
 --- !u!4 &1851339705
 Transform:
   m_ObjectHideFlags: 0
@@ -5316,3 +5361,4 @@ SceneRoots:
   - {fileID: 346142169}
   - {fileID: 1152730723}
   - {fileID: 1851339705}
+  - {fileID: 672055949}

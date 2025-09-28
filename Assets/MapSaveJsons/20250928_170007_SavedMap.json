@@ -1,0 +1,33 @@
+{
+    "savedAtIso": "2025-09-28T17:00:07.0465780+03:00",
+    "mapName": "23_28/09/25 - 17:00:07",
+    "mapDisplayName": "23",
+    "difficultyTag": 3,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "Portal",
+            "gridX": 10,
+            "gridY": 64,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 8,
+            "gridY": 72,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 5,
+            "gridY": 50,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 4,
+            "gridY": 58,
+            "linkedPortalId": -1
+        }
+    ]
+}

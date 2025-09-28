@@ -1,0 +1,63 @@
+{
+    "savedAtIso": "2025-09-28T16:41:59.6369720+03:00",
+    "mapName": "123_28/09/25 - 16:41:59",
+    "mapDisplayName": "123",
+    "difficultyTag": 1,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "Portal",
+            "gridX": 6,
+            "gridY": 75,
+            "linkedPortalId": 2
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 13,
+            "gridY": 54,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 9,
+            "gridY": 37,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 4,
+            "gridY": 60,
+            "linkedPortalId": 2
+        },
+        {
+            "displayName": "MovingYellowWall",
+            "gridX": 4,
+            "gridY": 67,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 48,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 7,
+            "gridY": 43,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "PlayerSpeedBooster",
+            "gridX": 6,
+            "gridY": 55,
+            "linkedPortalId": -1
+        }
+    ]
+}

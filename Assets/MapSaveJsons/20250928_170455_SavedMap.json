@@ -1,0 +1,27 @@
+{
+    "savedAtIso": "2025-09-28T17:04:55.9947150+03:00",
+    "mapName": "123_28/09/25 - 17:04:55",
+    "mapDisplayName": "123",
+    "difficultyTag": 3,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "Portal",
+            "gridX": 3,
+            "gridY": 61,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "BlueMovingWall",
+            "gridX": 4,
+            "gridY": 56,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 3,
+            "gridY": 48,
+            "linkedPortalId": 1
+        }
+    ]
+}

@@ -1,0 +1,69 @@
+{
+    "savedAtIso": "2025-09-28T16:59:37.8320010+03:00",
+    "mapName": "2233_28/09/25 - 16:59:37",
+    "mapDisplayName": "2233",
+    "difficultyTag": 3,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "MovingYellowWall",
+            "gridX": 4,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 10,
+            "gridY": 44,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 5,
+            "gridY": 43,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingYellowWall",
+            "gridX": 4,
+            "gridY": 65,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 4,
+            "gridY": 59,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 7,
+            "gridY": 39,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 2,
+            "gridY": 51,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 7,
+            "gridY": 48,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 11,
+            "gridY": 38,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 9,
+            "gridY": 54,
+            "linkedPortalId": -1
+        }
+    ]
+}
