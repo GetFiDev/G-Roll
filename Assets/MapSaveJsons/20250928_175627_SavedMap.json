@@ -1,0 +1,27 @@
+{
+    "savedAtIso": "2025-09-28T17:56:27.1365660+03:00",
+    "mapName": "hardtest_28/09/25 - 17:56:27",
+    "mapDisplayName": "hardtest",
+    "difficultyTag": 3,
+    "backgroundMaterialId": 1,
+    "items": [
+        {
+            "displayName": "Portal",
+            "gridX": 3,
+            "gridY": 54,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 8,
+            "gridY": 49,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 8,
+            "gridY": 58,
+            "linkedPortalId": 1
+        }
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    "savedAtIso": "2025-09-28T18:18:29.6182320+03:00",
+    "mapName": "easy1_28/09/25 - 18:18:29",
+    "mapDisplayName": "easy1",
+    "difficultyTag": 1,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 60,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 6,
+            "gridY": 54,
+            "linkedPortalId": -1
+        }
+    ]
+}

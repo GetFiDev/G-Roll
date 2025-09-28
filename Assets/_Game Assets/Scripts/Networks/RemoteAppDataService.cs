@@ -86,12 +86,12 @@ namespace RemoteApp
             var app = FirebaseApp.DefaultInstance;
             if (app == null)
             {
-                E("DefaultInstance is null after dependencies check.");
+                E("DefaultInstance is null after dependencies check (Functions).");
                 return false;
             }
 
             _funcs = FirebaseFunctions.GetInstance(app, region);
-            D($"Functions instance created? {_funcs != null}");
+            D($"Functions bound to DefaultInstance region='{region}'");
             return _funcs != null;
         }
         private async Task EnsureSignedInAsync()
@@ -129,7 +129,7 @@ namespace RemoteApp
             string[] ids = null)
         {
             var sw = Stopwatch.StartNew();
-            D($"FetchGalleryItemsAsync START path='{collectionPath}', ids=[{(ids==null?"null":string.Join(",", ids))}]");
+            D($"FetchGalleryItemsAsync START path='{collectionPath}', ids=[{(ids == null ? "null" : string.Join(",", ids))}]");
 
             var result = new List<GalleryItemDTO>();
 
@@ -150,13 +150,13 @@ namespace RemoteApp
                 };
                 if (ids != null && ids.Length > 0) payload["ids"] = ids;
 
-                D($"Callable payload prepared: path='{collectionPath}', ids=[{(ids==null?"null":string.Join(",", ids))}]");
+                D($"Callable payload prepared: path='{collectionPath}', ids=[{(ids == null ? "null" : string.Join(",", ids))}]");
 
                 var callable = _funcs.GetHttpsCallable("getGalleryItems");
                 D("Invoking callable 'getGalleryItems'...");
                 var resp = await callable.CallAsync(payload);
 
-                D($"Callable returned. resp null? { (resp==null) }");
+                D($"Callable returned. resp null? {(resp == null)}");
                 if (resp == null)
                 {
                     W("Callable response is null (unexpected)");
@@ -186,10 +186,10 @@ namespace RemoteApp
                             {
                                 D($"#{idx} keys: {JoinKeys(d)}");
 
-                                string id   = d.TryGetValue("id", out var _id) ? _id as string : "";
-                                string url  = d.TryGetValue("pngUrl", out var _u) ? _u as string : "";
+                                string id = d.TryGetValue("id", out var _id) ? _id as string : "";
+                                string url = d.TryGetValue("pngUrl", out var _u) ? _u as string : "";
                                 string desc = d.TryGetValue("descriptionText", out var _dt) ? _dt as string : "";
-                                string key  = d.TryGetValue("guidanceKey", out var _gk) ? _gk as string : "";
+                                string key = d.TryGetValue("guidanceKey", out var _gk) ? _gk as string : "";
 
                                 D($"#{idx} values: id='{id}', key='{key}', url='{url}', descLen={(desc?.Length ?? 0)}");
 
@@ -230,10 +230,10 @@ namespace RemoteApp
                             {
                                 D($"NG #{idx} keys(generic): {JoinKeys(d)}");
 
-                                string id   = d.TryGetValue("id", out var _id) ? _id as string : "";
-                                string url  = d.TryGetValue("pngUrl", out var _u) ? _u as string : "";
+                                string id = d.TryGetValue("id", out var _id) ? _id as string : "";
+                                string url = d.TryGetValue("pngUrl", out var _u) ? _u as string : "";
                                 string desc = d.TryGetValue("descriptionText", out var _dt) ? _dt as string : "";
-                                string key  = d.TryGetValue("guidanceKey", out var _gk) ? _gk as string : "";
+                                string key = d.TryGetValue("guidanceKey", out var _gk) ? _gk as string : "";
 
                                 D($"NG #{idx} values(generic): id='{id}', key='{key}', url='{url}', descLen={(desc?.Length ?? 0)}");
 
@@ -249,10 +249,10 @@ namespace RemoteApp
                             {
                                 D($"NG #{idx} keys(non-generic): {JoinKeysNG(dng)}");
 
-                                string id   = (TryGetNG(dng, "id", out var _id) ? _id as string : "") ?? "";
-                                string url  = (TryGetNG(dng, "pngUrl", out var _u) ? _u as string : "") ?? "";
+                                string id = (TryGetNG(dng, "id", out var _id) ? _id as string : "") ?? "";
+                                string url = (TryGetNG(dng, "pngUrl", out var _u) ? _u as string : "") ?? "";
                                 string desc = (TryGetNG(dng, "descriptionText", out var _dt) ? _dt as string : "") ?? "";
-                                string key  = (TryGetNG(dng, "guidanceKey", out var _gk) ? _gk as string : "") ?? "";
+                                string key = (TryGetNG(dng, "guidanceKey", out var _gk) ? _gk as string : "") ?? "";
 
                                 D($"NG #{idx} values(non-generic): id='{id}', key='{key}', url='{url}', descLen={(desc?.Length ?? 0)}");
 
@@ -288,10 +288,10 @@ namespace RemoteApp
                             continue;
                         }
 
-                        string id   = it.TryGetValue("id", out var _id) ? _id as string : "";
-                        string url  = it.TryGetValue("pngUrl", out var _u) ? _u as string : "";
+                        string id = it.TryGetValue("id", out var _id) ? _id as string : "";
+                        string url = it.TryGetValue("pngUrl", out var _u) ? _u as string : "";
                         string desc = it.TryGetValue("descriptionText", out var _dt) ? _dt as string : "";
-                        string key  = it.TryGetValue("guidanceKey", out var _gk) ? _gk as string : "";
+                        string key = it.TryGetValue("guidanceKey", out var _gk) ? _gk as string : "";
 
                         D($"LIST #{idx} values: id='{id}', key='{key}', url='{url}', descLen={(desc?.Length ?? 0)}");
 
@@ -349,9 +349,9 @@ namespace RemoteApp
         public async Task SaveMapJsonAsync(string mapId, string fieldKey, string jsonString)
         {
             if (string.IsNullOrWhiteSpace(jsonString)) { E("SaveMapJsonAsync: jsonString is empty"); return; }
-            if (string.IsNullOrWhiteSpace(mapId))      { E("SaveMapJsonAsync: mapId is empty"); return; }
+            if (string.IsNullOrWhiteSpace(mapId)) { E("SaveMapJsonAsync: mapId is empty"); return; }
 
-            mapId    = SanitizeId(mapId);
+            mapId = SanitizeId(mapId);
             fieldKey = SanitizeFieldKey(string.IsNullOrWhiteSpace(fieldKey) ? mapId : fieldKey);
 
             // Ensure we have a signed-in user (Anonymous Auth is fine for rules)
@@ -397,6 +397,146 @@ namespace RemoteApp
             // Avoid Firestore dotted path semantics and slashes
             return s.Replace('.', '_').Replace('/', '_').Replace('\\', '_').Replace(':', '_');
         }
+
+        /// <summary>
+        /// Cloud Function 'getSequencedMaps'i çağırır ve
+        /// SequencedMapsResponse döndürür.
+        /// </summary>
+        public async Task<SequencedMapsResponse> GetSequencedMapsAsync(
+            int count,
+            string seed = null)
+        {
+            try
+            {
+                // 1) Firebase deps
+                var dep = await FirebaseApp.CheckAndFixDependenciesAsync();
+                if (dep != DependencyStatus.Available)
+                {
+                    UnityEngine.Debug.LogError($"[RemoteAppDataService] Deps not available: {dep}");
+                    return new SequencedMapsResponse { ok = false, entries = new List<SequencedMapEntry>() };
+                }
+
+                // 2) Auth (anon)
+                var auth = FirebaseAuth.DefaultInstance;
+                if (auth.CurrentUser == null)
+                {
+                    var res = await auth.SignInAnonymouslyAsync();
+                    D($"Auth anon uid={res?.User?.UserId}");
+                }
+
+                // 3) Functions (DefaultInstance + region field)
+                var app = FirebaseApp.DefaultInstance;
+                if (app == null)
+                {
+                    UnityEngine.Debug.LogError("[RemoteAppDataService] DefaultInstance is null for Functions.");
+                    return new SequencedMapsResponse { ok = false, entries = new List<SequencedMapEntry>() };
+                }
+                var usedRegion = string.IsNullOrWhiteSpace(region) ? "us-central1" : region;
+                var functions  = FirebaseFunctions.GetInstance(app, usedRegion);
+                var callable   = functions.GetHttpsCallable("getSequencedMaps");
+
+                // 4) Payload
+                var payload = new Dictionary<string, object>
+                {
+                    { "count", Mathf.Clamp(count, 1, 50) }
+                };
+                if (!string.IsNullOrWhiteSpace(seed))
+                    payload["seed"] = seed.Trim();
+
+                // 5) Call
+                D($"Calling getSequencedMaps count={payload["count"]} seed='{(payload.ContainsKey("seed")?payload["seed"]:"")}'");
+                var resp = await callable.CallAsync(payload);
+                var raw  = resp?.Data;
+                D($"getSequencedMaps raw type: {raw?.GetType().FullName ?? "null"}");
+
+                // 6) Parse dictionary response
+                var dict = ToStringDictFromAny(raw);
+                if (dict != null)
+                    return ParseResponseFromDictionary(dict);
+
+                // 7) Parse string JSON response (fallback)
+                if (raw is string jsonText)
+                {
+                    try
+                    {
+                        var dto = JsonUtility.FromJson<SequencedMapsResponse>(jsonText);
+                        return dto ?? new SequencedMapsResponse { ok = false, entries = new List<SequencedMapEntry>() };
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogWarning($"[RemoteAppDataService] JSON parse fail: {ex.Message}");
+                    }
+                }
+
+                UnityEngine.Debug.LogError("[RemoteAppDataService] Unexpected response payload.");
+                return new SequencedMapsResponse { ok = false, entries = new List<SequencedMapEntry>() };
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"[RemoteAppDataService] GetSequencedMapsAsync error: {e.Message}\n{e}");
+                return new SequencedMapsResponse { ok = false, entries = new List<SequencedMapEntry>() };
+            }
+        }
+
+        // ---- Helpers -------------------------------------------------------
+
+        private static IDictionary<string, object> ToStringDictFromAny(object obj)
+        {
+            if (obj is IDictionary<string, object> ds) return ds;
+            if (obj is Dictionary<string, object> dso) return dso;
+            if (obj is IDictionary<object, object> doo)
+            {
+                var conv = new Dictionary<string, object>();
+                foreach (var kv in doo)
+                {
+                    var key = kv.Key?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(key)) conv[key] = kv.Value;
+                }
+                return conv;
+            }
+            return null;
+        }
+
+        private static SequencedMapsResponse ParseResponseFromDictionary(
+            IDictionary<string, object> data)
+        {
+            var resp = new SequencedMapsResponse
+            {
+                ok       = data.ContainsKey("ok") && data["ok"] is bool b && b,
+                count    = data.ContainsKey("count") ? Convert.ToInt32(data["count"]) : 0,
+                pattern  = new List<int>(),
+                entries  = new List<SequencedMapEntry>()
+            };
+
+            // pattern
+            if (data.TryGetValue("pattern", out var pObj) && pObj is IList<object> pList)
+            {
+                foreach (var v in pList)
+                    resp.pattern.Add(Convert.ToInt32(v));
+            }
+
+            // entries
+            if (data.TryGetValue("entries", out var eObj) && eObj is IList<object> eList)
+            {
+                foreach (var itemAny in eList)
+                {
+                    var item = ToStringDictFromAny(itemAny);
+                    if (item == null) continue;
+
+                    var entry = new SequencedMapEntry
+                    {
+                        mapId         = item.TryGetValue("mapId", out var _id) ? _id?.ToString() : "",
+                        difficultyTag = item.TryGetValue("difficultyTag", out var _d) ? Convert.ToInt32(_d) : 0,
+                        // STRICT: Only accept string json, else empty string
+                        json          = item.TryGetValue("json", out var _j) && _j is string js ? js : ""
+                    };
+                    resp.entries.Add(entry);
+                }
+            }
+
+            return resp;
+        }
+    }
     }
 
     internal static class DictExt
@@ -412,4 +552,3 @@ namespace RemoteApp
             return false;
         }
     }
-}

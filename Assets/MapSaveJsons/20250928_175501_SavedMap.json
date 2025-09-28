@@ -1,0 +1,15 @@
+{
+    "savedAtIso": "2025-09-28T17:55:01.4713560+03:00",
+    "mapName": "medium1_28/09/25 - 17:55:01",
+    "mapDisplayName": "medium1",
+    "difficultyTag": 2,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "MovingGreenWall",
+            "gridX": 3,
+            "gridY": 53,
+            "linkedPortalId": -1
+        }
+    ]
+}
