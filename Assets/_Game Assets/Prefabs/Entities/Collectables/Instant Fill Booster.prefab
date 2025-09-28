@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 5716670257929801075}
   - component: {fileID: 7225068281789578892}
   - component: {fileID: 2035459677021616363}
-  - component: {fileID: 4408616497562832167}
   m_Layer: 0
   m_Name: Instant Fill Booster
   m_TagString: Interactable
@@ -69,20 +68,6 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4408616497562832167
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 453444894529662833}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 53017884384774a06bb9069fe3d9c865, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  gridX: 0
-  gridY: 0
 --- !u!1 &6719624505258295256
 GameObject:
   m_ObjectHideFlags: 0

@@ -190,6 +190,15 @@ public class MapGridCellUtility : MonoBehaviour
         return GridMatrix.MultiplyPoint3x4(centerLocal);
     }
 
+
+    /// <summary>
+    /// Map.cs burayı çağırır. Grid (x,y) -> dünya konumu (hücre merkezi).
+    /// </summary>
+    public Vector3 GridToWorld(int gridX, int gridY)
+    {
+        return GetCellCenterWorld(gridX, gridY);
+    }
+
     public void GetCellWorldCorners(int x, int z, out Vector3 a, out Vector3 b)
     {
         x = Mathf.Clamp(x, 0, xCells - 1);
