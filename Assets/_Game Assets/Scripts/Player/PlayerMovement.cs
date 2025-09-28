@@ -44,18 +44,6 @@ public class PlayerMovement : MonoBehaviour
     private float _currentTurnSpeed;                            // anlık dönüş hızı (speed'den bağımsız)
     private Coroutine _turnBoostRoutine;
 
-    [Header("Desktop Debug Controls")]
-    [SerializeField] private bool enableDesktopControls = true;
-    [SerializeField] private KeyCode keyUp = KeyCode.W;
-    [SerializeField] private KeyCode keyDown = KeyCode.S;
-    [SerializeField] private KeyCode keyLeft = KeyCode.A;
-    [SerializeField] private KeyCode keyRight = KeyCode.D;
-    [SerializeField] private KeyCode keyUpAlt = KeyCode.UpArrow;
-    [SerializeField] private KeyCode keyDownAlt = KeyCode.DownArrow;
-    [SerializeField] private KeyCode keyLeftAlt = KeyCode.LeftArrow;
-    [SerializeField] private KeyCode keyRightAlt = KeyCode.RightArrow;
-    [SerializeField] private KeyCode jumpKey = KeyCode.Space;
-
     [Header("Crash / Knockback")]
     [SerializeField] private float defaultKnockbackDistance = 1.25f;
     [SerializeField] private float defaultKnockbackDuration = 0.25f;
