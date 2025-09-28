@@ -61,7 +61,7 @@ public class Map : MonoBehaviour
 
         if (data == null || data.items == null || data.items.Count == 0)
         {
-            Debug.LogError("[Map] Parsed data has no items.");
+            Debug.Log("[Warning] Parsed data has no items.");
             return;
         }
 

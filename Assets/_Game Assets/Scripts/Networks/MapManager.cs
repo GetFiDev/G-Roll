@@ -1,4 +1,6 @@
-
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -26,6 +28,13 @@ namespace RemoteApp
         [ReadOnly] public List<string> mapJsonList = new();
         [ReadOnly] public List<string> mapIds = new();
         [ReadOnly] public List<int> difficulties = new();
+
+        [Title("Build Settings")]
+        [SerializeField] private GameObject mapPrefab; // must have Map component
+        [SerializeField] private Transform mapsParent; // optional parent for all maps
+        [SerializeField] private Vector3 startPosition = Vector3.zero; // first map origin
+        [SerializeField] private Vector3 step = new Vector3(0f, 0f, 50f); // delta per map
+        [SerializeField] private bool clearBeforeBuild = true;
 
         // Odin button to trigger fetching manually (for testing in Editor)
         [Button("Initialize & Fetch"), GUIColor(0.2f, 0.7f, 1f)]
@@ -79,11 +88,99 @@ namespace RemoteApp
 
                 isReady = true;
                 Debug.Log($"[MapManager] Ready. Loaded {mapJsonList.Count} maps.");
+                // Auto-build a row of maps using the fetched JSONs
+                BuildSequenceFromJsons();
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[MapManager] Initialize error: {ex.Message}\n{ex}");
             }
+        }
+
+        [Serializable]
+        private class MapNameDto { public string mapName; }
+
+        private static string ToSafeName(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "map";
+            var chars = new char[s.Length];
+            int n = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (char.IsLetterOrDigit(c) || c == '_' || c == '-')
+                {
+                    chars[n++] = c;
+                }
+                else if (c == ' ')
+                {
+                    chars[n++] = '_';
+                }
+                else
+                {
+                    // collapse other symbols to '-'
+                    chars[n++] = '-';
+                }
+            }
+            return new string(chars, 0, n);
+        }
+
+        private void ClearBuiltMaps()
+        {
+            var parent = mapsParent != null ? mapsParent : this.transform;
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                for (int i = parent.childCount - 1; i >= 0; i--)
+                    UnityEditor.Undo.DestroyObjectImmediate(parent.GetChild(i).gameObject);
+                return;
+            }
+#endif
+            for (int i = parent.childCount - 1; i >= 0; i--)
+                Destroy(parent.GetChild(i).gameObject);
+        }
+
+        private void BuildSequenceFromJsons()
+        {
+            if (mapPrefab == null)
+            {
+                Debug.LogError("[MapManager] mapPrefab is not assigned.");
+                return;
+            }
+
+            var parent = mapsParent != null ? mapsParent : this.transform;
+            if (clearBeforeBuild) ClearBuiltMaps();
+
+            var pos = startPosition;
+            int built = 0;
+            for (int i = 0; i < mapJsonList.Count; i++)
+            {
+                var inst = Instantiate(mapPrefab, pos, Quaternion.identity, parent);
+                var map = inst.GetComponent<Map>();
+
+                // Name as "index_mapname" using mapName from JSON (sanitized)
+                string json = mapJsonList[i] ?? string.Empty;
+                string mapName = null;
+                try { mapName = JsonUtility.FromJson<MapNameDto>(json)?.mapName; }
+                catch { /* ignore parse errors */ }
+                string safe = ToSafeName(mapName);
+                inst.name = $"{(i + 1):00}_{safe}";
+
+                if (map == null)
+                {
+                    Debug.LogError("[MapManager] mapPrefab has no Map component.");
+                    Destroy(inst);
+                    return;
+                }
+
+                map.mapJson = mapJsonList[i] ?? string.Empty;
+                map.Initialize(); // build immediately
+
+                pos += step;
+                built++;
+            }
+
+            Debug.Log($"[MapManager] Built {built} maps in sequence.");
         }
     }
 
