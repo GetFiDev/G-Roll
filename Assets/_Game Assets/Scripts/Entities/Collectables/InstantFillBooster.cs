@@ -1,9 +1,9 @@
-public class InstantFillBooster : Collectable
-{
-    public override void OnInteract(PlayerController player)
-    {
-        base.OnInteract(player);
+using UnityEngine;
 
-        UIManager.Instance.gamePlay.boosterFill.InstantFill();
+public class InstantFillBooster : BoosterBase
+{
+    protected override void Apply(PlayerController player)
+    {
+        if (GameplayManager.Instance == null) return;
     }
 }

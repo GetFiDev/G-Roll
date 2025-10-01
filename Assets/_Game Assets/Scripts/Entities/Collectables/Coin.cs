@@ -1,43 +1,25 @@
-﻿using DG.Tweening;
-using UnityEngine;
+﻿using UnityEngine;
 
-public class Coin : Collectable
+public class Coin : MonoBehaviour, IPlayerInteractable
 {
-    [SerializeField] private AudioClip audioClip;
-    
-    public override void OnInteract(PlayerController player)
-    {
-        var activeCollider = gameObject.GetComponent<Collider>();
-        activeCollider.enabled = false;
-        
-        transform.DOScale(Vector3.zero, .2f)
-            .SetDelay(.2f)
-            .SetEase(Ease.InBack);
-        
-        _magnetTween = transform.DOMove(PlayerController.Instance.transform.position, .2f)
-            .SetEase(Ease.OutQuad)
-            .OnUpdate(() =>
-            {
-                _magnetTween?.ChangeEndValue(PlayerController.Instance.transform.position, true);
-            });
-        
-        CurrencyEvents.OnCollected?.Invoke(CurrencyType.SoftCurrency, new CurrencyCollectedData(1, transform.position));
+    public float value = 0.1f;
+    public GameObject vfxOnCollect;
 
-        GameManager.Instance.audioManager.Play(audioClip);
-        
-        //GameManager.Instance.levelManager.currentLevel.Coins.Remove(this);
+    private bool _collected;
+
+    public void OnPlayerEnter(PlayerController player, Collider other)
+    {
+        if (_collected) return;
+        _collected = true;
+
+        // Skor/Envanter/Para arttır
+        GameplayManager.Instance.currencyCollectedInSession += value;
+        if (vfxOnCollect) Instantiate(vfxOnCollect, transform.position, Quaternion.identity);
+
+        // Objeyi kapat
+        gameObject.SetActive(false);
     }
 
-    private Tweener _magnetTween;
-
-    public void CollectByMagnet(Transform targetTransform)
-    {
-        _magnetTween = transform.DOMove(targetTransform.position, 20f)
-            .SetSpeedBased(true)
-            .SetEase(Ease.OutQuad)
-            .OnUpdate(() =>
-            {
-                _magnetTween?.ChangeEndValue(targetTransform.position, true);
-            });
-    }
+    public void OnPlayerStay(PlayerController p, Collider o, float dt) { }
+    public void OnPlayerExit(PlayerController p, Collider o) { }
 }

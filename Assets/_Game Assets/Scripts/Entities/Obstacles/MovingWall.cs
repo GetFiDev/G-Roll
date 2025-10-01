@@ -15,7 +15,7 @@ public class MovingWall : Wall
     }
 
     private void Update()
-    {     
+    {
         var remainingDistance = (_targetPosition.position - transform.position).magnitude;
 
         if (remainingDistance > 0.1f)
@@ -29,4 +29,5 @@ public class MovingWall : Wall
             _targetPosition = targetPositions[_targetIndex];
         }
     }
+    
 }

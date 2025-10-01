@@ -15,7 +15,7 @@ public class AudioManager : MonoBehaviour
     
     public AudioManager Initialize()
     {
-        var mainCameraGameObject = GameManager.Instance.cameraManager.mainCameraBrain.gameObject;
+        var mainCameraGameObject = Camera.main.gameObject;
         
         _bgMusic = mainCameraGameObject.AddComponent<AudioSource>();
         _standard = mainCameraGameObject.AddComponent<AudioSource>();

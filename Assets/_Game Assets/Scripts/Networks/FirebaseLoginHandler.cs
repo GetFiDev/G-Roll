@@ -28,10 +28,43 @@ public class FirebaseLoginHandler : MonoBehaviour
     // login tamamlandıktan sonra true olur
     private bool _authReady = false;
 
+    [Header("Remember Me")]
+    [Tooltip("Bir kez başarılı girişten sonra e‑posta ve şifreyi yerelde sakla ve uygulama açılışında input'lara otomatik doldur.")]
+    public bool rememberCredentials = true;
+
+    private const string PREF_EMAIL = "login_email";
+    private const string PREF_PASS  = "login_pass"; // DİKKAT: PlayerPrefs düz metin saklar. Üretimde güvenli depolama kullanın.
+
+    private void SaveCredentials(string email, string pass)
+    {
+        if (!rememberCredentials) return;
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(pass)) return;
+        PlayerPrefs.SetString(PREF_EMAIL, email);
+        PlayerPrefs.SetString(PREF_PASS,  pass);
+        PlayerPrefs.Save();
+    }
+
+    private void LoadCredentialsToInputs()
+    {
+        if (!rememberCredentials) return;
+        if (loginEmailInput != null && PlayerPrefs.HasKey(PREF_EMAIL))
+            loginEmailInput.text = PlayerPrefs.GetString(PREF_EMAIL);
+        if (loginPasswordInput != null && PlayerPrefs.HasKey(PREF_PASS))
+            loginPasswordInput.text = PlayerPrefs.GetString(PREF_PASS);
+    }
+
+    public void ClearSavedCredentials()
+    {
+        PlayerPrefs.DeleteKey(PREF_EMAIL);
+        PlayerPrefs.DeleteKey(PREF_PASS);
+        PlayerPrefs.Save();
+    }
+
     private void Start()
     {
         // Başlangıçta loader kapalı
         SetLoading(false);
+        LoadCredentialsToInputs();
         // ÖNEMLİ: Burada artık isim kontrolü YAPMIYORUZ.
         // Panel yalnızca login/register başarıdan sonra kontrol edilecek.
     }
@@ -116,6 +149,10 @@ public class FirebaseLoginHandler : MonoBehaviour
         SetLoading(false);
         Log("Login success");
         _authReady = true;
+
+        // Son kullanılan login bilgilerini kaydet
+        if (loginEmailInput != null && loginPasswordInput != null)
+            SaveCredentials(loginEmailInput.text, loginPasswordInput.text);
 
         // İsim gerekiyor mu?
         var needs = await NeedsUsernameAsync();

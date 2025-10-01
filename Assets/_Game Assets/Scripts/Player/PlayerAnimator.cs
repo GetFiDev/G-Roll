@@ -1,57 +1,68 @@
 using UnityEngine;
 
+/// <summary>
+/// Minimal, clean animator wrapper.
+/// - Initialize() ile PlayerController'a bağlanır.
+/// - Freeze(true) çağrıldığında animator tamamen durur (speed=0) ve root motion kapanır.
+/// - Freeze(false) çağrıldığında önceki ayarlar geri yüklenir.
+/// </summary>
 public class PlayerAnimator : MonoBehaviour
 {
-    [SerializeField] private Transform ballTransform;
+    [SerializeField] private Animator animator;
 
-    private PlayerController _playerController;
+    private PlayerController _player;
+    private bool _isInitialized;
+    private bool _isFrozen;
 
-    public PlayerAnimator Initialize(PlayerController playerController)
+    private float _cachedSpeed = 1f;
+    private bool _cachedApplyRootMotion = false;
+
+    public PlayerAnimator Initialize(PlayerController player)
     {
-        _playerController = playerController;
+        _player = player;
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>();
+
+        if (animator == null)
+        {
+            Debug.LogWarning("[PlayerAnimator] Animator not found on children.", this);
+            _isInitialized = false;
+        }
+        else
+        {
+            _cachedSpeed = Mathf.Max(0.01f, animator.speed);
+            _cachedApplyRootMotion = animator.applyRootMotion;
+            _isInitialized = true;
+        }
 
         return this;
     }
 
-    private const float BallRadius = 0.5f;
-    private const float TurnSpeed = 720f;
-
-    private Vector3 lastPosition;
-
-    private void Update()
+    /// <summary>Animasyonu tamamen dondur / geri aç.</summary>
+    public void Freeze(bool freeze)
     {
-        UpdateRotation();
-    }
+        if (!_isInitialized || animator == null) return;
+        if (_isFrozen == freeze) return;
 
-    private void UpdateRotation()
-    {
-        var delta = transform.position - lastPosition;
-        delta.y = 0;
-
-        if (delta.sqrMagnitude < 0.0001f)
-            return;
-
-
-        var targetDirection = delta.normalized;
-
-        if (targetDirection != Vector3.zero)
+        _isFrozen = freeze;
+        if (freeze)
         {
-            var targetRotation = Quaternion.LookRotation(targetDirection);
-            transform.rotation =
-                Quaternion.RotateTowards(transform.rotation, targetRotation, TurnSpeed * Time.deltaTime);
+            _cachedSpeed = Mathf.Max(0.01f, animator.speed);
+            _cachedApplyRootMotion = animator.applyRootMotion;
+
+            animator.applyRootMotion = false;
+            animator.speed = 0f;
         }
-
-        var distance = delta.magnitude;
-        var angle = distance / BallRadius * Mathf.Rad2Deg;
-
-        var rotationAxis = transform.right;
-
-        ballTransform.Rotate(rotationAxis, angle, Space.World);
-
-        lastPosition = transform.position;
+        else
+        {
+            animator.applyRootMotion = _cachedApplyRootMotion;
+            animator.speed = _cachedSpeed;
+        }
     }
 
-    private struct AnimatorParameterKey
+    private void OnDisable()
     {
+        // Beklenmedik disable'da donmuş kalmasın diye güvence
+        if (_isFrozen) Freeze(false);
     }
 }

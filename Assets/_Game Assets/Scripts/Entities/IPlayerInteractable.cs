@@ -1,4 +1,8 @@
-﻿public interface IPlayerInteractable
+﻿using UnityEngine;
+
+public interface IPlayerInteractable
 {
-    public void OnInteract(PlayerController player);
+    void OnPlayerEnter(PlayerController player, Collider other);
+    void OnPlayerStay(PlayerController player, Collider other, float dt);
+    void OnPlayerExit(PlayerController player, Collider other);
 }

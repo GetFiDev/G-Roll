@@ -4,9 +4,14 @@ using UnityEngine;
 
 public class GameManager : MonoSingleton<GameManager>
 {
+    /// <summary>GameState değiştiğinde ateşlenir.</summary>
     public Action OnGameStateChanged;
 
+    /// <summary>Level bittiğinde (Complete/Fail) ateşlenir. Parametre: isSuccess.</summary>
+    public Action<bool> OnLevelFinished;
+
     private GameState _gameState;
+    public GameplayManager gameplayManager;
 
     [ShowInInspector, ReadOnly]
     public GameState GameState
@@ -23,7 +28,6 @@ public class GameManager : MonoSingleton<GameManager>
     public TouchManager touchManager;
 
     [ReadOnly, Required] public AudioManager audioManager;
-    [ReadOnly, Required] public CameraManager cameraManager;
     [ReadOnly, Required] public ObjectPoolingManager objectPoolingManager;
 
     protected override void Init()
@@ -40,7 +44,6 @@ public class GameManager : MonoSingleton<GameManager>
         OnGameStateChanged += () => Debug.Log($"Game State is : {GameState}");
 
         objectPoolingManager = GetComponentInChildren<ObjectPoolingManager>(true).Initialize();
-        cameraManager = GetComponentInChildren<CameraManager>(true).Initialize();
         touchManager = GetComponentInChildren<TouchManager>();
         audioManager = GetComponentInChildren<AudioManager>(true).Initialize(); //This depends on CameraManager
         
@@ -54,14 +57,13 @@ public class GameManager : MonoSingleton<GameManager>
 
     public void StartTheGameplay()
     {
-        if (GameState != GameState.GameplayRun)
+        if (GameState != GameState.MetaState)
         {
-            Debug.Log("Game State is not Ready", this);
+            Debug.Log("You're not in the meta scene", this);
             return;
         }
 
         GameState = GameState.GameplayLoading;
-
     }
 
     private GameState _previousGameState;
@@ -69,13 +71,27 @@ public class GameManager : MonoSingleton<GameManager>
     public void PauseGame()
     {
         _previousGameState = GameState;
-        
         GameState = GameState.Paused;
     }
 
     public void ResumeGame()
     {
         GameState = _previousGameState;
+    }
+
+    public void EnterGameplayRun()
+    {
+        GameState = GameState.GameplayRun;
+        OnGameStateChanged?.Invoke(); // (setter zaten çağırıyor ama mevcut mimarini bozmayayım)
+        gameplayManager.StartRun();
+    }
+
+    /// <summary>
+    /// Level başarıyla tamamlandı. (Örn: GameplayManager.StopRun() sonrasında çağrılır)
+    /// </summary>
+    public void EnterLevelComplete()
+    {
+        LevelFinish(false);
     }
 
     public void LevelFinish(bool isSuccess)
@@ -88,17 +104,20 @@ public class GameManager : MonoSingleton<GameManager>
 
         GameState = isSuccess ? GameState.Complete : GameState.Fail;
 
+        // başarıda level index ilerlet
         if (isSuccess)
         {
             DataManager.CurrentLevelIndex++;
         }
+
+        // event: UI/analitik bağlamak istersen
+        OnLevelFinished?.Invoke(isSuccess);
     }
 
     private void OnValidate()
     {
         touchManager = GetComponentInChildren<TouchManager>(true);
         audioManager = GetComponentInChildren<AudioManager>(true);
-        cameraManager = GetComponentInChildren<CameraManager>(true);
         objectPoolingManager = GetComponentInChildren<ObjectPoolingManager>(true);
     }
 }

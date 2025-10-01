@@ -29,7 +29,7 @@ public class UIBoosterFill : MonoBehaviour
         if (boosterValue < boosterMinValueToUse)
             return;
 
-        PlayerController.Instance.playerMovement.Boost(boosterValue);
+        //PlayerController.Instance.playerMovement.Boost(boosterValue);
 
         boosterValue = 0;
 

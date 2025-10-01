@@ -36,6 +36,9 @@ namespace RemoteApp
         [SerializeField] private Vector3 step = new Vector3(0f, 0f, 50f); // delta per map
         [SerializeField] private bool clearBeforeBuild = true;
 
+        public event Action OnReady;
+
+
         // Odin button to trigger fetching manually (for testing in Editor)
         [Button("Initialize & Fetch"), GUIColor(0.2f, 0.7f, 1f)]
         private void OdinInitializeButton()
@@ -90,6 +93,8 @@ namespace RemoteApp
                 Debug.Log($"[MapManager] Ready. Loaded {mapJsonList.Count} maps.");
                 // Auto-build a row of maps using the fetched JSONs
                 BuildSequenceFromJsons();
+                OnReady?.Invoke();
+
             }
             catch (Exception ex)
             {

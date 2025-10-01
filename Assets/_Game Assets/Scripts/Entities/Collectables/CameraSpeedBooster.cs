@@ -1,13 +1,13 @@
 using UnityEngine;
 
-public class CameraSpeedBooster : Collectable
+public class CameraSpeedBooster : BoosterBase
 {
-    [SerializeField] private float speedChangeAmount;
-    
-    public override void OnInteract(PlayerController player)
+    [Header("Camera Speed Booster")]
+    public float additiveSpeed = 3f; // m/sn ekle
+
+    protected override void Apply(PlayerController player)
     {
-        base.OnInteract(player);
-        
-        //GameManager.Instance.levelManager.currentLevel.CameraController.ChangeSpeed(speedChangeAmount);
+        if (GameplayManager.Instance == null) return;
+        GameplayManager.Instance.IncreaseSpeed(additiveSpeed);
     }
 }

@@ -14,7 +14,7 @@ public class UISpeedElement : MonoBehaviour
         {
             yield return updateInterval;
 
-            speedText.text = Mathf.CeilToInt(PlayerController.Instance.playerMovement.Speed * 100).ToString();
+            //speedText.text = Mathf.CeilToInt(PlayerController.Instance.playerMovement.Speed * 100).ToString();
         }
     }
 }
