@@ -51,16 +51,6 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField, Tooltip("Knockback sırasında Animator root motion'u kapat.")]
     private bool disableAnimatorRootMotionOnFreeze = true;
 
-    // Knockback rotation permission (overrides hard lock while true)
-    private bool _allowKnockbackRotation = false;
-
-    [Header("Knockback Visual Tuning")]
-    [SerializeField, Tooltip("Knockback sırasında oyuncu biraz da geri yöne dönsün mü?")]
-    private bool rotateBackDuringKnockback = true;
-    [SerializeField, Range(0f, 1f), Tooltip("Ne kadar geri yöne dönsün? 0=hiç, 1=tamamen geri (180°).")]
-    private float backTurnAmount = 0.55f;        // daha net terse bakış
-    [SerializeField, Tooltip("Knockback toplam süresinin şu oranında rotasyon tamamlansın.")]
-    private float backTurnDurationRatio = 0.4f;  // daha hızlı dön
 
     private Quaternion _frozenRotation;
     private Animator _cachedAnimator;
@@ -97,8 +87,7 @@ public class PlayerMovement : MonoBehaviour
         {
             if (_isFrozen && hardRotationLockOnFreeze)
             {
-                if (!_allowKnockbackRotation)
-                    transform.rotation = _frozenRotation;
+                transform.rotation = _frozenRotation;
             }
             Move();
             RotateTowardsMovement();
@@ -279,15 +268,6 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("İlk geri itiş süresi (s).")]
     [SerializeField] private float knockbackDuration = 0.08f; // daha hızlı kopuş
 
-    [Tooltip("Sekme sayısı (1–2 idealdir).")]
-    [Range(0, 3)] [SerializeField] private int bounceCount = 2;
-
-    [Tooltip("Her sekmede mesafenin çarpanı (azalma katsayısı).")]
-    [Range(0.3f, 0.95f)] [SerializeField] private float restitution = 0.55f; // kuyruğu kısa tut
-
-    [Tooltip("Her küçük geri itmenin süresi (s).")]
-    [SerializeField] private float microBounceDuration = 0.07f; // daha hızlı sekmeler
-
     [Tooltip("Duvar normaline göre küçük bir ayrıştırma, overlap kaçınmak için.")]
     [SerializeField] private float immediateSeparation = 0.08f; // biraz daha ayrıştır
 
@@ -299,10 +279,15 @@ public class PlayerMovement : MonoBehaviour
         lateralVelocity = 0f;
     }
 
-    /// <summary>Duvara çarpma hissi: sadece geriye (XZ) knockback + mikro sekmeler.</summary>
+    /// <summary>Duvara çarpma hissi: sadece geriye (XZ) knockback.</summary>
     public void WallHitFeedback(Vector3 hitNormal)
     {
         _frozenRotation = transform.rotation; // freeze boyunca baş yönü
+        // Oyunu bitiriyoruz: yön ve hız sıfırlansın, ileri hareket tamamen dursun
+        _movementDirection = Vector3.zero;
+        Speed = 0f;
+        _playerController?.HitTheWall();
+
         if (disableAnimatorRootMotionOnFreeze && _cachedAnimator == null)
             _cachedAnimator = GetComponentInChildren<Animator>();
         if (disableAnimatorRootMotionOnFreeze && _cachedAnimator != null)
@@ -312,13 +297,12 @@ public class PlayerMovement : MonoBehaviour
         }
 
         _isFrozen = true; // input ve auto-rotation kilit
-        _allowKnockbackRotation = rotateBackDuringKnockback;
         if (_turnBoostRoutine != null) { StopCoroutine(_turnBoostRoutine); _turnBoostRoutine = null; }
         if (_wallHitCo != null) StopCoroutine(_wallHitCo);
-        _wallHitCo = StartCoroutine(WallHitSequence(hitNormal));
+        _wallHitCo = StartCoroutine(WallHitSequenceSimple(hitNormal));
     }
 
-    private IEnumerator WallHitSequence(Vector3 normal)
+    private IEnumerator WallHitSequenceSimple(Vector3 normal)
     {
         // Güvenli XZ geri yön
         Vector3 n = normal.sqrMagnitude > 1e-6f ? normal : -transform.forward;
@@ -334,80 +318,22 @@ public class PlayerMovement : MonoBehaviour
             transform.position = new Vector3(p.x, transform.position.y, p.z);
         }
 
-        // Lateral sönüm
-        lateralVelocity = Mathf.MoveTowards(lateralVelocity, 0f, lateralDampOnStop * Time.deltaTime);
-
-        // --- Smooth knockback with DOTween (strictly horizontal) ---
+        // Var olan tweeni durdur
         if (_knockbackTween != null && _knockbackTween.IsActive()) _knockbackTween.Kill(false);
-        Sequence seq = DOTween.Sequence();
-        float totalMoveTime = 0f;
 
-        // Ana geri itiş
+        // Tek adımlık geri itiş (Y sabit)
         Vector3 start = transform.position;
         Vector3 end = start + back * knockbackDistance;
-        seq.Append(transform.DOMove(new Vector3(end.x, start.y, end.z), knockbackDuration).SetEase(Ease.OutExpo));
-        totalMoveTime += knockbackDuration;
+        _knockbackTween = transform
+            .DOMove(new Vector3(end.x, start.y, end.z), knockbackDuration)
+            .SetEase(Ease.OutQuad)
+            .SetUpdate(UpdateType.Fixed)
+            .SetLink(gameObject);
 
-        // Mikro geri itmeler
-        float dist = knockbackDistance * restitution;
-        for (int i = 0; i < bounceCount; i++)
-        {
-            if (dist <= 0.001f) break;
-            start = end;
-            end = start + back * dist;
-            seq.Append(transform.DOMove(new Vector3(end.x, start.y, end.z), microBounceDuration).SetEase(Ease.OutExpo));
-            totalMoveTime += microBounceDuration;
-            dist *= restitution;
-        }
+        yield return _knockbackTween.WaitForCompletion();
 
-        // Opsiyonel: hafif geri yöne dön
-        if (rotateBackDuringKnockback)
-        {
-            Quaternion currentRot = transform.rotation;
-            Quaternion fullBackRot = Quaternion.LookRotation(back, Vector3.up);
-            Quaternion targetRot = Quaternion.Slerp(currentRot, fullBackRot, Mathf.Clamp01(backTurnAmount));
-            float rotDur = Mathf.Max(0.01f, totalMoveTime * Mathf.Clamp01(backTurnDurationRatio));
-            seq.Join(transform.DORotateQuaternion(targetRot, rotDur).SetEase(Ease.OutCubic));
-        }
-
-        _knockbackTween = seq;
-        yield return seq.WaitForCompletion();
-
-        // Restore animator/root motion if changed
-        if (disableAnimatorRootMotionOnFreeze && _cachedAnimator != null)
-            _cachedAnimator.applyRootMotion = _cachedAnimatorRootMotion;
-
-        // Freeze biterken rotasyon kilidini normale al
-        _allowKnockbackRotation = false;
-        _isFrozen = false;
+        // Oyun bitti durumunda donuk kalsın; coroutine biter ama freeze korunur
         _wallHitCo = null;
-    }
-
-    private float EaseOutCubic(float x) => 1f - Mathf.Pow(1f - x, 3f);
-
-    private IEnumerator MoveByHorizontal(Vector3 horizDelta, float duration, System.Func<float,float> ease)
-    {
-        // XZ düzleminde hareket; Y sabit kalsın
-        Vector3 start = transform.position;
-        Vector3 end   = start + new Vector3(horizDelta.x, 0f, horizDelta.z);
-
-        if (duration <= 0f)
-        {
-            transform.position = end;
-            yield break;
-        }
-
-        float t = 0f;
-        while (t < duration)
-        {
-            t += Time.deltaTime;
-            float k = Mathf.Clamp01(t / duration);
-            Vector3 p = Vector3.LerpUnclamped(start, end, ease(k));
-            transform.position = new Vector3(p.x, start.y, p.z);
-            yield return null;
-        }
-
-        transform.position = new Vector3(end.x, start.y, end.z);
     }
 
     private static Vector3 SwipeToWorld(SwipeDirection dir)

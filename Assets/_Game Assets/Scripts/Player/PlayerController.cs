@@ -1,4 +1,4 @@
-﻿using Sirenix.OdinInspector;
+using Sirenix.OdinInspector;
 using UnityEngine;
 using System.Collections;
 
@@ -8,9 +8,6 @@ public class PlayerController : MonoBehaviour
     [ReadOnly, Required] public PlayerAnimator playerAnimator;
 
     [Header("Wall Hit Flow")]
-    [Tooltip("Çarpma feedback/animasyonu için bekleme süresi (s). PlayerMovement içindeki gerçek süreyle eşleştir.")]
-    public float wallHitFeedbackWait = 0.45f;
-
     [Tooltip("Çarpma anında koşuyu hemen durdur (hızı 0’a çek).")]
     public bool stopRunOnHit = true;
 
@@ -18,7 +15,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool lockOnFirstWallHit = true;
 
     private bool _wallHit;
-    private Coroutine _wallHitFlowCo;
 
     // Spawn snapshot
     private Vector3 _startPosition;
@@ -33,40 +29,34 @@ public class PlayerController : MonoBehaviour
         if (_wallHit && lockOnFirstWallHit) return;
         _wallHit = true;
 
-        // 1) Koşuyu hemen durdur (StopRun değil; o complete akışını tetikler)
+        // 1) Koşuyu hemen durdur
         if (stopRunOnHit && GameplayManager.Instance != null)
             GameplayManager.Instance.SetSpeed(0f);
 
-        // 2) Animator'u kökten durdur (child objede olsa dahi)
+        // 2) Animator'u durdur (görsel olarak donsun)
         if (playerAnimator != null) playerAnimator.Freeze(true);
 
-        // 3) Hareket tarafına “durdur + sadece geriye knockback (XZ)” feedback’i ver
+        // 3) Hareket tarafına tek adımlık geri itişi yaptır (XZ)
         if (playerMovement != null)
         {
             playerMovement.WallHitFeedback(hitNormal);
         }
         else
         {
-            Debug.LogWarning("[PlayerController] playerMovement yok, sekme oynatılamadı.");
+            Debug.LogWarning("[PlayerController] playerMovement yok, knockback oynatılamadı.");
         }
 
-        // 4) Feedback bittiğinde oyunu FAIL ile kapat
-        if (_wallHitFlowCo != null) StopCoroutine(_wallHitFlowCo);
-        _wallHitFlowCo = StartCoroutine(WallHitFlowAfterFeedback());
+        // 4) Oyunu anında bitir (FAIL akışını GameManager yönetir)
+        GameManager.Instance?.EnterLevelComplete();
     }
 
-    private IEnumerator WallHitFlowAfterFeedback()
+    /// <summary>
+    /// Parametresiz çarpma bildirimi; mevcut forward/position'dan tahmini normal ile çağır.
+    /// </summary>
+    public void HitTheWall()
     {
-        // PlayerMovement içindeki gerçek sekans süresine göre ayarla
-        yield return new WaitForSeconds(Mathf.Max(0f, wallHitFeedbackWait));
-
-        // Animator'u eski haline getir (görsel kapanmadan önce istersen açık bırakabilirsin)
-        if (playerAnimator != null) playerAnimator.Freeze(false);
-
-        // Doğrudan GameManager üzerinden FAIL'e geç
-        GameManager.Instance?.EnterLevelComplete();
-
-        _wallHitFlowCo = null;
+        var hitNormal = -transform.forward; // tahmini geri yön
+        HitTheWall(transform.position, hitNormal);
     }
 
     // İhtiyaç duyabileceğin küçük yardımcılar:
@@ -98,8 +88,6 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public void ResetPlayer()
     {
-        // Çarpışma akışını temizle
-        if (_wallHitFlowCo != null) { StopCoroutine(_wallHitFlowCo); _wallHitFlowCo = null; }
         _wallHit = false;
 
         // Animator donmuşsa aç
