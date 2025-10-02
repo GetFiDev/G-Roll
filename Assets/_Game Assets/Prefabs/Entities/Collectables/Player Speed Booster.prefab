@@ -47,7 +47,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b67c8b28cec54f941a240f69b8bf38ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speedChangeAmount: 2
+  oneShot: 1
+  destroyOnUse: 1
+  vfxOnUse: {fileID: 3559408815116236361, guid: 092af6349876245cbaa74eb0be8c6d16,
+    type: 3}
+  sfxOnUse: {fileID: 0}
+  requiredTag: Player
+  lateralMultiplier: 1.5
+  fallbackRunSpeedBoost: 2
 --- !u!135 &3561426009509326417
 SphereCollider:
   m_ObjectHideFlags: 0

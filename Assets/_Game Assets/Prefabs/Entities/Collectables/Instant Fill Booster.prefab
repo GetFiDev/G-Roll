@@ -47,6 +47,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fb1c81b7348412a41b9e47f0aec049a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  oneShot: 1
+  destroyOnUse: 1
+  vfxOnUse: {fileID: 3559408815116236361, guid: 60337157bacdc4f5285caaded3bdacc4,
+    type: 3}
+  sfxOnUse: {fileID: 0}
+  requiredTag: Player
 --- !u!135 &2035459677021616363
 SphereCollider:
   m_ObjectHideFlags: 0

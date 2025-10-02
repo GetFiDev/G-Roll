@@ -2,18 +2,13 @@ using UnityEngine;
 
 public class PlayerSpeedBooster : BoosterBase
 {
-    [Header("Player Lateral Speed Booster")]
-    [Tooltip("Yanal (sol/sağ) hız çarpanı")]
-    public float lateralMultiplier = 1.5f;
-
-    [Tooltip("Buff süresi (sn)")]
-    public float duration = 2f;
-
-    [Tooltip("Eğer PlayerLateralSpeedBuff bulunamazsa, ileri (run) hızı şu kadar arttır.")]
-    public float fallbackRunSpeedBoost = 2f;
+    public float speedBoost = 0.2f;
 
     protected override void Apply(PlayerController player)
     {
-        
+        if (player == null) { Destroy(gameObject); return; }
+        // %20 hız artışı, süre sonunda geri alınır.
+        player.ApplyRunSpeedBoostPercentInstant(speedBoost);
+        // Pickup sahneden kaybolsun
     }
 }

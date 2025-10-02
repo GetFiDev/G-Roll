@@ -22,13 +22,26 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
     public void OnPlayerEnter(PlayerController player, Collider other)
     {
         if (_used && oneShot) return;
-        if (!string.IsNullOrEmpty(requiredTag) && !other.CompareTag(requiredTag)) return;
+
+        // Tag kontrolünü collider yerine Player root üzerinden yap (child collider'larda kaçmasın)
+        if (!string.IsNullOrEmpty(requiredTag))
+        {
+            GameObject tagTarget = player != null
+                ? player.gameObject
+                : (other.attachedRigidbody != null ? other.attachedRigidbody.gameObject : other.gameObject);
+
+            if (!tagTarget.CompareTag(requiredTag))
+                return;
+        }
 
         _used = true;
         Apply(player);
         PlayFx();
 
-        if (destroyOnUse) gameObject.SetActive(false);
+        if (destroyOnUse)
+        {
+            Destroy(gameObject); // setActive yerine tamamen yok et
+        }
     }
 
     public void OnPlayerStay(PlayerController p, Collider o, float dt) { }

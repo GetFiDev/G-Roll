@@ -4,6 +4,7 @@ using Sirenix.OdinInspector;
 using UnityEngine;
 using System;
 using DG.Tweening;
+using UnityEngine.UI;
 
 /// <summary>
 /// Basit bir koşu (runner) kamera yöneticisi.
@@ -63,6 +64,11 @@ public class GameplayManager : MonoBehaviour
     [Tooltip("FX çalıştırmadan önce otomatik olarak ParticleImage'i Play eder.")]
     [SerializeField] private bool autoPlayUIParticle = true;
 
+    [Tooltip("Her burst için ayrı bir ParticleImage instance klonla. Eski partiküller yeni burst'le yer değiştirmesin.")]
+    [SerializeField] private bool coinFXUseInstancePerBurst = true;
+    [Tooltip("Klonlanan UI particle'ların sahnede kalma süresi (s), sonra yok edilir.")]
+    [SerializeField] private float coinFXDespawnSeconds = 1.5f;
+
     // ---------------- Speed Settings ----------------
     [Header("Speed Settings")]
     [Tooltip("Oyunun başında kameranın koşu hızı (m/sn).")]
@@ -93,6 +99,10 @@ public class GameplayManager : MonoBehaviour
         Coins += delta;
         currencyCollectedInSession += delta;
 
+        // Booster doluluğunu arttır ve UI'ı güncelle
+        if (boosterFillPerCollectedCoin > 0f)
+            SetBoosterFill(BoosterFill + boosterFillPerCollectedCoin);
+
         // UI güncelle (event yok, score mantığıyla)
         if (coinText != null)
         {
@@ -110,6 +120,45 @@ public class GameplayManager : MonoBehaviour
             EmitCoinFXAtWorld(playerTransformForCoinFX.position, 1);
 
         onCoinPickupFX?.Invoke();
+    }
+
+    // ---------------- Booster ----------------
+    [Header("Booster")]
+    [Tooltip("Her toplanan coin başına dolacak miktar.")]
+    [SerializeField] private float boosterFillPerCollectedCoin = 1f;
+    [Tooltip("Booster doluluk minimum değeri.")]
+    [SerializeField] private float boosterFillMin = 0f;
+    [Tooltip("Booster doluluk maksimum değeri.")]
+    [SerializeField] private float boosterFillMax = 100f;
+    [Tooltip("Booster doluluğunu gösterecek UI Slider (0..1 normalize edilecek).")]
+    [SerializeField] private Slider boosterSlider;
+    [Tooltip("Booster aktif kalma süresi (saniye).")]
+    [SerializeField] private float boosterDurationSeconds = 5f;
+
+    /// <summary>Mevcut booster doluluğu (boosterFillMin..boosterFillMax arası).</summary>
+    public float BoosterFill { get; private set; } = 0f;
+    private bool _boosterActive = false;
+    private Coroutine _boosterRoutine = null;
+
+    private void SetBoosterFill(float value)
+    {
+        BoosterFill = Mathf.Clamp(value, boosterFillMin, boosterFillMax);
+        UpdateBoosterUI();
+    }
+
+    private void UpdateBoosterUI()
+    {
+        if (boosterSlider == null) return;
+        float denom = Mathf.Max(0.0001f, boosterFillMax - boosterFillMin);
+        boosterSlider.value = (BoosterFill - boosterFillMin) / denom;
+    }
+
+    /// <summary>
+    /// Booster doluluğunu anında maksimuma getirir ve UI'ı günceller.
+    /// </summary>
+    public void BoosterFillToMaxInstant()
+    {
+        SetBoosterFill(boosterFillMax);
     }
 
     // ---------------- Score ----------------
@@ -191,6 +240,11 @@ public class GameplayManager : MonoBehaviour
         Score = 0f;
         _lastCamZ = targetCamera != null ? targetCamera.position.z : 0f;
 
+        // Booster'ı sıfırla
+        if (_boosterRoutine != null) { StopCoroutine(_boosterRoutine); _boosterRoutine = null; }
+        _boosterActive = false;
+        SetBoosterFill(boosterFillMin);
+
         // Coin UI'ı sıfırla
         if (coinText != null)
         {
@@ -216,6 +270,16 @@ public class GameplayManager : MonoBehaviour
         // Bildirim
         OnRunStopped?.Invoke();
 
+        // Booster'ı durdur ve sıfırla
+        if (_boosterRoutine != null) { StopCoroutine(_boosterRoutine); _boosterRoutine = null; }
+        if (_boosterActive)
+        {
+            var player = FindAnyObjectByType<PlayerController>();
+            if (player != null) player.isBoosterEnabled = false;
+        }
+        _boosterActive = false;
+        SetBoosterFill(boosterFillMin);
+
         // İsteğe bağlı: Level bitti bilgisini GameManager'a ilet
         if (notifyGameManagerOnStop && GameManager.Instance != null)
         {
@@ -224,17 +288,10 @@ public class GameplayManager : MonoBehaviour
     }
 
     /// <summary>Hızı anlık olarak arttır (ör. boost pickup). Değer m/sn cinsinden eklenir.</summary>
-    public void IncreaseSpeed(float delta)
+    public void IncreaseGameSpeed(float delta)
     {
         if (delta <= 0f) return;
         CurrentSpeed = Mathf.Clamp(CurrentSpeed + delta, 0f, maxSpeed);
-    }
-
-    /// <summary>Hızı anlık olarak düşür (ör. ceza/engel). Değer m/sn cinsinden çıkarılır.</summary>
-    public void DecreaseSpeed(float delta)
-    {
-        if (delta <= 0f) return;
-        CurrentSpeed = Mathf.Clamp(CurrentSpeed - delta, 0f, maxSpeed);
     }
 
     /// <summary>Hızı doğrudan belirtilen değere çeker.</summary>
@@ -262,6 +319,11 @@ public class GameplayManager : MonoBehaviour
         CurrentSpeed = 0f;
         currencyCollectedInSession = 0f;
         Coins = 0;
+
+        // Booster'ı sıfırla
+        if (_boosterRoutine != null) { StopCoroutine(_boosterRoutine); _boosterRoutine = null; }
+        _boosterActive = false;
+        SetBoosterFill(boosterFillMin);
 
         // Skoru ve referans Z'yi sıfırla
         Score = 0f;
@@ -298,7 +360,6 @@ public class GameplayManager : MonoBehaviour
         Camera worldCam = worldCameraForCoinFX != null ? worldCameraForCoinFX : Camera.main;
         if (worldCam == null) { onCoinPickupFX?.Invoke(); return; }
 
-        // Canvas türüne göre ScreenPoint -> CanvasLocal dönüşümü
         var canvasRect = canvas.transform as RectTransform;
         if (canvasRect == null) { onCoinPickupFX?.Invoke(); return; }
 
@@ -319,23 +380,107 @@ public class GameplayManager : MonoBehaviour
             return;
         }
 
-        // Hedef rect
-        var rt = coinPickupParticle.rectTransform;
+        // Her çağrıda kesinlikle 1 burst üret
+        int burstCount = 1;
 
-        // WorldSpace canvas'ta anchoredPosition yerine pozisyonu set etmek daha doğrudur.
-        if (canvas.renderMode == RenderMode.WorldSpace)
+        if (coinFXUseInstancePerBurst)
         {
-            // Canvas local uzayındaki 'local' noktasını world'e çevirip konumla
-            Vector3 worldOnCanvas = canvasRect.TransformPoint(local);
-            rt.position = worldOnCanvas + (Vector3)coinFXScreenOffset;
+            // Klonla ve konumla: önceki partiküller yeni burst'ten etkilenmesin
+            var inst = Instantiate(coinPickupParticle, coinPickupParticle.transform.parent);
+            var rt = inst.rectTransform;
+
+            if (canvas.renderMode == RenderMode.WorldSpace)
+            {
+                Vector3 worldOnCanvas = canvasRect.TransformPoint(local);
+                rt.position = worldOnCanvas + (Vector3)coinFXScreenOffset;
+            }
+            else
+            {
+                rt.anchoredPosition = local + coinFXScreenOffset;
+            }
+
+            // Oynat ve burst
+            inst.EmitBurstNow(burstCount, autoPlayUIParticle);
+
+            // Belirli bir süre sonra temizle
+            Destroy(inst.gameObject, Mathf.Max(0.05f, coinFXDespawnSeconds));
         }
         else
         {
-            // Overlay veya ScreenSpace-Camera'da anchoredPosition yeterli
-            rt.anchoredPosition = local + coinFXScreenOffset;
+            // Geriye dönük: tek emitter'ı taşır (mevcut partiküller sim local ise yer değiştirir)
+            var rt = coinPickupParticle.rectTransform;
+
+            if (canvas.renderMode == RenderMode.WorldSpace)
+            {
+                Vector3 worldOnCanvas = canvasRect.TransformPoint(local);
+                rt.position = worldOnCanvas + (Vector3)coinFXScreenOffset;
+            }
+            else
+            {
+                rt.anchoredPosition = local + coinFXScreenOffset;
+            }
+
+            coinPickupParticle.EmitBurstNow(burstCount, autoPlayUIParticle);
         }
 
-        // Tek seferlik burst ateşle
-        coinPickupParticle.EmitBurstNow(count <= 0 ? 1 : count, autoPlayUIParticle);
+        onCoinPickupFX?.Invoke();
+    }
+
+    /// <summary>
+    /// Booster kullanımını tetikler. Doluysa PlayerController.isBoosterEnabled'i süre boyunca true yapar,
+    /// barı yavaşça boşaltır. Bitince otomatik olarak kapatır.
+    /// </summary>
+    public void BoosterUse()
+    {
+        if (_boosterActive) return; // zaten çalışıyor
+        if (BoosterFill < boosterFillMax) return; // tam dolu değilse çalışmaz (isteğe göre >=max)
+        if (boosterDurationSeconds <= 0f) return;
+
+        if (_boosterRoutine != null) StopCoroutine(_boosterRoutine);
+        _boosterRoutine = StartCoroutine(BoosterRoutine());
+    }
+
+    private System.Collections.IEnumerator BoosterRoutine()
+    {
+        _boosterActive = true;
+
+        // PlayerController referansı bul
+        var player = FindAnyObjectByType<PlayerController>();
+        bool hasPlayer = player != null;
+
+        // Booster'ı etkinleştir
+        if (hasPlayer)
+        {
+            player.isBoosterEnabled = true;
+            player.OnBoosterStart();
+        }
+
+        // Doldan boşa lineer akış
+        float startFill = BoosterFill;
+        float endFill = boosterFillMin;
+        float t = 0f;
+        float dur = boosterDurationSeconds;
+
+        while (t < 1f)
+        {
+            t += Time.deltaTime / Mathf.Max(0.0001f, dur);
+            float eased = Mathf.Clamp01(t);
+            float current = Mathf.Lerp(startFill, endFill, eased);
+            SetBoosterFill(current);
+            yield return null;
+        }
+
+        // Güvence: tam boş
+        SetBoosterFill(boosterFillMin);
+
+        // Booster'ı kapat
+        if (hasPlayer)
+        {
+            player.isBoosterEnabled = false;
+            player.OnBoosterEnd();
+        }
+
+        _boosterActive = false;
+        _boosterRoutine = null;
     }
 }

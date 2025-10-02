@@ -7,6 +7,49 @@ public class PlayerController : MonoBehaviour
     [ReadOnly, Required] public PlayerMovement playerMovement;
     [ReadOnly, Required] public PlayerAnimator playerAnimator;
 
+    [Header("Booster")]
+    [Tooltip("Booster aktif mi? GameplayManager tarafından yönetilir.")]
+    public bool isBoosterEnabled = false;
+
+    [Tooltip("Booster açılırken tek seferlik patlama (Burst, Play One Shot).")]
+    public ParticleSystem boosterActivationParticle;
+    [Tooltip("Booster açık kaldığı sürece dönecek looping particle (Rate over Time).")]
+    public ParticleSystem boosterLoopParticle;
+
+    /// <summary>Booster başladı: tek seferlik patlama ve looping'i başlat.</summary>
+    public void OnBoosterStart()
+    {
+        if (boosterActivationParticle != null)
+        {
+            // Burst particle -> tek seferlik Play
+            boosterActivationParticle.Play(true);
+        }
+        if (boosterLoopParticle != null && !boosterLoopParticle.isPlaying)
+        {
+            boosterLoopParticle.Play(true);
+        }
+    }
+
+    /// <summary>Booster bitti: looping'i durdur.</summary>
+    public void OnBoosterEnd()
+    {
+        if (boosterLoopParticle != null && boosterLoopParticle.isPlaying)
+        {
+            boosterLoopParticle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+    }
+
+    /// <summary>
+    /// O anki koşu hızını yüzdelik oran kadar ANINDA arttırır (kalıcı). Örn: percent=0.2 -> %20 artış.
+    /// </summary>
+    public void ApplyRunSpeedBoostPercentInstant(float percent)
+    {
+        if (playerMovement == null) return;
+        float delta = playerMovement.Speed * percent;
+        playerMovement.ChangeSpeed(delta);
+    }
+
+
     [Header("Wall Hit Flow")]
     [Tooltip("Çarpma anında koşuyu hemen durdur (hızı 0’a çek).")]
     public bool stopRunOnHit = true;

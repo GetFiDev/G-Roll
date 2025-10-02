@@ -115,6 +115,17 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9052241516710444367, guid: 9189c785043921449969f9cc01c7db56,
         type: 3}
+      propertyPath: vfxOnUse
+      value: 
+      objectReference: {fileID: 3559408815116236361, guid: 23e5064b6748843029b4d633ee738233,
+        type: 3}
+    - target: {fileID: 9052241516710444367, guid: 9189c785043921449969f9cc01c7db56,
+        type: 3}
+      propertyPath: speedBoost
+      value: -0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 9052241516710444367, guid: 9189c785043921449969f9cc01c7db56,
+        type: 3}
       propertyPath: speedChangeAmount
       value: -2
       objectReference: {fileID: 0}

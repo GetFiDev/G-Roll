@@ -374,6 +374,68 @@ public class PlayerMovement : MonoBehaviour
         _jumpTween.OnKill(() => { IsJumping = false; });
     }
 
+    /// <summary>
+    /// Normal Jump'a çok benzer; ortografik kamerada daha yüksek hissi vermek için
+    /// hem zıplama yüksekliğini hem de görsel ölçeği artırır.
+    /// airTimeMultiplier: toplam havada kalma süresine çarpan (1.0 = aynı),
+    /// scaleMultiplier: apex'teki görsel büyütmeye çarpan (1.0 = aynı).
+    /// </summary>
+    public void JumpCustom(float jumpHeight, float airTimeMultiplier = 1.15f, float scaleMultiplier = 1.35f)
+    {
+        if (_isFrozen) return;
+        if (GameManager.Instance.GameState != GameState.GameplayRun) return;
+
+        // Custom jump her zaman mevcut zıplamayı iptal edip yeni tween başlatır
+        if (_jumpTween != null && _jumpTween.IsActive()) { _jumpTween.Kill(false); _jumpTween = null; }
+
+        IsJumping = true;
+
+        Transform posTarget = transform;                                // pozisyon root
+        Transform scaleTarget = visualRoot != null ? visualRoot : transform; // ölçek görsel
+
+        // Normal Jump ile aynı taban; yalnızca çarpan uygularız
+        float refSpd = Mathf.Max(0.01f, referenceSpeed);
+        float curSpd = Mathf.Max(0.01f, Speed);
+        float totalAir = Mathf.Clamp(baseAirTime * (refSpd / curSpd), minAirTime, maxAirTime);
+
+        // Global kısma + custom multiplier
+        totalAir *= Mathf.Max(0.05f, airtimeFactor) * Mathf.Max(0.1f, airTimeMultiplier);
+
+        float upDur = totalAir * ascentFraction;
+        float downDur = totalAir - upDur;
+
+        float startY = posTarget.position.y;
+        float apexY = startY + jumpHeight;
+
+        // Scale tepesini büyüt (ortografik kamerada yüksekliği hissettirmek için)
+        float peakScale = Mathf.Max(0.01f, jumpArcScalePeak * Mathf.Max(1f, scaleMultiplier));
+
+        var seq = DG.Tweening.DOTween.Sequence();
+
+        // Çıkış (root'un dünya Y'si)
+        seq.Append(posTarget.DOMoveY(apexY, upDur).SetEase(ascentEase));
+        if (enableJumpArcScale)
+            seq.Join(scaleTarget.DOScale(Vector3.one * peakScale, upDur).SetEase(jumpArcEaseUp));
+
+        // İniş (root'un dünya Y'si)
+        seq.Append(posTarget.DOMoveY(startY, downDur).SetEase(descentEase));
+        if (enableJumpArcScale)
+            seq.Join(scaleTarget.DOScale(Vector3.one, downDur).SetEase(jumpArcEaseDown));
+
+        seq.AppendCallback(() => { PlayLandingParticle(); IsJumping = false; });
+
+        // Squash/strech sadece görselde (normal Jump ile aynı davranış)
+        if (landingSquash)
+        {
+            seq.Append(scaleTarget.DOScale(squashScale, squashDuration));
+            seq.Append(scaleTarget.DOScale(Vector3.one, squashDuration));
+        }
+
+        _jumpTween = seq;
+        _jumpTween.OnComplete(() => { _jumpTween = null; });
+        _jumpTween.OnKill(() => { IsJumping = false; });
+    }
+
     public void Boost(float boosterValue) => StartCoroutine(BoosterCoroutine(boosterValue));
     private IEnumerator BoosterCoroutine(float boosterValue) { yield return new WaitForEndOfFrame(); }
 

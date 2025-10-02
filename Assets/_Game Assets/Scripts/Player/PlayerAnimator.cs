@@ -1,68 +1,83 @@
 using UnityEngine;
 
 /// <summary>
-/// Minimal, clean animator wrapper.
-/// - Initialize() ile PlayerController'a bağlanır.
-/// - Freeze(true) çağrıldığında animator tamamen durur (speed=0) ve root motion kapanır.
-/// - Freeze(false) çağrıldığında önceki ayarlar geri yüklenir.
+/// Movement yönüne dön ve topu kat edilen mesafe kadar döndür.
+/// NOT: Burada Unity Animator kullanılmıyor; "Animator" ismi tarihsel.
 /// </summary>
 public class PlayerAnimator : MonoBehaviour
 {
-    [SerializeField] private Animator animator;
+    [Header("Refs")]
+    [SerializeField, Tooltip("Dönen topun görsel kökü")]
+    private Transform ballTransform;
 
-    private PlayerController _player;
-    private bool _isInitialized;
-    private bool _isFrozen;
+    [Header("Turn / Roll")]
+    [SerializeField, Tooltip("Top yarıçapı (m)")]
+    private float ballRadius = 0.5f;
+    [SerializeField, Tooltip("Karakterin yön değiştirme hızı (derece/sn)")]
+    private float turnSpeedDegPerSec = 720f;
+    [SerializeField, Tooltip("Hassasiyet için minimum hareket eşiği (m)")]
+    private float minDeltaToRotate = 0.0001f;
 
-    private float _cachedSpeed = 1f;
-    private bool _cachedApplyRootMotion = false;
+    private PlayerController _playerController;
+    private bool _isInitialized = false;
+    private bool _isFrozen = false;
+    private Vector3 _lastPosition;
 
-    public PlayerAnimator Initialize(PlayerController player)
+    public PlayerAnimator Initialize(PlayerController playerController)
     {
-        _player = player;
-        if (animator == null)
-            animator = GetComponentInChildren<Animator>();
-
-        if (animator == null)
-        {
-            Debug.LogWarning("[PlayerAnimator] Animator not found on children.", this);
-            _isInitialized = false;
-        }
-        else
-        {
-            _cachedSpeed = Mathf.Max(0.01f, animator.speed);
-            _cachedApplyRootMotion = animator.applyRootMotion;
-            _isInitialized = true;
-        }
-
+        _playerController = playerController;
+        _isInitialized = true;
+        _lastPosition = transform.position;
         return this;
     }
 
-    /// <summary>Animasyonu tamamen dondur / geri aç.</summary>
+    /// <summary>Animasyonu (yön & dönme) dondur / geri aç.</summary>
     public void Freeze(bool freeze)
     {
-        if (!_isInitialized || animator == null) return;
-        if (_isFrozen == freeze) return;
-
         _isFrozen = freeze;
-        if (freeze)
-        {
-            _cachedSpeed = Mathf.Max(0.01f, animator.speed);
-            _cachedApplyRootMotion = animator.applyRootMotion;
-
-            animator.applyRootMotion = false;
-            animator.speed = 0f;
-        }
-        else
-        {
-            animator.applyRootMotion = _cachedApplyRootMotion;
-            animator.speed = _cachedSpeed;
-        }
     }
 
-    private void OnDisable()
+    private void OnEnable()
     {
-        // Beklenmedik disable'da donmuş kalmasın diye güvence
-        if (_isFrozen) Freeze(false);
+        _lastPosition = transform.position;
     }
+
+    private void Update()
+    {
+        if (!_isInitialized || _isFrozen) return;
+        UpdateRotationAndRoll();
+    }
+
+    private void UpdateRotationAndRoll()
+    {
+        Vector3 currentPos = transform.position;
+        Vector3 delta = currentPos - _lastPosition;
+        delta.y = 0f;
+
+        // Hareket yoksa güncelleme
+        if (delta.sqrMagnitude < (minDeltaToRotate * minDeltaToRotate))
+        {
+            _lastPosition = currentPos;
+            return;
+        }
+
+        // 1) Yalnızca yatay düzlemde hareket yönüne dön
+        Vector3 targetDirection = delta.normalized;
+        Quaternion targetRot = Quaternion.LookRotation(targetDirection, Vector3.up);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, turnSpeedDegPerSec * Time.deltaTime);
+
+        // 2) Kat edilen mesafe kadar topu yuvarla (dünya uzayında sağ ekseni etrafında)
+        if (ballTransform != null)
+        {
+            float distance = delta.magnitude;
+            float angleDeg = distance / Mathf.Max(0.0001f, ballRadius) * Mathf.Rad2Deg;
+            Vector3 rollAxisWorld = transform.right; // düzlemsel yuvarlanma
+            ballTransform.Rotate(rollAxisWorld, angleDeg, Space.World);
+        }
+
+        _lastPosition = currentPos;
+    }
+
+    // Eski kalıntılar için boş struct (derleme hatasını önler; referans yoksa kaldırılabilir)
+    private struct AnimatorParameterKey { }
 }
