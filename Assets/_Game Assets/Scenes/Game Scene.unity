@@ -3990,174 +3990,20 @@ MonoBehaviour:
   startPosition: {x: 0, y: 0, z: 0}
   step: {x: 0, y: 0, z: 60}
   clearBeforeBuild: 1
-  starterMapJson: "{\n    \"savedAtIso\": \"2025-10-02T02:25:58.7617610+03:00\",\n   
-    \"mapName\": \"StartingMap_bycagil_02/10/25 - 02:25:58\",\n    \"mapDisplayName\":
-    \"StartingMap_bycagil\",\n    \"difficultyTag\": 1,\n    \"backgroundMaterialId\":
-    1,\n    \"items\": [\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 0,\n            \"gridY\": 116,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    8,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 9,\n           
-    \"gridY\": 92,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 13,\n            \"gridY\":
-    92,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\": 116,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 3,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    15,\n            \"gridY\": 92,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    4,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 12,\n           
-    \"gridY\": 74,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"GetCoin\",\n            \"gridX\": 6,\n            \"gridY\":
-    91,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 3,\n            \"gridY\": 75,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 4,\n            \"gridY\": 74,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    2,\n            \"gridY\": 115,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    3,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 4,\n           
-    \"gridY\": 68,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"GetCoin\",\n            \"gridX\": 4,\n            \"gridY\":
-    114,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\":
-    115,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
-    115,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 12,\n            \"gridY\":
-    92,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"GetCoin\",\n            \"gridX\": 5,\n            \"gridY\": 92,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 4,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    12,\n            \"gridY\": 114,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    10,\n            \"gridY\": 92,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    11,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    3,\n            \"gridY\": 92,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 7,\n           
-    \"gridY\": 97,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 4,\n            \"gridY\":
-    92,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 14,\n            \"gridY\": 92,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 3,\n            \"gridY\": 115,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    0,\n            \"gridY\": 114,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    3,\n            \"gridY\": 74,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n           
-    \"gridY\": 92,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 15,\n            \"gridY\":
-    116,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 0,\n            \"gridY\":
-    92,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\": 69,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 9,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    1,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 0,\n           
-    \"gridY\": 115,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 3,\n            \"gridY\":
-    68,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"GetCoin\",\n            \"gridX\": 11,\n            \"gridY\": 115,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 14,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    2,\n            \"gridY\": 116,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    2,\n            \"gridY\": 92,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n           
-    \"gridY\": 97,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
-    86,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 15,\n            \"gridY\": 91,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 7,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    13,\n            \"gridY\": 114,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    3,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 10,\n           
-    \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"GetCoin\",\n            \"gridX\": 11,\n            \"gridY\":
-    116,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 12,\n            \"gridY\":
-    75,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"GetCoin\",\n            \"gridX\": 3,\n            \"gridY\": 116,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 4,\n            \"gridY\": 75,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    12,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    12,\n            \"gridY\": 116,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    0,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 11,\n           
-    \"gridY\": 92,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\":
-    75,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\": 68,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 4,\n            \"gridY\": 116,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    11,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    12,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    5,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 12,\n           
-    \"gridY\": 68,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"MovingRedWall\",\n            \"gridX\": 5,\n            \"gridY\":
-    106,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 4,\n            \"gridY\":
-    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 12,\n            \"gridY\": 81,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 3,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    3,\n            \"gridY\": 114,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    7,\n            \"gridY\": 115,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    4,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 7,\n           
-    \"gridY\": 92,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"MovingRedWall\",\n            \"gridX\": 0,\n            \"gridY\":
-    105,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"GetCoin\",\n            \"gridX\": 6,\n            \"gridY\":
-    92,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 15,\n            \"gridY\": 114,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 7,\n            \"gridY\": 86,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    11,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    11,\n            \"gridY\": 74,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    4,\n            \"gridY\": 115,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
-    2,\n            \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 13,\n           
-    \"gridY\": 91,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"RedWall\",\n            \"gridX\": 1,\n            \"gridY\":
-    92,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"RedWall\",\n            \"gridX\": 12,\n            \"gridY\": 80,\n           
-    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 11,\n            \"gridY\": 114,\n            \"linkedPortalId\":
-    -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
-    \"gridX\": 15,\n            \"gridY\": 115,\n            \"linkedPortalId\":
-    -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 2,\n            \"gridY\": 114,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    12,\n            \"gridY\": 115,\n            \"linkedPortalId\": -1\n       
-    }\n    ]\n}"
+  starterMapJson: "{\n    \"savedAtIso\": \"2025-10-02T21:15:08.3764880+03:00\",\n   
+    \"mapName\": \"portaltest_02/10/25 - 21:15:08\",\n    \"mapDisplayName\": \"portaltest\",\n   
+    \"difficultyTag\": 1,\n    \"backgroundMaterialId\": 4,\n    \"items\": [\n       
+    {\n            \"displayName\": \"Portal\",\n            \"gridX\": 10,\n           
+    \"gridY\": 107,\n            \"linkedPortalId\": 3\n        },\n        {\n           
+    \"displayName\": \"Portal\",\n            \"gridX\": 5,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": 1\n        },\n        {\n            \"displayName\":
+    \"Portal\",\n            \"gridX\": 4,\n            \"gridY\": 108,\n           
+    \"linkedPortalId\": 3\n        },\n        {\n            \"displayName\": \"Portal\",\n           
+    \"gridX\": 5,\n            \"gridY\": 94,\n            \"linkedPortalId\": 2\n       
+    },\n        {\n            \"displayName\": \"Portal\",\n            \"gridX\":
+    10,\n            \"gridY\": 99,\n            \"linkedPortalId\": 1\n        },\n       
+    {\n            \"displayName\": \"Portal\",\n            \"gridX\": 5,\n           
+    \"gridY\": 100,\n            \"linkedPortalId\": 2\n        }\n    ]\n}"
   starterMapDisplayName: StartingMap_bycagil
   useStarterMap: 1
 --- !u!4 &456606686

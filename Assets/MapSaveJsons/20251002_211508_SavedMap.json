@@ -1,0 +1,45 @@
+{
+    "savedAtIso": "2025-10-02T21:15:08.3764880+03:00",
+    "mapName": "portaltest_02/10/25 - 21:15:08",
+    "mapDisplayName": "portaltest",
+    "difficultyTag": 1,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "Portal",
+            "gridX": 10,
+            "gridY": 107,
+            "linkedPortalId": 3
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 5,
+            "gridY": 80,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 4,
+            "gridY": 108,
+            "linkedPortalId": 3
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 5,
+            "gridY": 94,
+            "linkedPortalId": 2
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 10,
+            "gridY": 99,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 5,
+            "gridY": 100,
+            "linkedPortalId": 2
+        }
+    ]
+}

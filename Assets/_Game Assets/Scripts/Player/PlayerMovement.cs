@@ -45,6 +45,23 @@ public class PlayerMovement : MonoBehaviour
     private float _currentTurnSpeed;                            // anlık dönüş hızı
     private Coroutine _turnBoostRoutine;
 
+    [Header("Teleport Settings")]
+    [SerializeField, Tooltip("Spiralın toplam süresi (s)")] private float teleportSpiralDuration = 0.35f;
+    [SerializeField, Tooltip("Spiral başlangıç yarıçapı (m)")] private float teleportSpiralStartRadius = 0.6f;
+    [SerializeField, Tooltip("Spiral tur sayısı")] private int teleportSpiralTurns = 2;
+    [SerializeField, Tooltip("Vortex hissi için yukarı kaldırma (m)")] private float teleportVortexLift = 0.25f;
+    [SerializeField, Tooltip("Spiral sonunda zemine gömülme miktarı (m, pozitif)")] private float teleportSinkDepth = 0.5f;
+    [SerializeField, Tooltip("Merkeze geldikten SONRA ekstra aşağı dalma miktarı (m)")] private float centerExtraSinkDepth = 0.2f;
+    [SerializeField, Tooltip("Merkez sonrası ekstra dalma süresi (s)")] private float centerExtraSinkDuration = 0.08f;
+    [SerializeField, Tooltip("Çıkışta yer altından başlama derinliği (m, pozitif)")] private float exitBurrowDepth = 0.5f;
+    [SerializeField, Tooltip("Çıkışta uygulanacak sıçrama yüksekliği (m)")] private float exitJumpHeight = 2f;
+    [SerializeField, Tooltip("Çıkış sıçramasının süresi (s)")] private float exitJumpDuration = 0.35f;
+
+    // Teleport state
+    private bool teleportInProgress = false;
+    private Vector3 _preservedEntryForward = Vector3.forward;
+    private Vector3 _savedMoveDir = Vector3.zero;
+
     [Header("Freeze Options")]
     [SerializeField, Tooltip("Knockback sırasında rotasyonu kilitle ve her frame sabitle.")]
     private bool hardRotationLockOnFreeze = true;
@@ -59,6 +76,7 @@ public class PlayerMovement : MonoBehaviour
 
     private Tween _knockbackTween;
     private Tween _jumpTween;
+    private Tween _teleportSeq;
     private PlayerController _playerController;
 
     public ParticleSystem landingParticlePrefab;
@@ -83,6 +101,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
+        // Teleport sırasında normal hareket/rotasyon akışını durdur
+        if (teleportInProgress) return;
+
         if (GameManager.Instance.GameState == GameState.GameplayRun)
         {
             if (_isFrozen && hardRotationLockOnFreeze)
@@ -165,23 +186,141 @@ public class PlayerMovement : MonoBehaviour
 
     public void ChangeSpeed(float changeAmount) => Speed += changeAmount;
 
-    public void Teleport(Vector3 enterPosition, Vector3 teleportPosition)
+    /// <summary>
+    /// Teleport emri: girişte kısa spiral/vortex, çıkışta preserved forward yönüne doğru zıplayarak çıkış.
+    /// </summary>
+    public void RequestTeleport(Transform exitTransform, Transform entryCenter, Vector3 preservedEntryForward)
     {
-        StartCoroutine(TeleportCoroutine(enterPosition, teleportPosition));
+        if (exitTransform == null || entryCenter == null) return;
+        if (teleportInProgress) return;
+        _preservedEntryForward = preservedEntryForward;
+        StartCoroutine(TeleportRoutine(exitTransform, entryCenter));
     }
 
-    private float _lastSpeed = 0;
-
-    private IEnumerator TeleportCoroutine(Vector3 enterPosition, Vector3 teleportPosition)
+    private IEnumerator TeleportRoutine(Transform exitTransform, Transform entryCenter)
     {
-        _lastSpeed = Speed;
+        teleportInProgress = true;
+
+        // ---- HARD FREEZE: tüm hareket/tween/input etkilerini durdur ----
+        float prevSpeed = Speed;
+        Vector3 prevMoveDir = _movementDirection;
+
+        // Mevcut tweeenleri sonlandır
+        if (_jumpTween != null && _jumpTween.IsActive()) { _jumpTween.Kill(false); _jumpTween = null; }
+        if (_knockbackTween != null && _knockbackTween.IsActive()) { _knockbackTween.Kill(false); _knockbackTween = null; }
+        if (_teleportSeq != null && _teleportSeq.IsActive()) { _teleportSeq.Kill(false); _teleportSeq = null; }
+
+        // Tam durdur
         Speed = 0f;
+        _movementDirection = Vector3.zero;
 
-        yield return transform.DOJump(enterPosition + Vector3.down, 2f, 1, .35f).WaitForCompletion();
-        transform.position = teleportPosition + Vector3.down;
-        yield return transform.DOJump(teleportPosition + _movementDirection, 2f, 1, .35f).WaitForCompletion();
+        // Opsiyonel: animasyon root motion devre dışı
+        if (disableAnimatorRootMotionOnFreeze)
+        {
+            if (_cachedAnimator == null) _cachedAnimator = GetComponentInChildren<Animator>();
+            if (_cachedAnimator != null)
+            {
+                _cachedAnimatorRootMotion = _cachedAnimator.applyRootMotion;
+                _cachedAnimator.applyRootMotion = false;
+            }
+        }
 
-        Speed = _lastSpeed;
+        // ---- SPIRAL (DOTween Path) ----
+        // Vortex: 0.5s, tam 2 tur, yarım genişlik
+        float duration = 0.5f;
+        float turns = 2f;
+        float startRadius = Mathf.Max(0.01f, teleportSpiralStartRadius * 0.5f);
+        int steps = Mathf.Clamp(Mathf.CeilToInt(turns * 18f), 12, 128); // her tur için ~18 nokta
+
+        // Spiral düzlemi: dünya Y
+        Vector3 up = Vector3.up;
+
+        // Başlangıç radyal
+        Vector3 radial = transform.position - entryCenter.position;
+        if (radial.sqrMagnitude < 1e-4f) radial = transform.right;
+        radial = Vector3.ProjectOnPlane(radial, up).normalized;
+
+        var points = new Vector3[steps];
+        for (int i = 0; i < steps; i++)
+        {
+            float a = (i + 1) / (float)steps;                 // 0..1
+            float eased = 1f - Mathf.Pow(1f - a, 3f);         // easeOutCubic
+            float radius = Mathf.Lerp(startRadius, 0f, eased);
+            float angle = eased * turns * Mathf.PI * 2f;
+
+            Vector3 offset = Quaternion.AngleAxis(Mathf.Rad2Deg * angle, up) * radial * radius;
+            // Vortex boyunca toplam 1.0m aşağı in
+            Vector3 pos = entryCenter.position + offset + up * Mathf.Lerp(0f, -1f, eased);
+            points[i] = pos;
+        }
+
+        // Sequence: Spiral path -> teleport snap -> exit jump -> landing
+        var seq = DOTween.Sequence();
+
+        // Spiral path
+        seq.Append(transform.DOPath(points, duration, PathType.CatmullRom, PathMode.Full3D, 10, Color.white)
+                            .SetEase(Ease.OutCubic)
+                            .OnUpdate(() =>
+                            {
+                                // Vortex bakışı
+                                Vector3 toCenter = (entryCenter.position - transform.position);
+                                if (toCenter.sqrMagnitude > 1e-4f)
+                                {
+                                    Quaternion look = Quaternion.LookRotation(toCenter.normalized, Vector3.up);
+                                    transform.rotation = Quaternion.Slerp(transform.rotation, look, 0.25f);
+                                }
+                            })
+                            .SetUpdate(UpdateType.Normal, false)
+                            .SetLink(gameObject));
+
+
+        // Teleport snap (callback ile)
+        seq.AppendCallback(() =>
+        {
+            // doğrudan çıkışı yer altından başlat
+            transform.position = exitTransform.position - Vector3.up * Mathf.Abs(exitBurrowDepth);
+            // giriş forward'ını koru
+            Vector3 fwdFlat = Vector3.ProjectOnPlane(_preservedEntryForward, Vector3.up).normalized;
+            if (fwdFlat.sqrMagnitude < 1e-4f) fwdFlat = transform.forward;
+            transform.rotation = Quaternion.LookRotation(fwdFlat, Vector3.up);
+        });
+
+        // Exit jump (preserved forward yönüne 1m)
+        Vector3 preservedFlat = Vector3.ProjectOnPlane(_preservedEntryForward, Vector3.up).normalized;
+        if (preservedFlat.sqrMagnitude < 1e-4f) preservedFlat = transform.forward;
+        Vector3 jumpEnd = exitTransform.position + preservedFlat; // 1m ileri
+        float outDuration = 0.5f;
+        seq.Append(transform.DOJump(jumpEnd, exitJumpHeight, 1, outDuration)
+                            .SetEase(Ease.OutQuad)
+                            .SetUpdate(UpdateType.Normal, false)
+                            .SetLink(gameObject));
+        // Çıkış sırasında normal zıplamadaki gibi büyüyüp küçülme efekti
+        Transform scaleTarget = visualRoot != null ? visualRoot : transform;
+        var scaleSeq = DOTween.Sequence()
+            .Append(scaleTarget.DOScale(Vector3.one * Mathf.Max(0.01f, jumpArcScalePeak), outDuration * 0.5f).SetEase(jumpArcEaseUp))
+            .Append(scaleTarget.DOScale(Vector3.one, outDuration * 0.5f).SetEase(jumpArcEaseDown))
+            .SetUpdate(UpdateType.Normal, false)
+            .SetLink(gameObject);
+        seq.Join(scaleSeq);
+
+        // Landing FX
+        seq.AppendCallback(() => PlayLandingParticle());
+
+        // Kaydet referans, çalıştır
+        _teleportSeq = seq;
+
+        // Tamamlanmasını bekle
+        yield return _teleportSeq.WaitForCompletion();
+
+        // ---- UNFREEZE: hareketi geri aç ve yönü preserved forward yap ----
+        Speed = prevSpeed;
+        _movementDirection = preservedFlat;
+
+        if (disableAnimatorRootMotionOnFreeze && _cachedAnimator != null)
+            _cachedAnimator.applyRootMotion = _cachedAnimatorRootMotion;
+
+        teleportInProgress = false;
+        _teleportSeq = null;
     }
 
     public void Jump(float jumpHeight)
