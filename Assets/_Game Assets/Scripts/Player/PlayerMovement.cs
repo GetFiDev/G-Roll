@@ -203,10 +203,12 @@ public class PlayerMovement : MonoBehaviour
 
         IsJumping = true;
 
-        // Tween hedefi: görsel root varsa onu, yoksa fallback olarak kendi transform
-        Transform t = visualRoot != null ? visualRoot : transform;
-        bool useLocal = visualRoot != null; // görselle sınırlı tutmak için local Y
+        // Pozisyon hedefi: HER ZAMAN ROOT (collider ile birlikte yükselsin)
+        Transform posTarget = transform;
+        // Ölçek/squash hedefi: görsel kök varsa onu kullan, yoksa root
+        Transform scaleTarget = visualRoot != null ? visualRoot : transform;
 
+        // Hava süresini koşu hızına göre ayarla
         float refSpd = Mathf.Max(0.01f, referenceSpeed);
         float curSpd = Mathf.Max(0.01f, Speed);
         float totalAir = Mathf.Clamp(baseAirTime * (refSpd / curSpd), minAirTime, maxAirTime);
@@ -215,45 +217,28 @@ public class PlayerMovement : MonoBehaviour
         float upDur = totalAir * ascentFraction;
         float downDur = totalAir - upDur;
 
-        float startY = useLocal ? t.localPosition.y : t.position.y;
+        float startY = posTarget.position.y;
         float apexY = startY + jumpHeight;
 
         var seq = DOTween.Sequence();
-        // çıkış
-        if (useLocal)
-        {
-            seq.Append(t.DOLocalMoveY(apexY, upDur).SetEase(ascentEase));
-            if (enableJumpArcScale)
-                seq.Join(t.DOScale(Vector3.one * Mathf.Max(0.01f, jumpArcScalePeak), upDur).SetEase(jumpArcEaseUp));
-        }
-        else
-        {
-            seq.Append(t.DOMoveY(apexY, upDur).SetEase(ascentEase));
-            if (enableJumpArcScale)
-                seq.Join(t.DOScale(Vector3.one * Mathf.Max(0.01f, jumpArcScalePeak), upDur).SetEase(jumpArcEaseUp));
-        }
 
-        // iniş
-        if (useLocal)
-        {
-            seq.Append(t.DOLocalMoveY(startY, downDur).SetEase(descentEase));
-            if (enableJumpArcScale)
-                seq.Join(t.DOScale(Vector3.one, downDur).SetEase(jumpArcEaseDown));
-            seq.AppendCallback(() => { PlayLandingParticle(); IsJumping = false; });
-        }
-        else
-        {
-            seq.Append(t.DOMoveY(startY, downDur).SetEase(descentEase));
-            if (enableJumpArcScale)
-                seq.Join(t.DOScale(Vector3.one, downDur).SetEase(jumpArcEaseDown));
-            seq.AppendCallback(() => { PlayLandingParticle(); IsJumping = false; });
-        }
+        // Çıkış (root'un dünya Y'si)
+        seq.Append(posTarget.DOMoveY(apexY, upDur).SetEase(ascentEase));
+        if (enableJumpArcScale)
+            seq.Join(scaleTarget.DOScale(Vector3.one * Mathf.Max(0.01f, jumpArcScalePeak), upDur).SetEase(jumpArcEaseUp));
 
-        // squash/strech görselde
+        // İniş (root'un dünya Y'si)
+        seq.Append(posTarget.DOMoveY(startY, downDur).SetEase(descentEase));
+        if (enableJumpArcScale)
+            seq.Join(scaleTarget.DOScale(Vector3.one, downDur).SetEase(jumpArcEaseDown));
+
+        seq.AppendCallback(() => { PlayLandingParticle(); IsJumping = false; });
+
+        // Squash/strech sadece görselde
         if (landingSquash)
         {
-            seq.Append(t.DOScale(squashScale, squashDuration));
-            seq.Append(t.DOScale(Vector3.one, squashDuration));
+            seq.Append(scaleTarget.DOScale(squashScale, squashDuration));
+            seq.Append(scaleTarget.DOScale(Vector3.one, squashDuration));
         }
 
         _jumpTween = seq;

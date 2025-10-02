@@ -35,9 +35,9 @@ public class UILevelEnd : MonoBehaviour
         failPanel.GetComponent<CanvasGroup>().DOFade(1, 0.5f);
     }
 
-    public void OnNextLevelButtonClick()
+    public void OnDieButtonClicked()
     {
-        //LevelManager.ReloadScene();
+        GameManager.Instance.ReturnToMetaScene();
     }
 
     public void OnRestartLevelButtonClick()

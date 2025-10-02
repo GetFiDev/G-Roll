@@ -33,6 +33,42 @@ namespace AssetKits.ParticleImage
         private ParticleImage _main;
         [SerializeField]
         private ParticleImage[] _children;
+        /// <summary>
+        /// Emits a single burst "now" (next frame) without needing to reconfigure the system.
+        /// Use this to fire one-shot bursts from code (e.g., coin pickups).
+        /// </summary>
+        /// <param name="count">How many particles to spawn in this burst.</param>
+        /// <param name="autoPlay">If true and the system isn't playing, calls Play() first.</param>
+        public void EmitBurstNow(int count = 1, bool autoPlay = true)
+        {
+            // Work on the root emitter to preserve hierarchy consistency
+            var root = main;
+
+            if (autoPlay && !root.isPlaying)
+            {
+                // Ensure the system is in a valid playing/emitting state
+                root.Stop(true);
+                root.Clear();
+                root.Play();
+            }
+
+            // Schedule a burst at the current burst timer. The Simulate() loop checks
+            // _burstTimer >= burst.time, so this will fire on the coming frame.
+            if (count > 0)
+            {
+                root._bursts.Add(new Burst(root._burstTimer, count) { used = false });
+
+                // If this system has child emitters, mirror the same burst so they sync visually.
+                if (root.children != null)
+                {
+                    for (int i = 0; i < root.children.Length; i++)
+                    {
+                        var child = root.children[i];
+                        child._bursts.Add(new Burst(child._burstTimer, count) { used = false });
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Child emitters of this emitter.
@@ -2944,7 +2980,7 @@ namespace AssetKits.ParticleImage.Enumerations
     {
         None, OnEnable, OnAwake
     }
-    
+
     public enum SheetType
     {
         Lifetime, Speed, FPS
@@ -2954,4 +2990,5 @@ namespace AssetKits.ParticleImage.Enumerations
     {
         Unscaled, Normal
     }
+    
 }

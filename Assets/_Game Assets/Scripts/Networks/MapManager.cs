@@ -36,20 +36,17 @@ namespace RemoteApp
         [SerializeField] private Vector3 step = new Vector3(0f, 0f, 50f); // delta per map
         [SerializeField] private bool clearBeforeBuild = true;
 
+        [Title("Starter Map (Always First)")]
+        [Tooltip("Eğer doluysa, fetch sonucu ne olursa olsun oyun bu JSON'lu map ile başlar.")]
+        [SerializeField, TextArea(4, 12)] private string starterMapJson = "";
+        [SerializeField, Tooltip("Starter map için opsiyonel görünen isim. Boşsa JSON içindeki mapName kullanılır.")]
+        private string starterMapDisplayName = "starter";
+        [SerializeField, Tooltip("Starter map'i zorla ilk sıraya koy")]
+        private bool useStarterMap = true;
+
         public event Action OnReady;
+        public event Action OnDeinitialized;
 
-
-        // Odin button to trigger fetching manually (for testing in Editor)
-        [Button("Initialize & Fetch"), GUIColor(0.2f, 0.7f, 1f)]
-        private void OdinInitializeButton()
-        {
-            _ = Initialize();
-        }
-
-        /// <summary>
-        /// Initializes by requesting sequenced maps from RemoteAppDataService.
-        /// RemoteAppDataService is responsible for Firebase/Auth/Functions.
-        /// </summary>
         public async Task Initialize()
         {
             isReady = false;
@@ -152,40 +149,89 @@ namespace RemoteApp
                 Debug.LogError("[MapManager] mapPrefab is not assigned.");
                 return;
             }
-
+  
             var parent = mapsParent != null ? mapsParent : this.transform;
             if (clearBeforeBuild) ClearBuiltMaps();
-
+  
             var pos = startPosition;
             int built = 0;
-            for (int i = 0; i < mapJsonList.Count; i++)
+  
+            // 0) Starter map (opsiyonel ama öncelikli)
+            if (useStarterMap && !string.IsNullOrWhiteSpace(starterMapJson))
             {
                 var inst = Instantiate(mapPrefab, pos, Quaternion.identity, parent);
                 var map = inst.GetComponent<Map>();
-
-                // Name as "index_mapname" using mapName from JSON (sanitized)
-                string json = mapJsonList[i] ?? string.Empty;
+  
+                // İsim: "01_name"
+                string mapName = null;
+                try { mapName = JsonUtility.FromJson<MapNameDto>(starterMapJson)?.mapName; }
+                catch { /* ignore parse errors */ }
+                string fallback = string.IsNullOrWhiteSpace(starterMapDisplayName) ? "starter" : starterMapDisplayName;
+                string safe = ToSafeName(string.IsNullOrWhiteSpace(mapName) ? fallback : mapName);
+                inst.name = $"{(built + 1):00}_{safe}";
+  
+                if (map == null)
+                {
+                    Debug.LogError("[MapManager] mapPrefab has no Map component (starter).");
+                    Destroy(inst);
+                    return;
+                }
+  
+                map.mapJson = starterMapJson;
+                map.Initialize();
+  
+                pos += step;
+                built++;
+            }
+  
+            // 1) Fetched sequence
+            for (int i = 0; i < mapJsonList.Count; i++)
+            {
+                var json = mapJsonList[i] ?? string.Empty;
+                var inst = Instantiate(mapPrefab, pos, Quaternion.identity, parent);
+                var map = inst.GetComponent<Map>();
+  
+                // İsim: "index_mapname" (starter varsa index starter'dan sonra devam eder)
                 string mapName = null;
                 try { mapName = JsonUtility.FromJson<MapNameDto>(json)?.mapName; }
                 catch { /* ignore parse errors */ }
                 string safe = ToSafeName(mapName);
-                inst.name = $"{(i + 1):00}_{safe}";
-
+                inst.name = $"{(built + 1):00}_{safe}";
+  
                 if (map == null)
                 {
                     Debug.LogError("[MapManager] mapPrefab has no Map component.");
                     Destroy(inst);
                     return;
                 }
-
-                map.mapJson = mapJsonList[i] ?? string.Empty;
+  
+                map.mapJson = json;
                 map.Initialize(); // build immediately
-
+  
                 pos += step;
                 built++;
             }
+  
+            Debug.Log($"[MapManager] Built {built} maps in sequence. (Starter first: {useStarterMap && !string.IsNullOrWhiteSpace(starterMapJson)})");
+        }
 
-            Debug.Log($"[MapManager] Built {built} maps in sequence.");
+        /// <summary>
+        /// Destroys all built map instances and resets runtime state.
+        /// Call this when the run ends to return to meta scene cleanly.
+        /// </summary>
+        public void DeinitializeMap()
+        {
+            // Remove any instantiated maps from hierarchy
+            ClearBuiltMaps();
+  
+            // Reset runtime state
+            isReady = false;
+            mapJsonList.Clear();
+            mapIds.Clear();
+            difficulties.Clear();
+  
+            OnDeinitialized?.Invoke();
+            Debug.Log("[MapManager] Deinitialized. Maps cleared and runtime state reset.");
         }
     }
 

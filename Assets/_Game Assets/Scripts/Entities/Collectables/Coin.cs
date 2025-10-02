@@ -13,7 +13,7 @@ public class Coin : MonoBehaviour, IPlayerInteractable
         _collected = true;
 
         // Skor/Envanter/Para arttır
-        GameplayManager.Instance.currencyCollectedInSession += value;
+        GameplayManager.Instance.AddCoins(value);
         if (vfxOnCollect) Instantiate(vfxOnCollect, transform.position, Quaternion.identity);
 
         // Objeyi kapat

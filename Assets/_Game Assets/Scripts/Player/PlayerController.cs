@@ -20,6 +20,10 @@ public class PlayerController : MonoBehaviour
     private bool _wallHit;
     private Coroutine _wallHitFlowCo;
 
+    // Spawn snapshot
+    private Vector3 _startPosition;
+    private Quaternion _startRotation;
+
     /// <summary>
     /// Duvara çarpıldığında Wall tarafından çağrılır.
     /// Oyunu bitirme (FAIL) işlemi, çarpma animasyonu/feedback'i BİTTİKTEN sonra yapılır.
@@ -77,11 +81,34 @@ public class PlayerController : MonoBehaviour
     {
         playerMovement = GetComponent<PlayerMovement>()?.Initialize(this);
         playerAnimator = GetComponentInChildren<PlayerAnimator>()?.Initialize(this);
+
+        // capture spawn transform once at game start
+        _startPosition = transform.position;
+        _startRotation = transform.rotation;
     }
 
     private void OnValidate()
     {
         playerMovement = GetComponent<PlayerMovement>();
         playerAnimator = GetComponentInChildren<PlayerAnimator>();
+    }
+
+    /// <summary>
+    /// Player'ı başlangıç konum/rotasyonuna döndürür ve çarpışma akışını temizler.
+    /// </summary>
+    public void ResetPlayer()
+    {
+        // Çarpışma akışını temizle
+        if (_wallHitFlowCo != null) { StopCoroutine(_wallHitFlowCo); _wallHitFlowCo = null; }
+        _wallHit = false;
+
+        // Animator donmuşsa aç
+        if (playerAnimator != null) playerAnimator.Freeze(false);
+
+        // Anlık hareketleri kes (yan hız vb.)
+        if (playerMovement != null) playerMovement.StopImmediately();
+
+        // Dön ve yerine koy
+        transform.SetPositionAndRotation(_startPosition, _startRotation);
     }
 }

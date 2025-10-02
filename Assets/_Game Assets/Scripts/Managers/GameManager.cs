@@ -1,4 +1,5 @@
 ﻿using System;
+using RemoteApp;
 using Sirenix.OdinInspector;
 using UnityEngine;
 
@@ -12,6 +13,8 @@ public class GameManager : MonoSingleton<GameManager>
 
     private GameState _gameState;
     public GameplayManager gameplayManager;
+    public PlayerController player;
+    public MapManager mapManager;
 
     [ShowInInspector, ReadOnly]
     public GameState GameState
@@ -66,6 +69,14 @@ public class GameManager : MonoSingleton<GameManager>
         GameState = GameState.GameplayLoading;
     }
 
+    public void ReturnToMetaScene()
+    {
+        GameState = GameState.MetaState;
+        mapManager.DeinitializeMap();
+        player.ResetPlayer();
+        gameplayManager.ResetRun();
+    }
+
     private GameState _previousGameState;
     
     public void PauseGame()
@@ -96,13 +107,8 @@ public class GameManager : MonoSingleton<GameManager>
 
     public void LevelFinish(bool isSuccess)
     {
-        if (GameState != GameState.GameplayRun)
-        {
-            Debug.LogError("Game State is not GameplayRun", this);
-            return;
-        }
-
         GameState = isSuccess ? GameState.Complete : GameState.Fail;
+        gameplayManager.StopRun();
 
         // başarıda level index ilerlet
         if (isSuccess)
