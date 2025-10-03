@@ -312,10 +312,6 @@ public class GameplayManager : MonoBehaviour
     /// </summary>
     public void ResetRun()
     {
-        // Koşuyu sessizce kapat (event veya level complete yok)
-        _isRunning = false;
-
-        // Hızı ve oturum metriklerini sıfırla
         CurrentSpeed = 0f;
         currencyCollectedInSession = 0f;
         Coins = 0;

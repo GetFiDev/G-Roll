@@ -72,12 +72,11 @@ public class PlayerController : MonoBehaviour
         if (_wallHit && lockOnFirstWallHit) return;
         _wallHit = true;
 
-        // 1) Koşuyu hemen durdur
-        if (stopRunOnHit && GameplayManager.Instance != null)
-            GameplayManager.Instance.SetSpeed(0f);
-
         // 2) Animator'u durdur (görsel olarak donsun)
         if (playerAnimator != null) playerAnimator.Freeze(true);
+
+        // 2.5) Hareketi de dondur (GameManager hızını 0'a çekmek yerine)
+        if (playerMovement != null) playerMovement._isFrozen=true;
 
         // 3) Hareket tarafına tek adımlık geri itişi yaptır (XZ)
         if (playerMovement != null)
@@ -90,7 +89,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // 4) Oyunu anında bitir (FAIL akışını GameManager yönetir)
-        GameManager.Instance?.EnterLevelComplete();
+        GameManager.Instance?.LevelFinish(false); // FAIL state
     }
 
     /// <summary>
@@ -110,7 +109,7 @@ public class PlayerController : MonoBehaviour
         GameplayManager.Instance?.SetSpeed(0f);
     }
     
-    private void Start()
+    private void Awake()
     {
         playerMovement = GetComponent<PlayerMovement>()?.Initialize(this);
         playerAnimator = GetComponentInChildren<PlayerAnimator>()?.Initialize(this);
@@ -132,6 +131,7 @@ public class PlayerController : MonoBehaviour
     public void ResetPlayer()
     {
         _wallHit = false;
+        if (playerMovement != null) playerMovement._isFrozen=false;
 
         // Animator donmuşsa aç
         if (playerAnimator != null) playerAnimator.Freeze(false);

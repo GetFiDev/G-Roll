@@ -72,7 +72,7 @@ public class PlayerMovement : MonoBehaviour
     private Quaternion _frozenRotation;
     private Animator _cachedAnimator;
     private bool _cachedAnimatorRootMotion;
-    private bool _isFrozen = false;
+    public bool _isFrozen = false;
 
     private Tween _knockbackTween;
     private Tween _jumpTween;

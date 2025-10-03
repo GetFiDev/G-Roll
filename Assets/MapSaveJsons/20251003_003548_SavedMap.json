@@ -1,0 +1,75 @@
+{
+    "savedAtIso": "2025-10-03T00:35:48.7853340+03:00",
+    "mapName": "startmap_bycagil3_03/10/25 - 00:35:48",
+    "mapDisplayName": "startmap_bycagil3",
+    "difficultyTag": 1,
+    "backgroundMaterialId": 4,
+    "items": [
+        {
+            "displayName": "Portal",
+            "gridX": 10,
+            "gridY": 105,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 4,
+            "gridY": 95,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 3,
+            "gridY": 97,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 5,
+            "gridY": 100,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 2,
+            "gridY": 96,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 5,
+            "gridY": 101,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 5,
+            "gridY": 96,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 6,
+            "gridY": 78,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 11,
+            "gridY": 114,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 7,
+            "gridY": 92,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 8,
+            "gridY": 85,
+            "linkedPortalId": 1
+        }
+    ]
+}

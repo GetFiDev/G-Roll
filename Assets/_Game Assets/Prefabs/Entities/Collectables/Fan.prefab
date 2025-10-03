@@ -48,11 +48,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: de672ff6c97ad3440975ee191b6df33a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  fanJumpHeight: 5
-  reuseCooldown: 0.15
-  lockWhileJumping: 1
-  blowFX: {fileID: 0}
-  sfx: {fileID: 0}
+  boostJumpHeight: 3.5
+  boostJumpDuration: 1.25
+  useLocalForward: 1
 --- !u!135 &1779700819645825231
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -72,8 +70,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.62
-  m_Center: {x: 0, y: -0.39, z: 0}
+  m_Radius: 0.72492313
+  m_Center: {x: 0.5, y: -0.39, z: 0.5}
 --- !u!1 &6145572922962001689
 GameObject:
   m_ObjectHideFlags: 0

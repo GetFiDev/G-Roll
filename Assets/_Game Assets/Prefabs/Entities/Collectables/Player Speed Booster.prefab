@@ -53,8 +53,7 @@ MonoBehaviour:
     type: 3}
   sfxOnUse: {fileID: 0}
   requiredTag: Player
-  lateralMultiplier: 1.5
-  fallbackRunSpeedBoost: 2
+  speedBoost: 0.2
 --- !u!135 &3561426009509326417
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -75,7 +74,7 @@ SphereCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Center: {x: 0.25, y: 0, z: 0.25}
 --- !u!1 &7870337678820425646
 GameObject:
   m_ObjectHideFlags: 0
