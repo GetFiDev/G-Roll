@@ -30,7 +30,15 @@ public class GameplayManager : MonoBehaviour
     private GameObject playerGO;
     private bool sessionActive;
     private float sessionStartTime;
-    private float _coinFactor = 1f; // coinMultiplier + coinMultiplierPercent (final)
+    // --- Cached finals coming from PlayerStatHandler (per session) ---
+    private int   _comboPowerFactor = 1;     // integer factor, base 1
+    private int   _coinBonusPercent = 0;     // integer percent, base 0
+    private int   _magnetBonusPercent = 0;   // integer percent, base 0
+    private int   _gameplaySpeedPct = 0;     // integer percent, base 0 (for reference)
+    private float _playerAccelPer60 = 0.1f;  // float per minute, base 0.1
+    private float _playerSpeedAdd   = 0f;    // float additive speed
+    private int   _playerSizePct    = 0;     // integer percent
+
     private float _collectibleEffector = 1f; // 1 + (FinalCollectiblePct / 100f)
     public static GameplayManager Instance;
 
@@ -102,13 +110,30 @@ public class GameplayManager : MonoBehaviour
             var statComp = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
             if (statComp != null)
             {
-                _coinFactor = statComp.FinalCoinFactor;
-                _collectibleEffector = 1f + (statComp.FinalCollectiblePct / 100f);
+                _comboPowerFactor = statComp.FinalComboPowerFactor;             // int
+                _coinBonusPercent = statComp.FinalCoinMultiplierPercent;        // int
+                _magnetBonusPercent = statComp.FinalMagnetPowerPct;             // int
+                _gameplaySpeedPct = statComp.FinalGameplaySpeedPct;             // int (bilgi amaçlı)
+                _playerAccelPer60 = statComp.FinalPlayerAcceleration;           // float
+                _playerSpeedAdd   = statComp.FinalPlayerSpeedAdd;               // float
+                _playerSizePct    = statComp.FinalPlayerSizePct;                // int
+
+                // Opsiyonel: magnet yarıçapını player tarafında uygula (varsa)
+                var magnet = playerGO.GetComponentInChildren<PlayerMagnet>(true);
+                if (magnet != null)
+                {
+                    magnet.ApplyPercent(_magnetBonusPercent); // aşağıda önerdiğimiz API
+                }
             }
             else
             {
-                _coinFactor = 1f;
-                _collectibleEffector = 1f;
+                _comboPowerFactor = 1;
+                _coinBonusPercent = 0;
+                _magnetBonusPercent = 0;
+                _gameplaySpeedPct = 0;
+                _playerAccelPer60 = 0.1f;
+                _playerSpeedAdd   = 0f;
+                _playerSizePct    = 0;
             }
         }
 
@@ -194,8 +219,15 @@ public class GameplayManager : MonoBehaviour
         playerSpawner?.DespawnAll();
         if (playerGO != null) { Destroy(playerGO); playerGO = null; }
 
-        _coinFactor = 1f;
+        _coinBonusPercent = 0;
         _collectibleEffector = 1f;
+        _comboPowerFactor = 1;
+        _coinBonusPercent = 0;
+        _magnetBonusPercent = 0;
+        _gameplaySpeedPct = 0;
+        _playerAccelPer60 = 0.1f;
+        _playerSpeedAdd   = 0f;
+        _playerSizePct    = 0;
 
         // (Gerekirse burada async raporlama yapabilirsiniz)
         stats = null;
@@ -217,8 +249,15 @@ public class GameplayManager : MonoBehaviour
         mapLoader?.Unload();
         playerSpawner?.DespawnAll();
         if (playerGO != null) { Destroy(playerGO); playerGO = null; }
-        _coinFactor = 1f;
+        _coinBonusPercent = 0;
         _collectibleEffector = 1f;
+        _comboPowerFactor = 1;
+        _coinBonusPercent = 0;
+        _magnetBonusPercent = 0;
+        _gameplaySpeedPct = 0;
+        _playerAccelPer60 = 0.1f;
+        _playerSpeedAdd   = 0f;
+        _playerSizePct    = 0;
         stats = null;
         sessionActive = false;
         sessionStartTime = 0f;
@@ -229,7 +268,8 @@ public class GameplayManager : MonoBehaviour
     public void AddCoins(float delta, Vector3? worldFxAt = null, int fxCount = 1)
     {
         if (delta <= 0f) return;
-        var effective = delta * _coinFactor;
+        var factor = (float)_comboPowerFactor * (1f + (_coinBonusPercent / 100f));
+        var effective = delta * factor;
         logicApplier?.AddCoins(effective, worldFxAt, fxCount);
     }
     public void BoosterUse() => logicApplier?.BoosterUse();
@@ -251,6 +291,26 @@ public class GameplayManager : MonoBehaviour
     public void RefreshCachedStatsFromPlayer()
     {
         var stat = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
-        _coinFactor = stat != null ? stat.FinalCoinFactor : 1f;
+        if (stat != null)
+        {
+            _comboPowerFactor = stat.FinalComboPowerFactor;
+            _coinBonusPercent = stat.FinalCoinMultiplierPercent;
+            _magnetBonusPercent = stat.FinalMagnetPowerPct;
+            _gameplaySpeedPct = stat.FinalGameplaySpeedPct;
+            _playerAccelPer60 = stat.FinalPlayerAcceleration;
+            _playerSpeedAdd   = stat.FinalPlayerSpeedAdd;
+            _playerSizePct    = stat.FinalPlayerSizePct;
+        }
+        else
+        {
+            _comboPowerFactor = 1;
+            _coinBonusPercent = 0;
+            _magnetBonusPercent = 0;
+            _gameplaySpeedPct = 0;
+            _playerAccelPer60 = 0.1f;
+            _playerSpeedAdd   = 0f;
+            _playerSizePct    = 0;
+            _collectibleEffector = 1f;
+        }
     }
 }

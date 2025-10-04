@@ -70,6 +70,19 @@ public class GameplayLogicApplier : MonoBehaviour
     public event Action<Vector3,int> OnCoinPickupFXRequest;     // worldPos, count (genelde 1)
     public event Action OnBoosterUsed;
 
+    /// <summary>
+    /// Reset both gameplay & player speed multipliers to their defaults (1x) and refresh CurrentSpeed.
+    /// Deterministic session baseline; call before applying run-start stats.
+    /// </summary>
+    public void ResetMultipliersToDefault()
+    {
+        gameplaySpeedMultiplier = 1f;
+        playerSpeedMultiplier   = 1f;
+        CurrentSpeed = baseSpeed * gameplaySpeedMultiplier;
+        OnGameplaySpeedMultiplierChanged?.Invoke(gameplaySpeedMultiplier);
+        OnPlayerSpeedMultiplierChanged?.Invoke(playerSpeedMultiplier);
+    }
+
     void Awake()
     {
         if (targetCamera == null && Camera.main != null)
@@ -88,6 +101,7 @@ public class GameplayLogicApplier : MonoBehaviour
         if (optionalPlayer) player = optionalPlayer;
 
         armedForFirstMove = startOnFirstPlayerMove;
+        ResetMultipliersToDefault();
 
         ResetSessionValues(hardResetCameraSnapshot: true);
     }
@@ -139,6 +153,7 @@ public class GameplayLogicApplier : MonoBehaviour
         isRunning = false;
         baseSpeed = 0f;
         CurrentSpeed = 0f;
+        ResetMultipliersToDefault();
 
         // booster kapat
         if (boosterRoutine != null) { StopCoroutine(boosterRoutine); boosterRoutine = null; }

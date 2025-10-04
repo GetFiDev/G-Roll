@@ -2,15 +2,14 @@ using UnityEngine;
 
 public class UICustomizationPanel : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
+    [SerializeField] private UIPlayerStatsHandler statsHandler;
 
-    // Update is called once per frame
-    void Update()
+    private void OnEnable()
     {
-        
+        if (statsHandler == null)
+            statsHandler = GetComponentInChildren<UIPlayerStatsHandler>(true);
+
+        if (statsHandler != null)
+            statsHandler.Initialize();
     }
 }
