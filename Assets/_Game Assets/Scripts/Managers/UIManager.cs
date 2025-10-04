@@ -15,14 +15,21 @@ public class UIManager : MonoSingleton<UIManager>
 
     public UIManager Initialize()
     {
-        phaseChanged.OnEvent += OnPhaseChanged;
-
         return this;
+    }
+
+    private void OnEnable()
+    {
+        if (phaseChanged != null)
+            phaseChanged.OnEvent += OnPhaseChanged;
+        else
+            Debug.LogError("[UIManager] phaseChanged (PhaseEventChannelSO) is not assigned.");
     }
 
     private void OnDisable()
     {
-        phaseChanged.OnEvent -= OnPhaseChanged;
+        if (phaseChanged != null)
+            phaseChanged.OnEvent -= OnPhaseChanged;
     }
 
     private void OnPhaseChanged(GamePhase phase)
@@ -30,22 +37,22 @@ public class UIManager : MonoSingleton<UIManager>
         switch (phase)
         {
             case GamePhase.Boot:
-                mainMenu.gameObject.SetActive(false);
-                gamePlay.gameObject.SetActive(false);
-                levelEnd.gameObject.SetActive(false);
-                gameplayLoading.gameObject.SetActive(false);
+                if (mainMenu)        mainMenu.gameObject.SetActive(false);
+                if (gamePlay)        gamePlay.gameObject.SetActive(false);
+                if (levelEnd)        levelEnd.gameObject.SetActive(false);
+                if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
                 break;
             case GamePhase.Meta:
-                mainMenu.gameObject.SetActive(true);
-                gamePlay.gameObject.SetActive(false);
-                levelEnd.gameObject.SetActive(false);
-                gameplayLoading.gameObject.SetActive(false);
+                if (mainMenu)        mainMenu.gameObject.SetActive(true);
+                if (gamePlay)        gamePlay.gameObject.SetActive(false);
+                if (levelEnd)        levelEnd.gameObject.SetActive(false);
+                if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
                 break;
             case GamePhase.Gameplay:
-                mainMenu.gameObject.SetActive(false);
-                gamePlay.gameObject.SetActive(true);
-                levelEnd.gameObject.SetActive(false);
-                gameplayLoading.gameObject.SetActive(false);
+                if (mainMenu)        mainMenu.gameObject.SetActive(false);
+                if (gamePlay)        gamePlay.gameObject.SetActive(true);
+                if (levelEnd)        levelEnd.gameObject.SetActive(false);
+                if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
                 break;
             default:
                 break;
@@ -54,19 +61,23 @@ public class UIManager : MonoSingleton<UIManager>
 
     public void ShowGameplayLoading()
     {
-        mainMenu.gameObject.SetActive(false);
-        gamePlay.gameObject.SetActive(false);
-        levelEnd.gameObject.SetActive(false);
-        gameplayLoading.gameObject.SetActive(true);
-        gameplayLoading.LoadTheGameplay();
+        if (mainMenu)        mainMenu.gameObject.SetActive(false);
+        if (gamePlay)        gamePlay.gameObject.SetActive(true);   // HUD açık kalsın; overlay üstüne çıkar
+        if (levelEnd)        levelEnd.gameObject.SetActive(false);
+        if (gameplayLoading) gameplayLoading.gameObject.SetActive(true);
+        // UI tarafı yüklemeyi başlatmaz; GameplayManager mapLoader.Load() çağırır
     }
 
     public void ShowLevelEnd(bool success)
     {
-        mainMenu.gameObject.SetActive(false);
-        gamePlay.gameObject.SetActive(false);
-        levelEnd.gameObject.SetActive(true);
-        gameplayLoading.gameObject.SetActive(false);
-        levelEnd.ShowSequence(success);
+        if (mainMenu)        mainMenu.gameObject.SetActive(false);
+        if (gamePlay)        gamePlay.gameObject.SetActive(false);
+        if (levelEnd)        levelEnd.gameObject.SetActive(true);
+        if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
+
+        if (levelEnd)
+            levelEnd.ShowSequence(success);
+        else
+            Debug.LogError("[UIManager] levelEnd is not assigned.");
     }
 }

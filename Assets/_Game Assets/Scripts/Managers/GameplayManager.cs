@@ -18,6 +18,8 @@ public class GameplayManager : MonoBehaviour
 
     [Header("Camera")]
     [SerializeField] private Transform targetCamera; // boşsa Camera.main kullanılır
+    [SerializeField] private TouchManager gameplayTouch;
+
 
     private IPlayerSpawner playerSpawner;
     private IMapLoader mapLoader;
@@ -84,7 +86,9 @@ public class GameplayManager : MonoBehaviour
         var playerMov  = playerGO ? playerGO.GetComponent<PlayerMovement>()  : null;
         if (playerMov != null && logicApplier != null)
         {
-            playerMov.BindToGameplay(logicApplier, null);
+            playerMov.BindToGameplay(logicApplier, gameplayTouch);
+            // güvence: sahne başında donuk kaldıysa açalım
+            playerMov._isFrozen = false;
         }
 
         // Logic'i hazırla ve Visual'ı bağla, ardından koşuyu başlat
@@ -109,6 +113,34 @@ public class GameplayManager : MonoBehaviour
         yield break;
     }
 
+    private void HandleLevelEndCompleted()
+    {
+        // Unsubscribe (safety against duplicate calls)
+        if (UIManager.Instance != null && UIManager.Instance.levelEnd != null)
+            UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelEndCompleted;
+
+        EndSession(false);
+    }
+
+    /// <summary>
+    /// Standart FAIL akışı: LevelEnd UI sekansını başlat. Sekans bittiğinde EndSession(false) çağrılır.
+    /// </summary>
+    public void StartFailFlow()
+    {
+        if (!sessionActive) return;
+
+        // 1) Kamerayı ve koşuyu anında durdur
+        logicApplier?.StopRun();
+
+        // 2) Level End sekansını göster; bitince teardown (EndSession) zaten çalışacak
+        if (UIManager.Instance != null && UIManager.Instance.levelEnd != null)
+        {
+            UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelEndCompleted;
+            UIManager.Instance.levelEnd.OnSequenceCompleted += HandleLevelEndCompleted;
+        }
+        UIManager.Instance?.ShowLevelEnd(false);
+    }
+
     /// <summary>
     /// Gameplay bitişini dışarıdan tetiklemek için çağır.
     /// success: level kazanıldı mı?
@@ -124,14 +156,12 @@ public class GameplayManager : MonoBehaviour
         stats.playtimeSeconds = Mathf.Max(0f, Time.time - sessionStartTime);
 
         // Koşuyu durdur ve temizle
-        logicApplier?.StopRun();
         visualApplier?.Unbind();
         mapLoader?.Unload();
         playerSpawner?.DespawnAll();
         if (playerGO != null) { Destroy(playerGO); playerGO = null; }
 
-        // (Gerekirse burada async raporlama yapabilirsin)
-
+        // (Gerekirse burada async raporlama yapabilirsiniz)
         stats = null;
 
         // Fazı Meta'ya geri aldır

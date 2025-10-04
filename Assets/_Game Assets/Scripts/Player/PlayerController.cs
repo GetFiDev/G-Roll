@@ -84,8 +84,8 @@ public class PlayerController : MonoBehaviour
             // GameplayManager.Instance?.ApplyGameplaySpeedPercent(-1f); // multiplier -> 0 (tam duruş)
         }
 
-        // 5) Bitişi GameplayManager’a devret (FAIL)
-        GameplayManager.Instance?.EndSession(false);
+        // 5) Bitişi GameplayManager’a devret (FAIL UI sekansı -> teardown)
+        GameplayManager.Instance?.StartFailFlow();
     }
 
     /// <summary>

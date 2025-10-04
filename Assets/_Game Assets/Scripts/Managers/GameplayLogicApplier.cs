@@ -33,6 +33,9 @@ public class GameplayLogicApplier : MonoBehaviour
 
     [Header("Optional Player Ref (for booster flag)")]
     [SerializeField] private PlayerController player; // isteğe bağlı; yoksa sadece event yayınlanır
+    private bool _spawnCaptured = false;
+    private Vector3 _startCamPosition;
+    private Quaternion _startCamRotation;
 
     // Runtime state
     // Effective camera speed after multiplier
@@ -60,6 +63,17 @@ public class GameplayLogicApplier : MonoBehaviour
     public event Action<Vector3,int> OnCoinPickupFXRequest;     // worldPos, count (genelde 1)
     public event Action OnBoosterUsed;
 
+    void Awake()
+    {
+        if (targetCamera == null && Camera.main != null)
+            targetCamera = Camera.main.transform;
+        if (targetCamera != null && !_spawnCaptured) {
+            _startCamPosition = targetCamera.position;
+            _startCamRotation = targetCamera.rotation;
+            _spawnCaptured = true;
+        }
+    }
+
     // ---- Public control API (GameplayManager buradan çağırır) ----
     public void InitializeSession(Transform cameraTransform, PlayerController optionalPlayer = null)
     {
@@ -72,6 +86,9 @@ public class GameplayLogicApplier : MonoBehaviour
     public void StartRun()
     {
         if (targetCamera == null) return;
+        
+        if (_spawnCaptured && targetCamera != null)
+            targetCamera.SetPositionAndRotation(_startCamPosition, _startCamRotation);
 
         isRunning = true;
         // was: CurrentSpeed = Mathf.Clamp(startSpeed, 0f, maxSpeed);
@@ -85,6 +102,8 @@ public class GameplayLogicApplier : MonoBehaviour
     {
         if (!isRunning) return;
         isRunning = false;
+        baseSpeed = 0f;
+        CurrentSpeed = 0f;
 
         // booster kapat
         if (boosterRoutine != null) { StopCoroutine(boosterRoutine); boosterRoutine = null; }
