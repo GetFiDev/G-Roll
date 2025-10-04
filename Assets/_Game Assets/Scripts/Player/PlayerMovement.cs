@@ -16,6 +16,11 @@ public class PlayerMovement : MonoBehaviour
     private TouchManager _touch;             // Gameplay domain touch (GameManager üzerinden değil)
     private bool _isActive = false;          // Gameplay session açık mı?
     private float _playerSpeedMultiplier = 1f; // logic'ten gelen çarpan
+    private Action<SwipeDirection> _onSwipeHandler;   // stored delegates for unsubscribe
+    private Action _onDoubleTapHandler;
+    private bool _firstMoveNotified = false;          // camera start gate
+    private float _externalAccelPer60 = 0f; // dk başına dış hızlanma
+    private Vector3 _spawnScale;            // başlangıç ölçeği (SetPlayerSize için referans)
 
     [SerializeField] private float movementSpeed = 5f;
 
@@ -94,6 +99,7 @@ public class PlayerMovement : MonoBehaviour
         // Speed başlangıçta base speed; efektif hız logic çarpanı ile Update'te hesaplanır
         Speed = movementSpeed;
         _currentTurnSpeed = baseTurnSpeed;
+        _spawnScale = transform.localScale;
         if (_cachedAnimator == null)
             _cachedAnimator = GetComponentInChildren<Animator>();
         return this;
@@ -105,6 +111,7 @@ public class PlayerMovement : MonoBehaviour
         _logic = logic;
         _touch = touch;
         _isActive = true;
+        _firstMoveNotified = false;
 
         // anlık çarpanı al ve hız hesaplamasını güncel tut
         _playerSpeedMultiplier = (_logic != null) ? Mathf.Max(0f, _logic.PlayerSpeedMultiplier) : 1f;
@@ -116,8 +123,10 @@ public class PlayerMovement : MonoBehaviour
         // Touch bağla (opsiyonel dıştan yönetilir)
         if (_touch != null)
         {
-            _touch.OnSwipe += ChangeDirection;
-            _touch.OnDoubleTap += () => Jump(doubleTapJumpForce);
+            _onSwipeHandler = HandleSwipe;
+            _onDoubleTapHandler = HandleDoubleTap;
+            _touch.OnSwipe += _onSwipeHandler;
+            _touch.OnDoubleTap += _onDoubleTapHandler;
         }
     }
 
@@ -134,9 +143,11 @@ public class PlayerMovement : MonoBehaviour
 
         if (_touch != null)
         {
-            _touch.OnSwipe -= ChangeDirection;
-            _touch.OnDoubleTap -= () => Jump(doubleTapJumpForce);
+            if (_onSwipeHandler != null) _touch.OnSwipe -= _onSwipeHandler;
+            if (_onDoubleTapHandler != null) _touch.OnDoubleTap -= _onDoubleTapHandler;
         }
+        _onSwipeHandler = null;
+        _onDoubleTapHandler = null;
         _touch = null;
 
         _movementDirection = Vector3.zero;
@@ -159,6 +170,12 @@ public class PlayerMovement : MonoBehaviour
             if (_isFrozen && hardRotationLockOnFreeze)
             {
                 transform.rotation = _frozenRotation;
+            }
+            // Dış hızlanma: dakika başına verilen değeri saniyeye çevirip base hıza ekle
+            if (!Mathf.Approximately(_externalAccelPer60, 0f))
+            {
+                float perSecond = _externalAccelPer60 / 60f;
+                movementSpeed += perSecond * Time.deltaTime; // basit ve direkt; run boyunca birikir
             }
             Move();
             RotateTowardsMovement();
@@ -196,6 +213,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void SetDirection(Vector3 dir)
     {
+        EnsureFirstMoveNotified();
         if (_isFrozen) return;
         if (dir.sqrMagnitude < 0.0001f) return;
         _movementDirection = new Vector3(dir.x, 0f, dir.z).normalized;
@@ -204,6 +222,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void ChangeDirection(SwipeDirection swipeDirection)
     {
+        EnsureFirstMoveNotified();
         if (_isFrozen) return;
         _movementDirection = SwipeToWorld(swipeDirection);
         StartTurnBoost();
@@ -377,6 +396,7 @@ public class PlayerMovement : MonoBehaviour
 
     public void Jump(float jumpHeight)
     {
+        EnsureFirstMoveNotified();
         if (_isFrozen) return;
         if (_jumpTween != null && _jumpTween.IsActive()) return;
 
@@ -598,5 +618,52 @@ public class PlayerMovement : MonoBehaviour
             default: return Vector3.zero;
         }
     }
-    public void InjectSwipe(SwipeDirection swipe) => ChangeDirection(swipe);
+    public void InjectSwipe(SwipeDirection swipe)
+    {
+        EnsureFirstMoveNotified();
+        ChangeDirection(swipe);
+    }
+
+    private void HandleSwipe(SwipeDirection dir)
+    {
+        EnsureFirstMoveNotified();
+        ChangeDirection(dir);
+    }
+
+    private void HandleDoubleTap()
+    {
+        EnsureFirstMoveNotified();
+        Jump(doubleTapJumpForce);
+    }
+
+    private void EnsureFirstMoveNotified()
+    {
+        if (_firstMoveNotified) return;
+        _firstMoveNotified = true;
+        _logic?.NotifyFirstPlayerMove();
+    }
+    // PlayerStatHandler run başında çağırır: dakika başına hızlanma miktarı
+    public void SetExternalAccelerationPer60Sec(float value)
+    {
+        _externalAccelPer60 = value; // negatif olabilir (yavaşlama)
+    }
+
+    // PlayerStatHandler run başında çağırır: başlangıç hızı üzerine ek (additive)
+    public void AddPlayerSpeed(float delta)
+    {
+        movementSpeed += delta;
+    }
+
+    public void SetPlayerSize(int percent)
+    {
+        float k = 1f + (percent / 100f);
+        transform.localScale = _spawnScale * k;
+
+        // Zemine tam oturması için Y konumunu güncelle
+        // Base durumda (scale = 1), merkez Y = 0.225 => baseRadius = 0.225
+        float baseRadius = 0.225f;
+        Vector3 pos = transform.position;
+        pos.y = baseRadius * k;
+        transform.position = pos;
+    }
 }

@@ -1,6 +1,7 @@
 using UnityEngine;
 using DG.Tweening;
 using System;
+using TMPro;
 
 public class UILevelEnd : MonoBehaviour
 {
@@ -16,6 +17,23 @@ public class UILevelEnd : MonoBehaviour
     [SerializeField] private float fadeDuration = 0.5f;
     [SerializeField] private float autoAdvanceDelay = 0.0f; // 0 => sadece butonla ilerle
     [SerializeField] private bool proceedWithAnyTap = false;  // true ise sessionFailed ekranında herhangi bir tap ile sonuca geç
+
+    [Header("Result Values UI")]
+    [SerializeField] private TextMeshProUGUI resultScoreText;
+    [SerializeField] private TextMeshProUGUI resultCoinText;
+    [SerializeField] private TextMeshProUGUI resultCoinDoubleText; // kazanılanın 2x gösterimi
+    [SerializeField] private bool scoreAsInteger = true;
+    [SerializeField] private bool coinAsInteger = true;
+
+    [Header("Result Animation")]
+    [SerializeField] private float countUpDuration = 1.5f;
+    [SerializeField] private float punchScale = 1.15f;
+    [SerializeField] private float punchTime = 0.12f;
+
+    // runtime targets (SetResultValues ile doldurulur)
+    private float _targetScore = 0f;
+    private float _targetCoins = 0f;
+    private bool _hasTargets = false;
 
     public event Action OnSequenceCompleted; // GameplayManager dinler → EndSession(false)
 
@@ -39,6 +57,11 @@ public class UILevelEnd : MonoBehaviour
 
         _isRunning = true;
         _atResult = false;
+
+        // Result sayacı başlangıç görünümü (0'dan başlasın)
+        if (resultScoreText) resultScoreText.text = scoreAsInteger ? "0" : 0f.ToString("F2");
+        if (resultCoinText)  resultCoinText.text  = coinAsInteger  ? "0" : 0f.ToString("F2");
+        if (resultCoinDoubleText) resultCoinDoubleText.text = coinAsInteger ? "0" : 0f.ToString("F2");
 
         // Auto-advance veya kullanıcı girişini bekle
         if (autoAdvanceDelay > 0f)
@@ -80,6 +103,86 @@ public class UILevelEnd : MonoBehaviour
                 cgB.DOFade(1f, fadeDuration);
             }
         }
+
+        // Result paneli görünür olduktan sonra sayacı başlat
+        AnimateResults();
+    }
+
+    private void AnimateResults()
+    {
+        if (!_hasTargets)
+        {
+            // Hedefler dışarıdan set edilmemişse 0 olarak kalır; animasyon atlanır
+            return;
+        }
+
+        // Skor
+        if (resultScoreText)
+        {
+            resultScoreText.transform.DOKill();
+            resultScoreText.text = scoreAsInteger ? "0" : 0f.ToString("F2");
+            DOVirtual.Float(0f, _targetScore, countUpDuration, v =>
+            {
+                if (scoreAsInteger)
+                    resultScoreText.text = Mathf.FloorToInt(v).ToString();
+                else
+                    resultScoreText.text = v.ToString("F2");
+            }).OnComplete(() =>
+            {
+                // küçük bir büyüyüp geri gelme efekti
+                var t = resultScoreText.transform;
+                var baseScale = t.localScale;
+                t.DOKill();
+                t.localScale = baseScale;
+                t.DOScale(baseScale * punchScale, punchTime).SetEase(Ease.OutQuad)
+                 .OnComplete(() => t.DOScale(baseScale, punchTime).SetEase(Ease.InQuad));
+            });
+        }
+
+        // Coin
+        if (resultCoinText)
+        {
+            resultCoinText.transform.DOKill();
+            resultCoinText.text = coinAsInteger ? "0" : 0f.ToString("F2");
+            DOVirtual.Float(0f, _targetCoins, countUpDuration, v =>
+            {
+                if (coinAsInteger)
+                    resultCoinText.text = Mathf.FloorToInt(v).ToString();
+                else
+                    resultCoinText.text = v.ToString("F2");
+            }).OnComplete(() =>
+            {
+                var t = resultCoinText.transform;
+                var baseScale = t.localScale;
+                t.DOKill();
+                t.localScale = baseScale;
+                t.DOScale(baseScale * punchScale, punchTime).SetEase(Ease.OutQuad)
+                 .OnComplete(() => t.DOScale(baseScale, punchTime).SetEase(Ease.InQuad));
+            });
+        }
+
+        // Coin (2x)
+        if (resultCoinDoubleText)
+        {
+            float doubleTarget = _targetCoins * 2f;
+            resultCoinDoubleText.transform.DOKill();
+            resultCoinDoubleText.text = coinAsInteger ? "0" : 0f.ToString("F2");
+            DOVirtual.Float(0f, doubleTarget, countUpDuration, v =>
+            {
+                if (coinAsInteger)
+                    resultCoinDoubleText.text = Mathf.FloorToInt(v).ToString();
+                else
+                    resultCoinDoubleText.text = v.ToString("F2");
+            }).OnComplete(() =>
+            {
+                var t = resultCoinDoubleText.transform;
+                var baseScale = t.localScale;
+                t.DOKill();
+                t.localScale = baseScale;
+                t.DOScale(baseScale * punchScale, punchTime).SetEase(Ease.OutQuad)
+                 .OnComplete(() => t.DOScale(baseScale, punchTime).SetEase(Ease.InQuad));
+            });
+        }
     }
 
     public void CompleteAndClose()
@@ -103,4 +206,32 @@ public class UILevelEnd : MonoBehaviour
 
     public void OnContinueButton() => ProceedToResult();
     public void OnCloseButton()     => CompleteAndClose();
+
+    /// <summary>
+    /// GameplayManager, sekans açılmadan önce final skor/coin değerlerini buraya set etsin.
+    /// </summary>
+    public void SetResultValues(float finalScore, float finalCoins)
+    {
+        _targetScore = Mathf.Max(0f, finalScore);
+        _targetCoins = Mathf.Max(0f, finalCoins);
+        _hasTargets = true;
+    }
+
+    /// <summary>
+    /// (Opsiyonel) Dışarıdan verilmiş değerleri temizler.
+    /// </summary>
+    public void ClearResultValues()
+    {
+        _hasTargets = false;
+        _targetScore = 0f;
+        _targetCoins = 0f;
+    }
+
+    private void OnDisable()
+    {
+        if (resultScoreText) resultScoreText.transform.DOKill();
+        if (resultCoinText)  resultCoinText.transform.DOKill();
+        if (resultCoinDoubleText) resultCoinDoubleText.transform.DOKill();
+        CancelInvoke();
+    }
 }

@@ -25,6 +25,9 @@ public class GameplayVisualApplier : MonoBehaviour
     [SerializeField] private bool coinFXUseInstancePerBurst = true;
     [SerializeField] private float coinFXDespawnSeconds = 1.5f;
 
+    [SerializeField] private Transform playerTransformForCoinFX; // Fallback anchor (eski davranış)
+    private int lastFXFrame = -1; // aynı frame'de iki kez spawn'ı önlemek için
+
     [Header("Coin Text Bounce")]
     [SerializeField] private UnityEngine.Events.UnityEvent onCoinPickupFX;
 
@@ -50,6 +53,7 @@ public class GameplayVisualApplier : MonoBehaviour
     public void Unbind()
     {
         if (logic == null) return;
+        ClearCoinFXAnchor();
 
         logic.OnRunStarted -= HandleRunStarted;
         logic.OnRunStopped -= HandleRunStopped;
@@ -98,6 +102,13 @@ public class GameplayVisualApplier : MonoBehaviour
         }
 
         onCoinPickupFX?.Invoke();
+
+        // Eğer mantık katmanı worldPos ile ayrı bir FX olayı yollamadıysa, oyuncu üstünde tek burst yap
+        if (playerTransformForCoinFX != null && lastFXFrame != Time.frameCount)
+        {
+            EmitCoinFXAtWorld(playerTransformForCoinFX.position, 1);
+            lastFXFrame = Time.frameCount;
+        }
     }
 
     private void HandleBoosterChanged(float fill, float min, float max)
@@ -110,6 +121,7 @@ public class GameplayVisualApplier : MonoBehaviour
     private void HandleCoinFXRequest(Vector3 worldPos, int count)
     {
         EmitCoinFXAtWorld(worldPos, Mathf.Max(1, count));
+        lastFXFrame = Time.frameCount;
     }
 
     // --- The old EmitCoinFX logic moved here ---
@@ -119,7 +131,9 @@ public class GameplayVisualApplier : MonoBehaviour
         var canvas = coinPickupParticle.canvas;
         if (canvas == null) { onCoinPickupFX?.Invoke(); return; }
 
-        Camera worldCam = worldCameraForCoinFX != null ? worldCameraForCoinFX : Camera.main;
+        Camera worldCam = worldCameraForCoinFX != null ? worldCameraForCoinFX
+                          : (uiCameraOverride != null ? uiCameraOverride
+                                                     : Camera.main);
         if (worldCam == null) { onCoinPickupFX?.Invoke(); return; }
 
         var canvasRect = canvas.transform as RectTransform;
@@ -142,7 +156,7 @@ public class GameplayVisualApplier : MonoBehaviour
 
         if (coinFXUseInstancePerBurst)
         {
-            var inst = Instantiate(coinPickupParticle, coinPickupParticle.transform.parent);
+            var inst = Instantiate(coinPickupParticle, canvas.transform);
             var rt = inst.rectTransform;
 
             if (canvas.renderMode == RenderMode.WorldSpace)
@@ -166,5 +180,15 @@ public class GameplayVisualApplier : MonoBehaviour
         }
 
         onCoinPickupFX?.Invoke();
+    }
+
+    public void SetCoinFXAnchor(Transform anchor)
+    {
+        playerTransformForCoinFX = anchor;
+    }
+
+    public void ClearCoinFXAnchor()
+    {
+        playerTransformForCoinFX = null;
     }
 }

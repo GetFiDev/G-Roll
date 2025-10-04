@@ -10,6 +10,13 @@ public class GameplayLogicApplier : MonoBehaviour
     [SerializeField] private float maxSpeed   = 20f;
     [SerializeField] private float accelerationPerSecond = 0.75f;
 
+    [Header("Start Mode")]
+    [SerializeField, Tooltip("Kamera hareketi ilk oyuncu hamlesine kadar başlamasın.")]
+    private bool startOnFirstPlayerMove = true;
+
+    // runtime flags for deferred start
+    private bool armedForFirstMove = false;
+
     [Header("Booster")]
     [SerializeField] private float boosterFillPerCollectedCoin = 1f;
     [SerializeField] private float boosterFillMin = 0f;
@@ -80,21 +87,49 @@ public class GameplayLogicApplier : MonoBehaviour
         targetCamera = cameraTransform;
         if (optionalPlayer) player = optionalPlayer;
 
+        armedForFirstMove = startOnFirstPlayerMove;
+
         ResetSessionValues(hardResetCameraSnapshot: true);
     }
 
     public void StartRun()
     {
         if (targetCamera == null) return;
-        
+
         if (_spawnCaptured && targetCamera != null)
             targetCamera.SetPositionAndRotation(_startCamPosition, _startCamRotation);
 
-        isRunning = true;
-        // was: CurrentSpeed = Mathf.Clamp(startSpeed, 0f, maxSpeed);
-        baseSpeed = Mathf.Clamp(startSpeed, 0f, maxSpeed);
+        // Prepare base speed/effective speed
+        baseSpeed   = Mathf.Clamp(startSpeed, 0f, maxSpeed);
         CurrentSpeed = baseSpeed * Mathf.Max(0f, gameplaySpeedMultiplier);
-        lastCamZ = targetCamera.position.z;
+        lastCamZ     = targetCamera.position.z;
+
+        if (armedForFirstMove)
+        {
+            // Defer actual movement until NotifyFirstPlayerMove() is called
+            isRunning = false;
+            // OnRunStarted, skor artışı vb. henüz başlamaz
+        }
+        else
+        {
+            isRunning = true;
+            OnRunStarted?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Oyuncu ilk kez bir hareket girişi yaptığında çağrılmalı.
+    /// PlayerMovement.BindToGameplay(...) ile referans aldığı bu nesneye,
+    /// ilk swipe/jump vb. gerçekleştiğinde haber verir.
+    /// </summary>
+    public void NotifyFirstPlayerMove()
+    {
+        if (!armedForFirstMove || isRunning || targetCamera == null)
+            return;
+
+        armedForFirstMove = false;
+        isRunning = true;
+        lastCamZ = targetCamera.position.z; // güvence: skor integrasyonu doğru başlasın
         OnRunStarted?.Invoke();
     }
 
@@ -156,6 +191,16 @@ public class GameplayLogicApplier : MonoBehaviour
     }
 
     /// <summary>
+    /// Set gameplay(camera) speed multiplier absolutely. 1 = 100% (no change).
+    /// </summary>
+    public void SetGameplaySpeedMultiplier(float multiplier)
+    {
+        gameplaySpeedMultiplier = Mathf.Max(0f, multiplier);
+        OnGameplaySpeedMultiplierChanged?.Invoke(gameplaySpeedMultiplier);
+        CurrentSpeed = baseSpeed * gameplaySpeedMultiplier;
+    }
+
+    /// <summary>
     /// Player(ball) movement speed: apply percent delta. +0.10 => +10%, -0.10 => -10%.
     /// Multiplier is clamped to [0, +inf).
     /// </summary>
@@ -166,6 +211,15 @@ public class GameplayLogicApplier : MonoBehaviour
         playerSpeedMultiplier = Mathf.Max(0f, playerSpeedMultiplier * factor);
         OnPlayerSpeedMultiplierChanged?.Invoke(playerSpeedMultiplier);
         // If you later want to pipe this to PlayerController, subscribe externally to the event.
+    }
+
+    /// <summary>
+    /// Set player(ball) movement speed multiplier absolutely. 1 = 100% (no change).
+    /// </summary>
+    public void SetPlayerSpeedMultiplier(float multiplier)
+    {
+        playerSpeedMultiplier = Mathf.Max(0f, multiplier);
+        OnPlayerSpeedMultiplierChanged?.Invoke(playerSpeedMultiplier);
     }
 
     /// <summary>
@@ -285,6 +339,6 @@ public class GameplayLogicApplier : MonoBehaviour
         boosterRoutine = null;
     }
 
-    public float GetGameplaySpeedPercent() => gameplaySpeedMultiplier;
-    public float GetPlayerSpeedPercent()   => playerSpeedMultiplier;
+    public float GetGameplaySpeedMultiplier() => gameplaySpeedMultiplier;
+    public float GetPlayerSpeedMultiplier()   => playerSpeedMultiplier;
 }

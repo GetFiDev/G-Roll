@@ -154,6 +154,17 @@ public class FirebaseLoginHandler : MonoBehaviour
         if (loginEmailInput != null && loginPasswordInput != null)
             SaveCredentials(loginEmailInput.text, loginPasswordInput.text);
 
+        // Preload player stats JSON right after auth (step 4)
+        try
+        {
+            var uid = manager != null && manager.currentUser != null ? manager.currentUser.UserId : null;
+            if (!string.IsNullOrWhiteSpace(uid) && PlayerStatsRemoteService.Instance != null)
+            {
+                await PlayerStatsRemoteService.Instance.PreloadOnLoginAsync(uid);
+            }
+        }
+        catch { /* ignore fetch errors here; gameplay will fall back to base stats */ }
+
         // İsim gerekiyor mu?
         var needs = await NeedsUsernameAsync();
 

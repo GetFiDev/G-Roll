@@ -1,0 +1,903 @@
+{
+    "savedAtIso": "2025-10-04T07:24:44.6727540+03:00",
+    "mapName": "starter_cbycagil_4_04/10/25 - 07:24:44",
+    "mapDisplayName": "starter_cbycagil_4",
+    "difficultyTag": 1,
+    "backgroundMaterialId": 1,
+    "items": [
+        {
+            "displayName": "Camera Speed Decreaser",
+            "gridX": 5,
+            "gridY": 116,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 91,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 54,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 10,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 10,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 2,
+            "gridY": 58,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 1,
+            "gridY": 99,
+            "linkedPortalId": 3
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 14,
+            "gridY": 50,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 12,
+            "gridY": 58,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 11,
+            "gridY": 53,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 12,
+            "gridY": 60,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 3,
+            "gridY": 59,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 14,
+            "gridY": 106,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 90,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 9,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 53,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 117,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 14,
+            "gridY": 54,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 98,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 11,
+            "gridY": 104,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 0,
+            "gridY": 105,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Camera Speed Decreaser",
+            "gridX": 9,
+            "gridY": 116,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 97,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 1,
+            "gridY": 105,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 90,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 1,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 3,
+            "gridY": 60,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 14,
+            "gridY": 49,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 106,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 15,
+            "gridY": 51,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 2,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 2,
+            "gridY": 105,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 2,
+            "gridY": 60,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 9,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 13,
+            "gridY": 109,
+            "linkedPortalId": 3
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 91,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 3,
+            "gridY": 103,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 14,
+            "gridY": 53,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 11,
+            "gridY": 54,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 12,
+            "gridY": 59,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 11,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 118,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 7,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 12,
+            "gridY": 100,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 100,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 2,
+            "gridY": 103,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingRedWall",
+            "gridX": 5,
+            "gridY": 105,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 13,
+            "gridY": 60,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "PlayerSpeedDecreaser",
+            "gridX": 7,
+            "gridY": 84,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 93,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 3,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 2,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 117,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 12,
+            "gridY": 61,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 3,
+            "gridY": 61,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 54,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 2,
+            "gridY": 59,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 100,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 15,
+            "gridY": 50,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 104,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingRedWall",
+            "gridX": 5,
+            "gridY": 103,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "PlayerSpeedBooster",
+            "gridX": 2,
+            "gridY": 63,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 6,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 104,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 92,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 94,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 96,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 119,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 97,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 0,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 15,
+            "gridY": 49,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 6,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 4,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 14,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 2,
+            "gridY": 61,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 2,
+            "gridY": 85,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 99,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 14,
+            "gridY": 104,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 11,
+            "gridY": 85,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 14,
+            "gridY": 51,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 3,
+            "gridY": 58,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 3,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 11,
+            "gridY": 106,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingRedWall",
+            "gridX": 0,
+            "gridY": 104,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 54,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "CameraSpeedBooster",
+            "gridX": 12,
+            "gridY": 116,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 7,
+            "gridY": 71,
+            "linkedPortalId": 0
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 0,
+            "gridY": 103,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 118,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingRedWall",
+            "gridX": 0,
+            "gridY": 54,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 93,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 13,
+            "gridY": 59,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 6,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 116,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 106,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 4,
+            "gridY": 103,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 2,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 9,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "MovingRedWall",
+            "gridX": 0,
+            "gridY": 106,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 53,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 3,
+            "gridY": 105,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "CameraSpeedBooster",
+            "gridX": 2,
+            "gridY": 116,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 10,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 13,
+            "gridY": 58,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 11,
+            "gridY": 49,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 8,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 92,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 94,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 96,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 104,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 0,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 52,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 101,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 3,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 89,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 98,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 12,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 116,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 15,
+            "gridY": 106,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 0,
+            "gridY": 88,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 95,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 13,
+            "gridY": 53,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 11,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 4,
+            "gridY": 105,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "PlayerSpeedBooster",
+            "gridX": 12,
+            "gridY": 63,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 119,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 13,
+            "gridY": 61,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 101,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 8,
+            "gridY": 99,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "BoosterInstaFill",
+            "gridX": 2,
+            "gridY": 109,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "GetCoin",
+            "gridX": 7,
+            "gridY": 95,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 14,
+            "gridY": 75,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 1,
+            "gridY": 103,
+            "linkedPortalId": -1
+        }
+    ]
+}

@@ -30,6 +30,8 @@ public class GameplayManager : MonoBehaviour
     private GameObject playerGO;
     private bool sessionActive;
     private float sessionStartTime;
+    private float _coinFactor = 1f; // coinMultiplier + coinMultiplierPercent (final)
+    private float _collectibleEffector = 1f; // 1 + (FinalCollectiblePct / 100f)
     public static GameplayManager Instance;
 
     private void Awake()
@@ -89,6 +91,25 @@ public class GameplayManager : MonoBehaviour
             playerMov.BindToGameplay(logicApplier, gameplayTouch);
             // güvence: sahne başında donuk kaldıysa açalım
             playerMov._isFrozen = false;
+
+            // --- Clean session baseline: reset multipliers to 1 before applying stats ---
+            logicApplier.SetGameplaySpeedMultiplier(1f);
+            logicApplier.SetPlayerSpeedMultiplier(1f);
+
+            // Ardından remote stat'ları uygula (deterministik başlangıç)
+            PlayerStatsRemoteService.Instance?.ApplyToPlayer(playerGO, logicApplier);
+
+            var statComp = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
+            if (statComp != null)
+            {
+                _coinFactor = statComp.FinalCoinFactor;
+                _collectibleEffector = 1f + (statComp.FinalCollectiblePct / 100f);
+            }
+            else
+            {
+                _coinFactor = 1f;
+                _collectibleEffector = 1f;
+            }
         }
 
         // Logic'i hazırla ve Visual'ı bağla, ardından koşuyu başlat
@@ -100,6 +121,7 @@ public class GameplayManager : MonoBehaviour
         if (visualApplier != null && logicApplier != null)
         {
             visualApplier.Bind(logicApplier);
+            visualApplier?.SetCoinFXAnchor(playerGO.transform);
         }
         logicApplier?.StartRun();
 
@@ -138,6 +160,10 @@ public class GameplayManager : MonoBehaviour
             UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelEndCompleted;
             UIManager.Instance.levelEnd.OnSequenceCompleted += HandleLevelEndCompleted;
         }
+        
+        var score = logicApplier != null ? logicApplier.Score : 0f;
+        var coins = logicApplier != null ? logicApplier.Coins : 0f;
+        UIManager.Instance.levelEnd?.SetResultValues(score,coins);
         UIManager.Instance?.ShowLevelEnd(false);
     }
 
@@ -155,11 +181,21 @@ public class GameplayManager : MonoBehaviour
         stats.levelSuccess = success;
         stats.playtimeSeconds = Mathf.Max(0f, Time.time - sessionStartTime);
 
+        // Let player stats cleanup (if any)
+        var statEnd = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
+        statEnd?.OnRunEnd();
+
         // Koşuyu durdur ve temizle
         visualApplier?.Unbind();
+        logicApplier?.StopRun();
+        logicApplier?.SetGameplaySpeedMultiplier(1f);
+        logicApplier?.SetPlayerSpeedMultiplier(1f);
         mapLoader?.Unload();
         playerSpawner?.DespawnAll();
         if (playerGO != null) { Destroy(playerGO); playerGO = null; }
+
+        _coinFactor = 1f;
+        _collectibleEffector = 1f;
 
         // (Gerekirse burada async raporlama yapabilirsiniz)
         stats = null;
@@ -171,22 +207,50 @@ public class GameplayManager : MonoBehaviour
     private void TearDownIfAny()
     {
         // Önce görsel ve mantık bağlantılarını kapat
+        var statTear = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
+        statTear?.OnRunEnd();
+
         visualApplier?.Unbind();
         logicApplier?.StopRun();
+        logicApplier?.SetGameplaySpeedMultiplier(1f);
+        logicApplier?.SetPlayerSpeedMultiplier(1f);
         mapLoader?.Unload();
         playerSpawner?.DespawnAll();
         if (playerGO != null) { Destroy(playerGO); playerGO = null; }
+        _coinFactor = 1f;
+        _collectibleEffector = 1f;
         stats = null;
         sessionActive = false;
         sessionStartTime = 0f;
     }
 
+
     // ---- Delegates to LogicApplier (optional but useful) ----
     public void AddCoins(float delta, Vector3? worldFxAt = null, int fxCount = 1)
-        => logicApplier?.AddCoins(delta, worldFxAt, fxCount);
+    {
+        if (delta <= 0f) return;
+        var effective = delta * _coinFactor;
+        logicApplier?.AddCoins(effective, worldFxAt, fxCount);
+    }
     public void BoosterUse() => logicApplier?.BoosterUse();
-    public void ApplyGameplaySpeedPercent(float delta01) => logicApplier?.ApplyGameplaySpeedPercent(delta01);
-    public void ApplyPlayerSpeedPercent(float delta01)   => logicApplier?.ApplyPlayerSpeedPercent(delta01);
+    public void ApplyGameplaySpeedPercent(float delta01)
+    {
+        if (logicApplier == null) return;
+        var eff = delta01 * _collectibleEffector; // scale by collectible multiplier
+        logicApplier.ApplyGameplaySpeedPercent(eff);
+    }
+    public void ApplyPlayerSpeedPercent(float delta01)
+    {
+        if (logicApplier == null) return;
+        var eff = delta01 * _collectibleEffector; // scale by collectible multiplier
+        logicApplier.ApplyPlayerSpeedPercent(eff);
+    }
     public void SetMaxSpeed(float m) => logicApplier?.SetMaxSpeed(m);
     public void InstantlyFillTheBooster() => logicApplier?.FillBoosterToMax();
+
+    public void RefreshCachedStatsFromPlayer()
+    {
+        var stat = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
+        _coinFactor = stat != null ? stat.FinalCoinFactor : 1f;
+    }
 }

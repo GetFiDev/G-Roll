@@ -60,7 +60,12 @@ public class LeaderboardManager : MonoBehaviour
 
         // 2) TopN
         List<LBEntry> top = await userDB.FetchLeaderboardTopAsync(topN);
-        TopCached = top ?? new List<LBEntry>();
+        // İsim olmayan veya "Guest" olanları liste dışı bırak
+        var filtered = (top ?? new List<LBEntry>()).FindAll(e =>
+            !string.IsNullOrWhiteSpace(e.username) &&
+            !string.Equals(e.username, "Guest", StringComparison.OrdinalIgnoreCase)
+        );
+        TopCached = filtered;
 
         // 3) Sıralama (ilk 50’de değilse boş kalsın)
         MyRankText = "";

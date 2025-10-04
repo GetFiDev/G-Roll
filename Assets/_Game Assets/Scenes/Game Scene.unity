@@ -120,6 +120,128 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &359002
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 359003}
+  - component: {fileID: 359007}
+  - component: {fileID: 359006}
+  - component: {fileID: 359005}
+  - component: {fileID: 359004}
+  m_Layer: 0
+  m_Name: Wiper
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &359003
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 359002}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.5, y: -0, z: -0, w: 0.8660254}
+  m_LocalPosition: {x: 0, y: 21.914585, z: 42.09725}
+  m_LocalScale: {x: 11.672767, y: 1, z: 30.080296}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 387710939}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &359004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 359002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fec47e8efd34b1db29237477f70040c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  expectTrigger: 1
+--- !u!65 &359005
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 359002}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!23 &359006
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 359002}
+  m_Enabled: 0
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &359007
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 359002}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &9863798
 GameObject:
   m_ObjectHideFlags: 0
@@ -867,7 +989,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -906,6 +1028,7 @@ GameObject:
   - component: {fileID: 109920475}
   - component: {fileID: 109920474}
   - component: {fileID: 109920476}
+  - component: {fileID: 109920477}
   m_Layer: 0
   m_Name: UserDatabaseManager
   m_TagString: Untagged
@@ -998,6 +1121,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   userDB: {fileID: 109920471}
   Cached: []
+--- !u!114 &109920477
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 109920470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ced8ba3a6026b46f5b1d85402491a0e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  userDB: {fileID: 109920471}
 --- !u!1 &117182946
 GameObject:
   m_ObjectHideFlags: 0
@@ -1885,7 +2021,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2178,7 +2314,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.98039216}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2617,7 +2753,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.8352941}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4125,7 +4261,9 @@ Transform:
   m_LocalPosition: {x: 0, y: 25.5, z: -12}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1385138981}
+  - {fileID: 359003}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 60, y: 0, z: 0}
 --- !u!1 &427888194
@@ -4245,30 +4383,292 @@ MonoBehaviour:
   startPosition: {x: 0, y: 0, z: 0}
   step: {x: 0, y: 0, z: 60}
   clearBeforeBuild: 1
-  starterMapJson: "{\n    \"savedAtIso\": \"2025-10-03T00:35:48.7853340+03:00\",\n   
-    \"mapName\": \"startmap_bycagil3_03/10/25 - 00:35:48\",\n    \"mapDisplayName\":
-    \"startmap_bycagil3\",\n    \"difficultyTag\": 1,\n    \"backgroundMaterialId\":
-    4,\n    \"items\": [\n        {\n            \"displayName\": \"Portal\",\n           
-    \"gridX\": 10,\n            \"gridY\": 105,\n            \"linkedPortalId\":
-    1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 4,\n            \"gridY\": 95,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
-    3,\n            \"gridY\": 97,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 5,\n           
-    \"gridY\": 100,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+  starterMapJson: "{\n    \"savedAtIso\": \"2025-10-04T07:33:42.6436010+03:00\",\n   
+    \"mapName\": \"startercagil_pizza_04/10/25 - 07:33:42\",\n    \"mapDisplayName\":
+    \"startercagil_pizza\",\n    \"difficultyTag\": 1,\n    \"backgroundMaterialId\":
+    1,\n    \"items\": [\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 11,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    5,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 3,\n           
+    \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n        {\n           
     \"displayName\": \"GetCoin\",\n            \"gridX\": 2,\n            \"gridY\":
-    96,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"Fan\",\n            \"gridX\": 5,\n            \"gridY\": 101,\n           
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 12,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 3,\n            \"gridY\": 95,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    15,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    3,\n            \"gridY\": 74,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n           
+    \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    78,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 6,\n            \"gridY\": 108,\n           
     \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
-    \"gridX\": 5,\n            \"gridY\": 96,\n            \"linkedPortalId\": -1\n       
-    },\n        {\n            \"displayName\": \"Fan\",\n            \"gridX\":
-    6,\n            \"gridY\": 78,\n            \"linkedPortalId\": -1\n        },\n       
-    {\n            \"displayName\": \"Fan\",\n            \"gridX\": 11,\n           
-    \"gridY\": 114,\n            \"linkedPortalId\": -1\n        },\n        {\n           
-    \"displayName\": \"Fan\",\n            \"gridX\": 7,\n            \"gridY\":
-    92,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
-    \"Portal\",\n            \"gridX\": 8,\n            \"gridY\": 85,\n           
-    \"linkedPortalId\": 1\n        }\n    ]\n}"
+    \"gridX\": 14,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    11,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    7,\n            \"gridY\": 101,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    11,\n            \"gridY\": 73,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    14,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    4,\n            \"gridY\": 79,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"MovingRedWall\",\n            \"gridX\": 0,\n           
+    \"gridY\": 71,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 10,\n            \"gridY\":
+    108,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 0,\n            \"gridY\":
+    72,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 1,\n            \"gridY\": 80,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 11,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    6,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 9,\n           
+    \"gridY\": 74,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 14,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 2,\n            \"gridY\": 81,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"CameraSpeedBooster\",\n           
+    \"gridX\": 1,\n            \"gridY\": 97,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    15,\n            \"gridY\": 71,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    3,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 15,\n           
+    \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 6,\n            \"gridY\":
+    68,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"MovingRedWall\",\n            \"gridX\": 0,\n            \"gridY\": 69,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 15,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    11,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    5,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"Fan\",\n            \"gridX\": 0,\n           
+    \"gridY\": 104,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 13,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 3,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 1,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    108,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 1,\n            \"gridY\":
+    95,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 14,\n            \"gridY\": 70,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 10,\n            \"gridY\": 107,\n            \"linkedPortalId\":
+    -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 7,\n            \"gridY\": 99,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    4,\n            \"gridY\": 96,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"BlueWall\",\n            \"gridX\": 2,\n           
+    \"gridY\": 107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 6,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n            \"gridY\":
+    97,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 14,\n            \"gridY\": 73,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 8,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    12,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    7,\n            \"gridY\": 76,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n           
+    \"gridY\": 101,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 0,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\": 68,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 12,\n            \"gridY\": 73,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    11,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Portal\",\n            \"gridX\":
+    12,\n            \"gridY\": 89,\n            \"linkedPortalId\": 5\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 0,\n           
+    \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 15,\n            \"gridY\":
+    73,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 2,\n            \"gridY\": 79,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 13,\n            \"gridY\": 73,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Portal\",\n            \"gridX\":
+    12,\n            \"gridY\": 76,\n            \"linkedPortalId\": 5\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 14,\n           
+    \"gridY\": 69,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 14,\n            \"gridY\":
+    81,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\": 74,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 9,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    13,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"BlueWall\",\n            \"gridX\":
+    12,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"MovingRedWall\",\n            \"gridX\": 0,\n           
+    \"gridY\": 73,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 1,\n            \"gridY\":
+    81,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 15,\n            \"gridY\": 72,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 8,\n            \"gridY\": 77,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    8,\n            \"gridY\": 96,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n           
+    \"gridY\": 100,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\":
+    96,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\": 72,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"BoosterInstaFill\",\n           
+    \"gridX\": 4,\n            \"gridY\": 84,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Camera Speed Decreaser\",\n           
+    \"gridX\": 13,\n            \"gridY\": 97,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    3,\n            \"gridY\": 78,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 7,\n           
+    \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 7,\n            \"gridY\":
+    77,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 7,\n            \"gridY\": 97,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 78,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    13,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"BlueWall\",\n            \"gridX\": 15,\n           
+    \"gridY\": 107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 9,\n            \"gridY\":
+    81,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\": 69,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 2,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    0,\n            \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 14,\n           
+    \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\":
+    71,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 13,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 14,\n            \"gridY\": 71,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    5,\n            \"gridY\": 108,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    2,\n            \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 11,\n           
+    \"gridY\": 71,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 1,\n            \"gridY\":
+    70,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 12,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    7,\n            \"gridY\": 96,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"BoosterInstaFill\",\n            \"gridX\":
+    1,\n            \"gridY\": 84,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"PlayerSpeedDecreaser\",\n            \"gridX\":
+    4,\n            \"gridY\": 117,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    12,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    13,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    12,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"PlayerSpeedBooster\",\n           
+    \"gridX\": 10,\n            \"gridY\": 117,\n            \"linkedPortalId\":
+    -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    7,\n            \"gridY\": 98,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 4,\n           
+    \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 3,\n            \"gridY\":
+    79,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 4,\n            \"gridY\": 107,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 12,\n            \"gridY\": 71,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 76,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 5,\n           
+    \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"Fan\",\n            \"gridX\": 13,\n            \"gridY\":
+    104,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 4,\n            \"gridY\":
+    95,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"BlueWall\",\n            \"gridX\": 14,\n            \"gridY\": 107,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 10,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    12,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    12,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Portal\",\n            \"gridX\":
+    7,\n            \"gridY\": 112,\n            \"linkedPortalId\": 6\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 5,\n           
+    \"gridY\": 107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 10,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 15,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 10,\n            \"gridY\": 75,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    10,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    7,\n            \"gridY\": 108,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    9,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 7,\n           
+    \"gridY\": 79,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 7,\n            \"gridY\":
+    100,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    75,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 9,\n            \"gridY\": 75,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 75,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    9,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 9,\n           
+    \"gridY\": 108,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 10,\n            \"gridY\":
+    74,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"Portal\",\n            \"gridX\": 7,\n            \"gridY\": 103,\n           
+    \"linkedPortalId\": 6\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 11,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    15,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    15,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 79,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 4,\n           
+    \"gridY\": 72,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n            \"gridY\":
+    98,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 4,\n            \"gridY\": 80,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 74,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    8,\n            \"gridY\": 99,\n            \"linkedPortalId\": -1\n        }\n   
+    ]\n}"
   starterMapDisplayName: StartingMap_bycagil
   useStarterMap: 1
 --- !u!4 &456606686
@@ -4350,7 +4750,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -5021,7 +5421,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: b69c9e0b4f478f94a8b015db733dc6f7, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 4d02b8d93910e164caf679c1aab03903, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -6157,7 +6557,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -6323,7 +6723,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -7063,7 +7463,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -8683,6 +9083,7 @@ MonoBehaviour:
   autoPlayUIParticle: 1
   coinFXUseInstancePerBurst: 1
   coinFXDespawnSeconds: 1.5
+  playerTransformForCoinFX: {fileID: 0}
   onCoinPickupFX:
     m_PersistentCalls:
       m_Calls: []
@@ -8701,6 +9102,7 @@ MonoBehaviour:
   startSpeed: 1.5
   maxSpeed: 10
   accelerationPerSecond: 0.02
+  startOnFirstPlayerMove: 1
   boosterFillPerCollectedCoin: 1
   boosterFillMin: 0
   boosterFillMax: 100
@@ -10480,6 +10882,128 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1366057405}
   m_CullTransparentMesh: 1
+--- !u!1 &1385138980
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1385138981}
+  - component: {fileID: 1385138985}
+  - component: {fileID: 1385138984}
+  - component: {fileID: 1385138983}
+  - component: {fileID: 1385138982}
+  m_Layer: 0
+  m_Name: Wiper
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1385138981
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385138980}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.5, y: -0, z: -0, w: 0.8660254}
+  m_LocalPosition: {x: 0, y: -22.140476, z: 16.662054}
+  m_LocalScale: {x: 11.672767, y: 1, z: 30.080296}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 387710939}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1385138982
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385138980}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fec47e8efd34b1db29237477f70040c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  expectTrigger: 1
+--- !u!65 &1385138983
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385138980}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!23 &1385138984
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385138980}
+  m_Enabled: 0
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &1385138985
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1385138980}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1430757490
 GameObject:
   m_ObjectHideFlags: 0
@@ -11290,7 +11814,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -12715,7 +13239,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.6745098}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -14315,7 +14839,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.92941177}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -15883,7 +16407,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.9019608}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.9490196}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -23186,7 +23710,8 @@ MonoBehaviour:
   listParent: {fileID: 7083276642211529247}
   itemPrefab: {fileID: 1056824608501475604, guid: 96ffe8dd2cb954eb1bbd85f48174148b,
     type: 3}
-  loadingPanel: {fileID: 211572594}
+  loadingPanel: {fileID: 746469035}
+  friendsCountText: {fileID: 6055851827305535237}
 --- !u!114 &861514304876045422
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -37986,7 +38511,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.31764707}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -39589,9 +40114,9 @@ RectTransform:
   - {fileID: 6221750495946892791}
   m_Father: {fileID: 7471728889829433110}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 60, y: -10}
   m_SizeDelta: {x: 20, y: 20}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!1 &2640882208358253357
@@ -54849,7 +55374,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.20784314}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -61689,9 +62214,9 @@ RectTransform:
   - {fileID: 412420326078893023}
   m_Father: {fileID: 7471728889829433110}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 30, y: -10}
   m_SizeDelta: {x: 20, y: 20}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &5273384173706907856
@@ -76605,7 +77130,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 100
+  m_text: x1.00
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 3f4543bd83b824c22b85082d671375d9, type: 2}
   m_sharedMaterial: {fileID: 4600944395256576902, guid: 3f4543bd83b824c22b85082d671375d9,
@@ -79817,9 +80342,9 @@ RectTransform:
   - {fileID: 4159676120095676359}
   m_Father: {fileID: 7471728889829433110}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 0, y: -10}
   m_SizeDelta: {x: 20, y: 20}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!114 &7398114014901247099
@@ -82744,6 +83269,14 @@ MonoBehaviour:
   fadeDuration: 0.5
   autoAdvanceDelay: 0
   proceedWithAnyTap: 0
+  resultScoreText: {fileID: 774140170747979669}
+  resultCoinText: {fileID: 1563677063332781215}
+  resultCoinDoubleText: {fileID: 5150674243964160209}
+  scoreAsInteger: 1
+  coinAsInteger: 0
+  countUpDuration: 1.5
+  punchScale: 1.15
+  punchTime: 0.12
 --- !u!1 &7749307218071377229
 GameObject:
   m_ObjectHideFlags: 0
@@ -92910,7 +93443,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.31764707}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1

@@ -26,7 +26,7 @@ public class UserDatabaseManager : MonoBehaviour
 
     // --- Firebase alanlar ---
     private FirebaseAuth auth;
-    private FirebaseUser currentUser;
+    public FirebaseUser currentUser;
     private FirebaseFirestore db;
     private FirebaseFunctions _funcs;
 
@@ -455,9 +455,9 @@ public class UserDatabaseManager : MonoBehaviour
             if (s.TryGetValue("referralEarnings", out object v))
             {
                 if (v is double d) return (float)d;
-                if (v is long   l) return (float)l;
-                if (v is int    i) return i;
-                if (v is float  f) return f;
+                if (v is long l) return (float)l;
+                if (v is int i) return i;
+                if (v is float f) return f;
                 if (v is string s2 && float.TryParse(s2, out var p)) return p;
             }
         }
@@ -478,5 +478,46 @@ public class UserDatabaseManager : MonoBehaviour
         }
         catch (Exception e) { EmitLog("❌ GetReferralKeyAsync error: " + e.Message); }
         return "-";
+    }
+    
+    // Örnek: users/{userId}/profile/stats  veya users/{userId} içinde "statsJson" alanı gibi
+    public async Task<string> FetchPlayerStatsJsonAsync(string userId)
+    {
+        if (db == null)
+        {
+            EmitLog("❌ Firestore db is null");
+            return string.Empty;
+        }
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            EmitLog("❌ FetchPlayerStatsJsonAsync: userId empty");
+            return string.Empty;
+        }
+        try
+        {
+            var docRef = db.Collection("users").Document(userId);
+            var snap = await docRef.GetSnapshotAsync();
+            if (!snap.Exists)
+            {
+                EmitLog($"⚠️ user doc not found: {userId}");
+                return string.Empty;
+            }
+
+            // Field stored as plain string JSON (see console screenshot)
+            if (snap.TryGetValue("statsJson", out string json) && !string.IsNullOrWhiteSpace(json))
+                return json;
+
+            // Defensive: handle heterogeneous types if needed
+            if (snap.TryGetValue("statsJson", out object any) && any is string s && !string.IsNullOrWhiteSpace(s))
+                return s;
+
+            EmitLog("ℹ️ statsJson empty for user");
+            return string.Empty;
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ FetchPlayerStatsJsonAsync error: " + e.Message);
+            return string.Empty;
+        }
     }
 }

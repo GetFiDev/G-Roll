@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-
 public class Wall : MonoBehaviour
 {
     [Tooltip("Bu collider trigger olmalı veya Player tarafı trigger olmalı.")]
