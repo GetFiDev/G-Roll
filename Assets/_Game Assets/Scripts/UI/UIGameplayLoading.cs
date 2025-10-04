@@ -1,43 +1,56 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using RemoteApp;
 
 public class UIGameplayLoading : MonoBehaviour
 {
     [Header("UI References")]
     public Slider loadingBar;
     public TextMeshProUGUI loadingText;
-    public MapManager mapManager;
+
+    [Header("Map Loader (Adapter)")]
+    [Tooltip("IMapLoader implementasyonu barındıran MonoBehaviour (örn. MapLoaderRemoteJsonAdapter).")]
+    [SerializeField] private MonoBehaviour mapLoaderBehaviour;
+    private IMapLoader mapLoader;
 
     [Header("Tuning")]
     [Range(0.5f, 0.99f)] public float fakeCap = 0.9f;   // hazır olmadan ulaşacağı üst sınır
     public float fakeSpeed = 0.25f;                      // sahte ilerleme hızı
     public float completeDuration = 0.35f;               // hazır olduğunda %100’e akış süresi
-    public bool triggerInitializeHere = true;            // MapManager.Initialize’ı buradan başlat
+    [Tooltip("TRUE ise, bu UI MapLoader.Load() çağrısını başlatır. Yeni mimaride genelde FALSE tutulur; yüklemeyi GameplayManager başlatır.")]
+    public bool triggerInitializeHere = false;
 
     private bool _isCompleting;
+
+    private void Awake()
+    {
+        mapLoader = mapLoaderBehaviour as IMapLoader;
+        if (mapLoader == null && mapLoaderBehaviour != null)
+            Debug.LogError("[UIGameplayLoading] mapLoaderBehaviour IMapLoader değil. Lütfen MapLoaderRemoteJsonAdapter verin.");
+    }
 
     private void OnEnable()
     {
         if (loadingBar) loadingBar.value = 0f;
         if (loadingText) loadingText.text = "Loading…";
 
-        if (mapManager != null)
-            mapManager.OnReady += HandleMapsReady;
+        if (mapLoader != null)
+            mapLoader.OnReady += HandleMapsReady;
     }
 
     private void OnDisable()
     {
-        if (mapManager != null)
-            mapManager.OnReady -= HandleMapsReady;
+        if (mapLoader != null)
+            mapLoader.OnReady -= HandleMapsReady;
         _isCompleting = false;
     }
 
     private void Update()
     {
-        // Hazır değilse sahte ilerleme ile fakeCap’e doğru yürüsün
-        if (mapManager != null && !mapManager.isReady && !_isCompleting && loadingBar)
+        if (mapLoader == null) return;
+
+        // Hazır değilse sahte ilerleme ile fakeCap’e yürüsün
+        if (!mapLoader.IsReady && !_isCompleting && loadingBar)
         {
             loadingBar.value = Mathf.MoveTowards(loadingBar.value, fakeCap, fakeSpeed * Time.deltaTime);
             if (loadingText)
@@ -48,7 +61,7 @@ public class UIGameplayLoading : MonoBehaviour
         }
 
         // Eğer polling ile hazır olduysa (event bir şekilde kaçarsa) tamamla
-        if (mapManager != null && mapManager.isReady && !_isCompleting)
+        if (mapLoader.IsReady && !_isCompleting)
         {
             HandleMapsReady();
         }
@@ -57,10 +70,10 @@ public class UIGameplayLoading : MonoBehaviour
     private void HandleMapsReady()
     {
         if (!isActiveAndEnabled || _isCompleting) return;
-        StartCoroutine(CompleteThenEnterGameplay());
+        StartCoroutine(CompleteThenHide());
     }
 
-    private System.Collections.IEnumerator CompleteThenEnterGameplay()
+    private System.Collections.IEnumerator CompleteThenHide()
     {
         _isCompleting = true;
 
@@ -80,11 +93,9 @@ public class UIGameplayLoading : MonoBehaviour
         }
         if (loadingText) loadingText.text = "Ready";
 
-        // KRİTİK: UI’yı kapatma! Sadece GameState’i “GameplayRun” yap.
-        // UIManager zaten state değişimini dinliyor ve loading UI’ını gizleyecek.
-        GameManager.Instance.EnterGameplayRun(); // ↓ Not: #3’e bak
-
-        // Burada hiçbir SetActive(false) veya fade yapmıyoruz!
+        // Yeni mimaride faz zaten Gameplay; bu UI sadece yükleme overlay'idir.
+        // Yükleme biter bitmez kendini kapat.
+        gameObject.SetActive(false);
     }
 
     private static float EaseOutCubic(float x)
@@ -92,12 +103,14 @@ public class UIGameplayLoading : MonoBehaviour
         return 1f - Mathf.Pow(1f - x, 3f);
     }
 
-    // İstersen buton ile tetiklemek için:
+    // İstersen buton ile tetiklemek için (çoğu durumda kullanma: GameplayManager yüklemeyi başlatır)
     public void LoadTheGameplay()
     {
-        if (triggerInitializeHere && mapManager != null && !mapManager.isReady)
+        if (!triggerInitializeHere) return;
+        if (mapLoader == null) return;
+        if (!mapLoader.IsReady)
         {
-            _ = mapManager.Initialize();
+            mapLoader.Load();
         }
     }
 }

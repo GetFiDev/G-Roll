@@ -15,6 +15,10 @@ public class UIBottomPanel : MonoBehaviour
     [Header("Settings")]
     [SerializeField] private Color defaultColor;
     [SerializeField] private Color selectedColor;
+
+    [Header("Channels")]
+    [SerializeField] private VoidEventChannelSO requestStartGameplay;
+
     public UITopPanel topPanel;
 
 
@@ -47,8 +51,10 @@ public class UIBottomPanel : MonoBehaviour
     {
         ChangeAllColorToDefault();
         topPanel.ChangeAllColorToDefault();
-        
-        GameManager.Instance.StartTheGameplay();
+
+        // Phase değişimini GameManager yönetsin; UI sadece isteği yayınlar
+        if (requestStartGameplay != null)
+            requestStartGameplay.Raise();
     }
 
     public void OnClickShopButton()

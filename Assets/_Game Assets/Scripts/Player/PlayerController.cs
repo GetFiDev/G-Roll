@@ -8,11 +8,12 @@ public class PlayerController : MonoBehaviour
     [ReadOnly, Required] public PlayerAnimator playerAnimator;
 
     [Header("Booster")]
-    [Tooltip("Booster aktif mi? GameplayManager tarafından yönetilir.")]
+    [Tooltip("Booster aktif mi? GameplayLogicApplier yönetir.")]
     public bool isBoosterEnabled = false;
 
     [Tooltip("Booster açılırken tek seferlik patlama (Burst, Play One Shot).")]
     public ParticleSystem boosterActivationParticle;
+
     [Tooltip("Booster açık kaldığı sürece dönecek looping particle (Rate over Time).")]
     public ParticleSystem boosterLoopParticle;
 
@@ -21,7 +22,6 @@ public class PlayerController : MonoBehaviour
     {
         if (boosterActivationParticle != null)
         {
-            // Burst particle -> tek seferlik Play
             boosterActivationParticle.Play(true);
         }
         if (boosterLoopParticle != null && !boosterLoopParticle.isPlaying)
@@ -39,17 +39,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// O anki koşu hızını yüzdelik oran kadar ANINDA arttırır (kalıcı). Örn: percent=0.2 -> %20 artış.
-    /// </summary>
-    public void ApplyRunSpeedBoostPercentInstant(float percent)
-    {
-        if (playerMovement == null) return;
-        float delta = playerMovement.Speed * percent;
-        playerMovement.ChangeSpeed(delta);
-    }
-
-
     [Header("Wall Hit Flow")]
     [Tooltip("Çarpma anında koşuyu hemen durdur (hızı 0’a çek).")]
     public bool stopRunOnHit = true;
@@ -65,20 +54,20 @@ public class PlayerController : MonoBehaviour
 
     /// <summary>
     /// Duvara çarpıldığında Wall tarafından çağrılır.
-    /// Oyunu bitirme (FAIL) işlemi, çarpma animasyonu/feedback'i BİTTİKTEN sonra yapılır.
+    /// Oyunu bitirme işlemi, çarpma animasyonu/feedback'i tetiklendikten sonra yapılır.
     /// </summary>
     public void HitTheWall(Vector3 hitPoint, Vector3 hitNormal)
     {
         if (_wallHit && lockOnFirstWallHit) return;
         _wallHit = true;
 
-        // 2) Animator'u durdur (görsel olarak donsun)
+        // 1) Animasyonu dondur (görsel)
         if (playerAnimator != null) playerAnimator.Freeze(true);
 
-        // 2.5) Hareketi de dondur (GameManager hızını 0'a çekmek yerine)
-        if (playerMovement != null) playerMovement._isFrozen=true;
+        // 2) Hareketi dondur (input kapansın)
+        if (playerMovement != null) playerMovement._isFrozen = true;
 
-        // 3) Hareket tarafına tek adımlık geri itişi yaptır (XZ)
+        // 3) Geri itiş / feedback
         if (playerMovement != null)
         {
             playerMovement.WallHitFeedback(hitNormal);
@@ -88,8 +77,15 @@ public class PlayerController : MonoBehaviour
             Debug.LogWarning("[PlayerController] playerMovement yok, knockback oynatılamadı.");
         }
 
-        // 4) Oyunu anında bitir (FAIL akışını GameManager yönetir)
-        GameManager.Instance?.LevelFinish(false); // FAIL state
+        // 4) İsteğe bağlı: koşuyu hemen durdurmayı tercih ediyorsan (kamera akışını da kesmek için)
+        if (stopRunOnHit)
+        {
+            // Gameplay hızını çarpan üzerinden tamamen kesmek istersen:
+            // GameplayManager.Instance?.ApplyGameplaySpeedPercent(-1f); // multiplier -> 0 (tam duruş)
+        }
+
+        // 5) Bitişi GameplayManager’a devret (FAIL)
+        GameplayManager.Instance?.EndSession(false);
     }
 
     /// <summary>
@@ -101,20 +97,23 @@ public class PlayerController : MonoBehaviour
         HitTheWall(transform.position, hitNormal);
     }
 
-    // İhtiyaç duyabileceğin küçük yardımcılar:
+    /// <summary>
+    /// Hareketi anında kesmek için yardımcı.
+    /// </summary>
     public void StopImmediately()
     {
         if (playerMovement != null)
             playerMovement.StopImmediately();
-        GameplayManager.Instance?.SetSpeed(0f);
+
+        // Eskiden GameManager/SetSpeed vardı. Yeni mimaride kamera hızını kesmek istersen:
+        // GameplayManager.Instance?.ApplyGameplaySpeedPercent(-1f); // (opsiyonel)
     }
-    
+
     private void Awake()
     {
         playerMovement = GetComponent<PlayerMovement>()?.Initialize(this);
         playerAnimator = GetComponentInChildren<PlayerAnimator>()?.Initialize(this);
 
-        // capture spawn transform once at game start
         _startPosition = transform.position;
         _startRotation = transform.rotation;
     }
@@ -131,7 +130,7 @@ public class PlayerController : MonoBehaviour
     public void ResetPlayer()
     {
         _wallHit = false;
-        if (playerMovement != null) playerMovement._isFrozen=false;
+        if (playerMovement != null) playerMovement._isFrozen = false;
 
         // Animator donmuşsa aç
         if (playerAnimator != null) playerAnimator.Freeze(false);

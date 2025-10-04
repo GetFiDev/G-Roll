@@ -7,9 +7,15 @@ using UnityEngine.InputSystem;
 
 public class PlayerMovement : MonoBehaviour
 {
-    public bool IsMoving => GameManager.Instance.GameState == GameState.GameplayRun && _movementDirection.magnitude > 0.1f;
+    public bool IsMoving => _isActive && _movementDirection.magnitude > 0.1f;
     public float Speed { get; private set; }
     public bool IsJumping { get; private set; } = false;
+
+    // New orchestration bindings
+    private GameplayLogicApplier _logic;     // GameplayManager tarafından bind edilir
+    private TouchManager _touch;             // Gameplay domain touch (GameManager üzerinden değil)
+    private bool _isActive = false;          // Gameplay session açık mı?
+    private float _playerSpeedMultiplier = 1f; // logic'ten gelen çarpan
 
     [SerializeField] private float movementSpeed = 5f;
 
@@ -85,6 +91,7 @@ public class PlayerMovement : MonoBehaviour
     public PlayerMovement Initialize(PlayerController playerController)
     {
         _playerController = playerController;
+        // Speed başlangıçta base speed; efektif hız logic çarpanı ile Update'te hesaplanır
         Speed = movementSpeed;
         _currentTurnSpeed = baseTurnSpeed;
         if (_cachedAnimator == null)
@@ -92,19 +99,62 @@ public class PlayerMovement : MonoBehaviour
         return this;
     }
 
-    private IEnumerator Start()
+    /// <summary>GameplayManager, session başında çağırır.</summary>
+    public void BindToGameplay(GameplayLogicApplier logic, TouchManager touch = null)
     {
-        yield return new WaitForSeconds(0.25f);
-        GameManager.Instance.touchManager.OnSwipe += ChangeDirection;
-        GameManager.Instance.touchManager.OnDoubleTap += () => Jump(doubleTapJumpForce);
+        _logic = logic;
+        _touch = touch;
+        _isActive = true;
+
+        // anlık çarpanı al ve hız hesaplamasını güncel tut
+        _playerSpeedMultiplier = (_logic != null) ? Mathf.Max(0f, _logic.PlayerSpeedMultiplier) : 1f;
+        if (_logic != null)
+        {
+            _logic.OnPlayerSpeedMultiplierChanged += HandlePlayerSpeedMultiplierChanged;
+        }
+
+        // Touch bağla (opsiyonel dıştan yönetilir)
+        if (_touch != null)
+        {
+            _touch.OnSwipe += ChangeDirection;
+            _touch.OnDoubleTap += () => Jump(doubleTapJumpForce);
+        }
     }
+
+    /// <summary>GameplayManager, session sonunda çağırır.</summary>
+    public void UnbindFromGameplay()
+    {
+        _isActive = false;
+
+        if (_logic != null)
+        {
+            _logic.OnPlayerSpeedMultiplierChanged -= HandlePlayerSpeedMultiplierChanged;
+        }
+        _logic = null;
+
+        if (_touch != null)
+        {
+            _touch.OnSwipe -= ChangeDirection;
+            _touch.OnDoubleTap -= () => Jump(doubleTapJumpForce);
+        }
+        _touch = null;
+
+        _movementDirection = Vector3.zero;
+        Speed = 0f;
+    }
+
+    private void HandlePlayerSpeedMultiplierChanged(float mult)
+    {
+        _playerSpeedMultiplier = Mathf.Max(0f, mult);
+    }
+
 
     private void Update()
     {
         // Teleport sırasında normal hareket/rotasyon akışını durdur
         if (teleportInProgress) return;
 
-        if (GameManager.Instance.GameState == GameState.GameplayRun)
+        if (_isActive)
         {
             if (_isFrozen && hardRotationLockOnFreeze)
             {
@@ -120,6 +170,8 @@ public class PlayerMovement : MonoBehaviour
     private void Move()
     {
         if (_isFrozen) return;
+        // Efektif hız = base movementSpeed * logic'ten gelen playerSpeedMultiplier
+        Speed = movementSpeed * Mathf.Max(0f, _playerSpeedMultiplier);
         transform.position += _movementDirection * (Time.deltaTime * Speed);
     }
 
@@ -327,7 +379,6 @@ public class PlayerMovement : MonoBehaviour
     {
         if (_isFrozen) return;
         if (_jumpTween != null && _jumpTween.IsActive()) return;
-        if (GameManager.Instance.GameState != GameState.GameplayRun) return;
 
         IsJumping = true;
 
@@ -383,7 +434,6 @@ public class PlayerMovement : MonoBehaviour
     public void JumpCustom(float jumpHeight, float airTimeMultiplier = 1.15f, float scaleMultiplier = 1.35f)
     {
         if (_isFrozen) return;
-        if (GameManager.Instance.GameState != GameState.GameplayRun) return;
 
         // Custom jump her zaman mevcut zıplamayı iptal edip yeni tween başlatır
         if (_jumpTween != null && _jumpTween.IsActive()) { _jumpTween.Kill(false); _jumpTween = null; }
@@ -548,4 +598,5 @@ public class PlayerMovement : MonoBehaviour
             default: return Vector3.zero;
         }
     }
+    public void InjectSwipe(SwipeDirection swipe) => ChangeDirection(swipe);
 }

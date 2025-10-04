@@ -12,11 +12,9 @@ public class Coin : MonoBehaviour, IPlayerInteractable
         if (_collected) return;
         _collected = true;
 
-        // Skor/Envanter/Para arttır
         GameplayManager.Instance.AddCoins(value);
         if (vfxOnCollect) Instantiate(vfxOnCollect, transform.position, Quaternion.identity);
 
-        // Objeyi kapat
         gameObject.SetActive(false);
     }
 

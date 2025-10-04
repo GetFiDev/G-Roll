@@ -6,7 +6,7 @@ public class InstantFillBooster : BoosterBase
     {
         if (GameplayManager.Instance != null)
         {
-            GameplayManager.Instance.BoosterFillToMaxInstant();
+            GameplayManager.Instance.InstantlyFillTheBooster();
         }
     }
 }

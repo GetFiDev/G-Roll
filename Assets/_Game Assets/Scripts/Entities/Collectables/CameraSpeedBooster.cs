@@ -8,6 +8,6 @@ public class CameraSpeedBooster : BoosterBase
     protected override void Apply(PlayerController player)
     {
         if (GameplayManager.Instance == null) return;
-        GameplayManager.Instance.IncreaseGameSpeed(additiveSpeed);
+        GameplayManager.Instance.ApplyGameplaySpeedPercent(additiveSpeed);
     }
 }

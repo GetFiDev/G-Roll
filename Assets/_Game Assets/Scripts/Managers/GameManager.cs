@@ -1,129 +1,57 @@
-﻿using System;
-using RemoteApp;
-using Sirenix.OdinInspector;
-using UnityEngine;
+﻿using UnityEngine;
 
-public class GameManager : MonoSingleton<GameManager>
+public class GameManager : MonoBehaviour
 {
-    /// <summary>GameState değiştiğinde ateşlenir.</summary>
-    public Action OnGameStateChanged;
+    [Header("Channels (Assign in Inspector)")]
+    [SerializeField] private VoidEventChannelSO requestStartGameplay;
+    [SerializeField] private VoidEventChannelSO requestReturnToMeta;
+    [SerializeField] private PhaseEventChannelSO phaseChanged;
 
-    /// <summary>Level bittiğinde (Complete/Fail) ateşlenir. Parametre: isSuccess.</summary>
-    public Action<bool> OnLevelFinished;
-
-    private GameState _gameState;
-    public GameplayManager gameplayManager;
-    public PlayerController player;
-    public MapManager mapManager;
-
-    [ShowInInspector, ReadOnly]
-    public GameState GameState
+    [Header("State (Read-Only)")]
+    [SerializeField] public GamePhase current = GamePhase.Boot;
+    public AudioManager audioManager;
+    public static GameManager Instance;
+    void Awake()
     {
-        get => _gameState;
-        private set
-        {
-            _gameState = value;
-            OnGameStateChanged?.Invoke();
-        }
+        if (Instance == null) Instance = this;
+        else { Destroy(Instance.gameObject); }
+
+        audioManager.Initialize();
     }
 
-    [Space(10)] [Header("Singleton Container")] [ReadOnly, Required]
-    public TouchManager touchManager;
-
-    [ReadOnly, Required] public AudioManager audioManager;
-    [ReadOnly, Required] public ObjectPoolingManager objectPoolingManager;
-
-    protected override void Init()
+    private void OnEnable()
     {
-        base.Init();
+        requestStartGameplay.OnEvent += OnRequestStartGameplay;
+        requestReturnToMeta.OnEvent += OnRequestReturnToMeta;
+    }
 
-        GameState = GameState.MetaState;
-
-        Application.targetFrameRate = 120;
-        Screen.sleepTimeout = SleepTimeout.NeverSleep;
-
-        HapticManager.SetHapticsActive(DataManager.Vibration);
-
-        OnGameStateChanged += () => Debug.Log($"Game State is : {GameState}");
-
-        objectPoolingManager = GetComponentInChildren<ObjectPoolingManager>(true).Initialize();
-        touchManager = GetComponentInChildren<TouchManager>();
-        audioManager = GetComponentInChildren<AudioManager>(true).Initialize(); //This depends on CameraManager
-        
-        UIManager.Instance.Initialize();
+    private void OnDisable()
+    {
+        requestStartGameplay.OnEvent -= OnRequestStartGameplay;
+        requestReturnToMeta.OnEvent -= OnRequestReturnToMeta;
     }
 
     private void Start()
     {
-        GameState = GameState.MetaState;
+        // Boot tamamlanınca Meta’ya geç.
+        SetPhase(GamePhase.Meta);
     }
 
-    public void StartTheGameplay()
+    private void OnRequestStartGameplay()
     {
-        if (GameState != GameState.MetaState)
-        {
-            Debug.Log("You're not in the meta scene", this);
-            return;
-        }
-
-        GameState = GameState.GameplayLoading;
+        // Gameplay’in varlığını bilmeden sadece fazı değiştirir.
+        SetPhase(GamePhase.Gameplay);
     }
 
-    public void ReturnToMetaScene()
+    private void OnRequestReturnToMeta()
     {
-        GameState = GameState.MetaState;
-        mapManager.DeinitializeMap();
-        player.ResetPlayer();
-        gameplayManager.ResetRun();
+        SetPhase(GamePhase.Meta);
     }
 
-    private GameState _previousGameState;
-    
-    public void PauseGame()
+    private void SetPhase(GamePhase next)
     {
-        _previousGameState = GameState;
-        GameState = GameState.Paused;
-    }
-
-    public void ResumeGame()
-    {
-        GameState = _previousGameState;
-    }
-
-    public void EnterGameplayRun()
-    {
-        GameState = GameState.GameplayRun;
-        OnGameStateChanged?.Invoke(); // (setter zaten çağırıyor ama mevcut mimarini bozmayayım)
-        gameplayManager.StartRun();
-    }
-
-    /// <summary>
-    /// Level başarıyla tamamlandı. (Örn: GameplayManager.StopRun() sonrasında çağrılır)
-    /// </summary>
-    public void EnterLevelComplete()
-    {
-        LevelFinish(false);
-    }
-
-    public void LevelFinish(bool isSuccess)
-    {
-        GameState = isSuccess ? GameState.Complete : GameState.Fail;
-        gameplayManager.StopRun();
-
-        // başarıda level index ilerlet
-        if (isSuccess)
-        {
-            DataManager.CurrentLevelIndex++;
-        }
-
-        // event: UI/analitik bağlamak istersen
-        OnLevelFinished?.Invoke(isSuccess);
-    }
-
-    private void OnValidate()
-    {
-        touchManager = GetComponentInChildren<TouchManager>(true);
-        audioManager = GetComponentInChildren<AudioManager>(true);
-        objectPoolingManager = GetComponentInChildren<ObjectPoolingManager>(true);
+        if (current == next) return;
+        current = next;
+        phaseChanged.Raise(current);
     }
 }

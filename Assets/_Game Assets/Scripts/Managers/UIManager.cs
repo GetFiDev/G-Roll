@@ -8,62 +8,65 @@ public class UIManager : MonoSingleton<UIManager>
     public UIGamePlay gamePlay;
     public UILevelEnd levelEnd;
     public UIOverlay overlay;
+    public UIMetaSettingsPanel metaSettingsPanel;
 
     public UIGameplayLoading gameplayLoading;
-    
-    public UISettings settings;
+    [SerializeField] private PhaseEventChannelSO phaseChanged;
 
     public UIManager Initialize()
     {
-        GameManager.Instance.OnGameStateChanged += OnGameStateChanged;
+        phaseChanged.OnEvent += OnPhaseChanged;
 
         return this;
     }
 
-    private void OnGameStateChanged()
+    private void OnDisable()
     {
-        switch (GameManager.Instance.GameState)
+        phaseChanged.OnEvent -= OnPhaseChanged;
+    }
+
+    private void OnPhaseChanged(GamePhase phase)
+    {
+        switch (phase)
         {
-            case GameState.Booting:
+            case GamePhase.Boot:
+                mainMenu.gameObject.SetActive(false);
+                gamePlay.gameObject.SetActive(false);
+                levelEnd.gameObject.SetActive(false);
+                gameplayLoading.gameObject.SetActive(false);
                 break;
-            case GameState.MetaState:
-                if (GameSettingsData.Instance.skipReadyState)
-                    return;
-                
+            case GamePhase.Meta:
                 mainMenu.gameObject.SetActive(true);
                 gamePlay.gameObject.SetActive(false);
                 levelEnd.gameObject.SetActive(false);
                 gameplayLoading.gameObject.SetActive(false);
                 break;
-            case GameState.GameplayLoading:
-                mainMenu.gameObject.SetActive(false);
-                gamePlay.gameObject.SetActive(false);
-                levelEnd.gameObject.SetActive(false);
-                gameplayLoading.gameObject.SetActive(true);
-                gameplayLoading.LoadTheGameplay();
-                break;
-            case GameState.GameplayRun:
+            case GamePhase.Gameplay:
                 mainMenu.gameObject.SetActive(false);
                 gamePlay.gameObject.SetActive(true);
                 levelEnd.gameObject.SetActive(false);
                 gameplayLoading.gameObject.SetActive(false);
                 break;
-            case GameState.Complete:
-                mainMenu.gameObject.SetActive(false);
-                gamePlay.gameObject.SetActive(false);
-                levelEnd.gameObject.SetActive(true);
-                gameplayLoading.gameObject.SetActive(false);
-                levelEnd.Show(true);
-                break;
-            case GameState.Fail:
-                mainMenu.gameObject.SetActive(false);
-                gamePlay.gameObject.SetActive(false);
-                levelEnd.gameObject.SetActive(true);
-                gameplayLoading.gameObject.SetActive(false);
-                levelEnd.Show(false);
-                break;
             default:
                 break;
         }
+    }
+
+    public void ShowGameplayLoading()
+    {
+        mainMenu.gameObject.SetActive(false);
+        gamePlay.gameObject.SetActive(false);
+        levelEnd.gameObject.SetActive(false);
+        gameplayLoading.gameObject.SetActive(true);
+        gameplayLoading.LoadTheGameplay();
+    }
+
+    public void ShowLevelEnd(bool success)
+    {
+        mainMenu.gameObject.SetActive(false);
+        gamePlay.gameObject.SetActive(false);
+        levelEnd.gameObject.SetActive(true);
+        gameplayLoading.gameObject.SetActive(false);
+        levelEnd.ShowSequence(success);
     }
 }

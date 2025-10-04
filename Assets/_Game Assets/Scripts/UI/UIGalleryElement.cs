@@ -15,6 +15,9 @@ public class UIGalleryElement : MonoBehaviour
     [SerializeField] private TextMeshProUGUI descriptionText;
     [SerializeField] private GameObject loadingSpinner;
 
+    [Header("Channels")]
+    [SerializeField] private VoidEventChannelSO requestStartGameplay;
+
     private GalleryElementInfo _info;
 
     private static readonly Dictionary<string, Sprite> SpriteCache = new Dictionary<string, Sprite>();
@@ -40,7 +43,11 @@ public class UIGalleryElement : MonoBehaviour
         }
         else
         {
-            GameManager.Instance.StartTheGameplay();
+            // UI doğrudan faza müdahale etmesin; sadece istek yayınlasın
+            if (requestStartGameplay != null)
+                requestStartGameplay.Raise();
+            else
+                Debug.LogWarning("[UIGalleryElement] requestStartGameplay channel is not assigned.");
         }
     }
 
@@ -51,7 +58,13 @@ public class UIGalleryElement : MonoBehaviour
             var sprite = await LoadSpriteAsync(_info.backgroundImageUrl, token);
             if (sprite != null && !token.IsCancellationRequested)
             {
-                Destroy(backgroundImage.sprite.texture);
+                // Eğer eski sprite cache'ten gelmişse dokunma, yoksa serbest bırak
+                if (backgroundImage.sprite != null && !ReferenceEquals(backgroundImage.sprite, sprite))
+                {
+                    var oldTex = backgroundImage.sprite.texture;
+                    if (oldTex != null && !SpriteCache.ContainsValue(backgroundImage.sprite))
+                        Destroy(oldTex);
+                }
 
                 backgroundImage.sprite = sprite;
             }

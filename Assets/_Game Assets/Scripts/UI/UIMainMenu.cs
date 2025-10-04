@@ -6,7 +6,7 @@ public class UIMainMenu : MonoBehaviour
 {
     [Header("Panels")]
     [SerializeField] private UIHomePanel homePanel;
-    [SerializeField] private UISettingsPanel settingsPanel;
+    [SerializeField] private UIMetaSettingsPanel settingsPanel;
     [SerializeField] private UIShopPanel shopPanel;
     [SerializeField] private UIReferralPanel referralPanel;
     [SerializeField] private UICustomizationPanel customizationPanel;
