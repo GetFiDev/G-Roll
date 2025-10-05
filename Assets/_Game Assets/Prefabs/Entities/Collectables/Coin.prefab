@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 6644181785679791318}
   - component: {fileID: 7121689581328656716}
   - component: {fileID: 7241567696502630686}
-  m_Layer: 0
+  m_Layer: 10
   m_Name: Coin
   m_TagString: Interactable
   m_Icon: {fileID: 0}
@@ -47,7 +47,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7a7163c8c1d2482ab3bec290392d9505, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  value: 0.1
+  value: 0.01
   vfxOnCollect: {fileID: 3559408815116236361, guid: 092af6349876245cbaa74eb0be8c6d16,
     type: 3}
 --- !u!135 &7241567696502630686
@@ -154,6 +154,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: GetCoin
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 45a31933696974b918a61860de8cf30a,
+        type: 3}
+      propertyPath: m_Layer
+      value: 10
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -216,6 +221,10 @@ PrefabInstance:
     - target: {fileID: 153838, guid: 80c6b5d330112ef41800a729a58d22e7, type: 3}
       propertyPath: m_Name
       value: SparkleAreaYellow
+      objectReference: {fileID: 0}
+    - target: {fileID: 153838, guid: 80c6b5d330112ef41800a729a58d22e7, type: 3}
+      propertyPath: m_Layer
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 482002, guid: 80c6b5d330112ef41800a729a58d22e7, type: 3}
       propertyPath: m_LocalPosition.x

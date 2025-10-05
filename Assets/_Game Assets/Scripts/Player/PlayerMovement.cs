@@ -21,6 +21,7 @@ public class PlayerMovement : MonoBehaviour
     private bool _firstMoveNotified = false;          // camera start gate
     private float _externalAccelPer60 = 0f; // dk başına dış hızlanma
     private Vector3 _spawnScale;            // başlangıç ölçeği (SetPlayerSize için referans)
+    private float _spawnWorldScaleY = 1f;   // scale=1 iken yer teması 0.225 referansı için dünya ölçeği (Y)
 
     [SerializeField] private float movementSpeed = 5f;
 
@@ -100,6 +101,7 @@ public class PlayerMovement : MonoBehaviour
         Speed = movementSpeed;
         _currentTurnSpeed = baseTurnSpeed;
         _spawnScale = transform.localScale;
+        _spawnWorldScaleY = Mathf.Max(0.0001f, transform.lossyScale.y);
         if (_cachedAnimator == null)
             _cachedAnimator = GetComponentInChildren<Animator>();
         return this;
@@ -659,11 +661,15 @@ public class PlayerMovement : MonoBehaviour
         float k = 1f + (percent / 100f);
         transform.localScale = _spawnScale * k;
 
-        // Zemine tam oturması için Y konumunu güncelle
-        // Base durumda (scale = 1), merkez Y = 0.225 => baseRadius = 0.225
-        float baseRadius = 0.225f;
+        // Dünya yüksekliği: spawn anındaki world-scale referansına göre orantıla
+        // scale=1 iken yere tam temas Y = 0.225f
+        const float baseContactYAtScale1 = 0.225f;
+        float currentWorldScaleY = Mathf.Max(0.0001f, transform.lossyScale.y);
+        float ratio = currentWorldScaleY / _spawnWorldScaleY; // 1.0 => 0.225, 1.5 => 0.3375, 0.5 => 0.1125
+        float worldContactY = baseContactYAtScale1 * ratio;
+
         Vector3 pos = transform.position;
-        pos.y = baseRadius * k;
+        pos.y = worldContactY;
         transform.position = pos;
     }
 }

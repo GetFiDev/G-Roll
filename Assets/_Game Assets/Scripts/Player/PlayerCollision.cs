@@ -32,8 +32,20 @@ public class PlayerCollision : MonoBehaviour
         return interactable != null;
     }
 
+    // Coin'leri PlayerCollision akışından hariç tut (magnet yönetecek)
+    private static bool IsCoinCollider(Collider other)
+    {
+        // Coin bileşeni ya da parent/child'ında varsa coin kabul et
+        if (other.GetComponent<Coin>() != null) return true;
+        if (other.GetComponentInParent<Coin>() != null) return true;
+        if (other.GetComponentInChildren<Coin>() != null) return true;
+        // Alternatif: Tag/Layer ile de genişletilebilir
+        return false;
+    }
+
     private void OnTriggerEnter(Collider other)
     {
+        if (IsCoinCollider(other)) return; // coin'leri magnet toplayacak, es geç
         if (TryFindInteractable(other, out var interactable))
         {
             if (debugTriggers) Debug.Log($"[PlayerCollision] Enter -> other={other.name} layer={other.gameObject.layer} on {gameObject.name}", other);
@@ -43,6 +55,7 @@ public class PlayerCollision : MonoBehaviour
 
     private void OnTriggerStay(Collider other)
     {
+        if (IsCoinCollider(other)) return; // coin'leri magnet toplayacak, es geç
         if (TryFindInteractable(other, out var interactable))
         {
             if (debugTriggers) Debug.Log($"[PlayerCollision] Stay -> other={other.name} layer={other.gameObject.layer} on {gameObject.name}", other);
@@ -52,6 +65,7 @@ public class PlayerCollision : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
+        if (IsCoinCollider(other)) return; // coin'leri magnet toplayacak, es geç
         if (TryFindInteractable(other, out var interactable))
         {
             if (debugTriggers) Debug.Log($"[PlayerCollision] Exit -> other={other.name} layer={other.gameObject.layer} on {gameObject.name}", other);

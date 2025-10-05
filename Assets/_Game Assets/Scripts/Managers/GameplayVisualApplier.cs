@@ -13,6 +13,12 @@ public class GameplayVisualApplier : MonoBehaviour
     [SerializeField] private TextMeshProUGUI coinText;
     [SerializeField] private bool coinAsInteger = true;
 
+    [Header("Combo UI")]
+    [SerializeField] private TextMeshProUGUI comboText; // shows like: x1.00
+    [SerializeField] private float comboDecreaseDuration = 0.5f;  // reset/sudden drop smoothing
+    [SerializeField] private float comboIncreaseDuration = 0.12f; // quick rise
+    [SerializeField] private float comboBounceScale = 1.08f;      // scale punch on change
+
     [Header("Booster UI")]
     [SerializeField] private Slider boosterSlider;
 
@@ -34,6 +40,11 @@ public class GameplayVisualApplier : MonoBehaviour
     private Vector3 coinTextBaseScale = Vector3.one;
     private GameplayLogicApplier logic;
 
+    private float displayedCombo = 1f;
+    private Color comboBaseColor = Color.white;
+    private Tween comboTween;
+    private Tween comboColorTween;
+
     // ---- Public binding API ----
     public void Bind(GameplayLogicApplier logicApplier)
     {
@@ -48,6 +59,8 @@ public class GameplayVisualApplier : MonoBehaviour
         logic.OnCoinsChanged += HandleCoinsChanged;
         logic.OnBoosterChanged += HandleBoosterChanged;
         logic.OnCoinPickupFXRequest += HandleCoinFXRequest;
+        logic.OnComboMultiplierChanged += HandleComboChanged;
+        logic.OnComboReset += HandleComboReset;
     }
 
     public void Unbind()
@@ -61,6 +74,11 @@ public class GameplayVisualApplier : MonoBehaviour
         logic.OnCoinsChanged -= HandleCoinsChanged;
         logic.OnBoosterChanged -= HandleBoosterChanged;
         logic.OnCoinPickupFXRequest -= HandleCoinFXRequest;
+        logic.OnComboMultiplierChanged -= HandleComboChanged;
+        logic.OnComboReset -= HandleComboReset;
+
+        comboTween?.Kill();
+        comboColorTween?.Kill();
 
         logic = null;
     }
@@ -76,6 +94,13 @@ public class GameplayVisualApplier : MonoBehaviour
             coinText.text = coinAsInteger ? "0" : "0.00";
         }
         if (boosterSlider) boosterSlider.value = 0f;
+        if (comboText)
+        {
+            comboBaseColor = comboText.color;
+            displayedCombo = 1f;
+            comboText.text = "x1.00";
+            comboText.transform.localScale = Vector3.one;
+        }
     }
 
     private void HandleRunStopped() { /* görsel olarak özel bir şey gerekmez */ }
@@ -190,5 +215,40 @@ public class GameplayVisualApplier : MonoBehaviour
     public void ClearCoinFXAnchor()
     {
         playerTransformForCoinFX = null;
+    }
+
+    private void HandleComboChanged(float newCombo)
+    {
+        if (!comboText) return;
+        float dur = newCombo < displayedCombo ? comboDecreaseDuration : comboIncreaseDuration;
+
+        comboTween?.Kill();
+        float start = displayedCombo;
+        comboTween = DOTween.To(() => start, v => {
+            start = v;
+            displayedCombo = v;
+            comboText.text = $"x{v:0.00}";
+        }, newCombo, Mathf.Max(0.01f, dur));
+
+        // bounce
+        var t = comboText.transform;
+        t.DOKill();
+        t.localScale = Vector3.one;
+        t.DOScale(Vector3.one * comboBounceScale, dur * 0.5f).SetEase(Ease.OutQuad)
+         .OnComplete(() => t.DOScale(Vector3.one, dur * 0.5f).SetEase(Ease.InQuad));
+    }
+
+    private void HandleComboReset()
+    {
+        if (!comboText) return;
+
+        // Smooth to 1.00
+        HandleComboChanged(1f);
+
+        // flash red briefly then back to base color
+        comboColorTween?.Kill();
+        comboText.color = comboBaseColor;
+        comboColorTween = comboText.DOColor(Color.red, comboDecreaseDuration * 0.4f)
+            .OnComplete(() => comboText.DOColor(comboBaseColor, comboDecreaseDuration * 0.6f));
     }
 }

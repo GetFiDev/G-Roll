@@ -50,7 +50,7 @@ public class GameplayLogicApplier : MonoBehaviour
     // Internal accelerating base (before multiplier)
     private float baseSpeed;
     public float Score        { get; private set; }
-    public float Coins        { get; private set; }
+    public float Coins        { get; private set; } // Currency total (uses incoming delta per coin)
     public float BoosterFill  { get; private set; }
     public bool  BoosterActive { get; private set; }
 
@@ -70,6 +70,22 @@ public class GameplayLogicApplier : MonoBehaviour
     public event Action<Vector3,int> OnCoinPickupFXRequest;     // worldPos, count (genelde 1)
     public event Action OnBoosterUsed;
 
+    public event Action<float> OnComboMultiplierChanged; // emits current combo multiplier (e.g., 1.00, 1.15, ...)
+    public event Action OnComboReset;                    // fires when combo is reset to baseline
+    
+        // --- Combo Score System ---
+    [SerializeField] private float scorePerSecond = 1f;    // her saniye kazanılan taban skor
+    [SerializeField] private float baseIncPerCoin = 0.01f; // coin başına taban artış
+    [SerializeField] private float comboTimeout = 10f;     // coin toplanmazsa şu sürede sıfırla (sn)
+
+    private int   comboStreak = 0;      // ardışık coin adedi
+    private float comboMultiplier = 1f; // 1 + comboStreak * (incPerCoin)
+    private float timeSinceLastCoin = 0f;
+
+    // stat'tan gelen bonus (%). Manager set edecek.
+    private int comboPowerPercent = 0; // ör: 50 => +%50, yani 0.01 -> 0.015
+    private float IncPerCoin => baseIncPerCoin * (1f + comboPowerPercent / 100f);
+
     /// <summary>
     /// Reset both gameplay & player speed multipliers to their defaults (1x) and refresh CurrentSpeed.
     /// Deterministic session baseline; call before applying run-start stats.
@@ -77,7 +93,7 @@ public class GameplayLogicApplier : MonoBehaviour
     public void ResetMultipliersToDefault()
     {
         gameplaySpeedMultiplier = 1f;
-        playerSpeedMultiplier   = 1f;
+        playerSpeedMultiplier = 1f;
         CurrentSpeed = baseSpeed * gameplaySpeedMultiplier;
         OnGameplaySpeedMultiplierChanged?.Invoke(gameplaySpeedMultiplier);
         OnPlayerSpeedMultiplierChanged?.Invoke(playerSpeedMultiplier);
@@ -104,6 +120,8 @@ public class GameplayLogicApplier : MonoBehaviour
         ResetMultipliersToDefault();
 
         ResetSessionValues(hardResetCameraSnapshot: true);
+
+        ResetCombo(); // also notifies UI via events
     }
 
     public void StartRun()
@@ -254,22 +272,44 @@ public class GameplayLogicApplier : MonoBehaviour
 
     public void AddCoins(float delta, Vector3? worldFxAt = null, int fxCount = 1)
     {
-        if (delta <= 0f) return;
+        if (delta > 0f)
+        {
+            Coins += delta;
+            OnCoinsChanged?.Invoke(Coins, delta);
+        }
+        else
+        {
+            OnCoinsChanged?.Invoke(Coins, 0f);
+        }
 
-        Coins += delta;
+        // 2) Booster fills once per coin pickup (independent of value)
         if (boosterFillPerCollectedCoin > 0f)
             SetBoosterFill(BoosterFill + boosterFillPerCollectedCoin);
 
-        OnCoinsChanged?.Invoke(Coins, delta);
+        // 3) Combo increments by exactly 1 per coin pickup (independent of value)
+        RegisterCoinForCombo();
 
+        // 4) Optional FX (default 1 burst)
         if (worldFxAt.HasValue)
-            OnCoinPickupFXRequest?.Invoke(worldFxAt.Value, Mathf.Max(1, fxCount));
+            OnCoinPickupFXRequest?.Invoke(worldFxAt.Value, 1);
     }
 
     // ---- Update loop ----
     private void Update()
     {
         if (!isRunning || targetCamera == null) return;
+
+        // 1) Skor birikimi: saniye * comboMultiplier
+        Score += scorePerSecond * comboMultiplier * Time.deltaTime;
+
+        // 2) Combo zaman aşımı
+        timeSinceLastCoin += Time.deltaTime;
+        if (timeSinceLastCoin >= comboTimeout && comboStreak > 0)
+        {
+            ResetCombo(); // 10 sn coin yoksa 1x'e sıfırla
+        }
+        OnScoreChanged?.Invoke(Score);
+
 
         // hız artışı (base)
         if (baseSpeed < maxSpeed)
@@ -283,13 +323,6 @@ public class GameplayLogicApplier : MonoBehaviour
         pos.z += CurrentSpeed * Time.deltaTime;
         targetCamera.position = pos;
 
-        // skor
-        float dz = targetCamera.position.z - lastCamZ;
-        if (dz > 0f)
-        {
-            Score += dz;
-            OnScoreChanged?.Invoke(Score);
-        }
         lastCamZ = targetCamera.position.z;
     }
 
@@ -354,6 +387,32 @@ public class GameplayLogicApplier : MonoBehaviour
         boosterRoutine = null;
     }
 
-    public float GetGameplaySpeedMultiplier() => gameplaySpeedMultiplier;
-    public float GetPlayerSpeedMultiplier()   => playerSpeedMultiplier;
+    public void SetComboPowerPercent(int percent)
+    {
+        comboPowerPercent = percent;
+        RecomputeComboMultiplier(); // mevcut comboStreak için anlık güncelle
+    }
+
+    public void ResetCombo()
+    {
+        comboStreak = 0;
+        comboMultiplier = 1f;
+        timeSinceLastCoin = 0f;
+        OnComboReset?.Invoke();
+        OnComboMultiplierChanged?.Invoke(comboMultiplier);
+    }
+    private void RecomputeComboMultiplier()
+    {
+        float prev = comboMultiplier;
+        comboMultiplier = 1f + comboStreak * IncPerCoin;
+        if (comboMultiplier < 0.0001f) comboMultiplier = 0.0001f; // güvence
+        if (!Mathf.Approximately(prev, comboMultiplier))
+            OnComboMultiplierChanged?.Invoke(comboMultiplier);
+    }
+    private void RegisterCoinForCombo()
+    {
+        comboStreak += 1;
+        timeSinceLastCoin = 0f;
+        RecomputeComboMultiplier();
+    }
 }

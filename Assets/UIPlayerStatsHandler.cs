@@ -67,7 +67,7 @@ public class UIPlayerStatsHandler : MonoBehaviour
             {
                 case KEY_COMBO_POWER:
                     valueStr = dto.comboPower.ToString(CultureInfo.InvariantCulture);
-                    isPercent = false;
+                    isPercent = true;
                     isDecimal = false; // integer göster
                     break;
                 case KEY_COIN_MULTIPLIER_PERCENT:
