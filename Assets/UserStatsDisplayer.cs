@@ -1,7 +1,8 @@
 using TMPro;
 using UnityEngine;
 using System.Threading.Tasks;
-using NetworkingData; // 👈 EKLENDİ
+using NetworkingData;
+using System.Globalization; // 👈 EKLENDİ
 
 public class UserStatsDisplayer : MonoBehaviour
 {
@@ -21,6 +22,8 @@ public class UserStatsDisplayer : MonoBehaviour
         {
             userDB.OnLoginSucceeded += HandleLoginSucceeded;
             userDB.OnUserDataSaved  += HandleUserDataSaved;   // 👈 EKLENDİ
+            // Panel her enable olduğunda veriyi çek (login zaten yapıldıysa anında dolar)
+            InitializeStatDisplays();
         }
     }
 
@@ -47,6 +50,7 @@ public class UserStatsDisplayer : MonoBehaviour
     public async void InitializeStatDisplays()
     {
         SetLoading();
+        await Task.Delay(300); // basit: 300ms sonra fetch et
         await RefreshAllStatsAsync();
     }
 
@@ -57,7 +61,7 @@ public class UserStatsDisplayer : MonoBehaviour
         var data = await userDB.LoadUserData();
         if (data == null) { SetUnavailable(); return; }
 
-        if (currencyStatTMP) currencyStatTMP.text = data.currency.ToString("0");
+        if (currencyStatTMP) currencyStatTMP.text = data.currency.ToString("0.00", CultureInfo.InvariantCulture);
         if (referralStatTMP) referralStatTMP.text = data.referrals.ToString();
         if (streakStatTMP)   streakStatTMP.text   = data.streak.ToString();
         if (rankingStatTMP)  rankingStatTMP.text  = data.rank.ToString();
@@ -81,4 +85,5 @@ public class UserStatsDisplayer : MonoBehaviour
         if (rankingStatTMP)  rankingStatTMP.text  = "-";
         if (usernameTMP)     usernameTMP.text     = "-";
     }
+
 }
