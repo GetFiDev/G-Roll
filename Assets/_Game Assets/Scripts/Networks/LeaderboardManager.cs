@@ -56,7 +56,7 @@ public class LeaderboardManager : MonoBehaviour
         // 1) Kendi verin
         UserData me = await userDB.LoadUserData();
         MyUsername = string.IsNullOrWhiteSpace(me?.username) ? "Guest" : me.username;
-        MyScore    = me?.score ?? 0;
+        MyScore    = (int)(me?.maxScore ?? 0);
 
         // 2) TopN
         List<LBEntry> top = await userDB.FetchLeaderboardTopAsync(topN);

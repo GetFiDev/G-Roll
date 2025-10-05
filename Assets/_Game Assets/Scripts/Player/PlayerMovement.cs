@@ -661,8 +661,6 @@ public class PlayerMovement : MonoBehaviour
         float k = 1f + (percent / 100f);
         transform.localScale = _spawnScale * k;
 
-        // Dünya yüksekliği: spawn anındaki world-scale referansına göre orantıla
-        // scale=1 iken yere tam temas Y = 0.225f
         const float baseContactYAtScale1 = 0.225f;
         float currentWorldScaleY = Mathf.Max(0.0001f, transform.lossyScale.y);
         float ratio = currentWorldScaleY / _spawnWorldScaleY; // 1.0 => 0.225, 1.5 => 0.3375, 0.5 => 0.1125

@@ -65,7 +65,7 @@ public class UserStatManager : MonoBehaviour
         var data = await manager.LoadUserData(); // her çağrıda fetch
         Last = data;
         OnStatsRefreshed?.Invoke(Last);
-        return data?.currency ?? 0f;
+        return (float)(data?.currency ?? 0f);
     }
 
     public async Task<string> GetUsernameAsync()

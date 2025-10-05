@@ -24889,7 +24889,7 @@ MonoBehaviour:
         m_PostInfinity: 2
         m_RotationOrder: 4
       m_ConstantMin: 0
-      m_ConstantMax: 60
+      m_ConstantMax: 30
     xCurve:
       m_Mode: 0
       m_CurveMultiplier: 0
@@ -26093,7 +26093,7 @@ MonoBehaviour:
   _bursts:
   - time: 0
     count: 1
-    used: 1
+    used: 0
   _particleTrailRenderer: {fileID: 5656455516287026477}
   _trailModule:
     enabled: 1

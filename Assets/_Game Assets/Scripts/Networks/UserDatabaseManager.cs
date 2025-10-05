@@ -365,7 +365,7 @@ public class UserDatabaseManager : MonoBehaviour
             }
 
             var data = snap.ConvertTo<UserData>();
-            if (data != null) return data.currency;
+            if (data != null) return (float)data.currency;
 
             // İhtiyaten sözlükten okuma (eski kayıtlar int/double olabilir)
             var dict = snap.ToDictionary();

@@ -27,8 +27,8 @@ export const syncLeaderboard = onDocumentWritten(
       (typeof after.username === "string" ? after.username : "").trim()
       || "Guest";
 
-    const rawScore = after.score;
-    const score = typeof rawScore === "number" ? rawScore : 0;
+    const rawMaxScore = after.maxScore;
+    const score = typeof rawMaxScore === "number" ? rawMaxScore : 0;
 
     const seasonRef = db.collection("leaderboards").doc(SEASON);
 
@@ -278,7 +278,19 @@ export const createUserProfile = functionsV1
         mail: email,
         username: "",
         currency: 0,
-        score: 0,
+        statsJson: JSON.stringify({
+          comboPower: 0,
+          coinMultiplierPercent: 0,
+          magnetPowerPercent: 0,
+          gameplaySpeedMultiplierPercent: 0,
+          playerAcceleration: 0.1,
+          playerSpeed: 0,
+          playerSizePercent: 0
+        }),
+        streak: 0,
+        trustFactor: 100,
+        rank: 0,
+        maxScore: 0,
         hasElitePass: false,
         // init as expired (avoid nulls for Unity deserialization)
         elitePassExpiresAt: Timestamp.fromMillis(Date.now() - 24*60*60*1000),
@@ -306,7 +318,19 @@ export const ensureUserProfile = onCall(async (req) => {
         mail: email,
         username: "",
         currency: 0,
-        score: 0,
+        statsJson: JSON.stringify({
+          comboPower: 0,
+          coinMultiplierPercent: 0,
+          magnetPowerPercent: 0,
+          gameplaySpeedMultiplierPercent: 0,
+          playerAcceleration: 0.1,
+          playerSpeed: 0,
+          playerSizePercent: 0
+        }),
+        streak: 0,
+        trustFactor: 100,
+        rank: 0,
+        maxScore: 0,
         hasElitePass: false,
         // init as expired (avoid nulls for Unity deserialization)
         elitePassExpiresAt: Timestamp.fromMillis(
@@ -349,6 +373,82 @@ export const applyReferralCode = onCall(async (req) => {
 
   const code = (req.data?.referralCode ?? "").toString();
   const result = await applyReferralCodeToUser(uid, code);
+  return result;
+});
+
+// -------- session end: submit results (idempotent) --------
+export const submitSessionResult = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const sessionId = String(req.data?.sessionId || "").trim();
+  const earnedCurrency = Number(req.data?.earnedCurrency ?? 0);
+  const earnedScore = Number(req.data?.earnedScore ?? 0);
+
+  if (!sessionId) {
+    throw new HttpsError("invalid-argument", "sessionId required.");
+  }
+  if (!isFinite(earnedCurrency) || !isFinite(earnedScore)) {
+    throw new HttpsError("invalid-argument", "Numeric inputs required.");
+  }
+  if (earnedCurrency < 0 || earnedScore < 0) {
+    throw new HttpsError("invalid-argument", "Negative values are not allowed.");
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const sessRef = userRef.collection("sessions").doc(sessionId);
+
+  const result = await db.runTransaction(async (tx) => {
+    const sSnap = await tx.get(sessRef);
+    if (sSnap.exists) {
+      // idempotent: already processed; return current user totals
+      const uSnap = await tx.get(userRef);
+      const uData = uSnap.data() || {};
+      return {
+        alreadyProcessed: true,
+        currency: Number(uData.currency ?? 0),
+        maxScore: Number(uData.maxScore ?? 0),
+      };
+    }
+
+    const uSnap = await tx.get(userRef);
+    if (!uSnap.exists) {
+      // create a minimal user doc if missing (shouldn't happen in normal flow)
+      tx.set(userRef, {
+        mail: "",
+        username: "",
+        currency: 0,
+        maxScore: 0,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    }
+
+    const currentCurrency = Number(uSnap.get("currency") ?? 0) || 0;
+    const currentBest = Number(uSnap.get("maxScore") ?? 0) || 0;
+
+    const newCurrency = currentCurrency + earnedCurrency;
+    const newBest = Math.max(currentBest, earnedScore);
+
+    tx.set(userRef, {
+      currency: newCurrency,
+      maxScore: newBest,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+
+    tx.set(sessRef, {
+      earnedCurrency,
+      earnedScore,
+      processedAt: Timestamp.now(),
+    }, {merge: true});
+
+    return {
+      alreadyProcessed: false,
+      currency: newCurrency,
+      maxScore: newBest,
+    };
+  });
+
   return result;
 });
 

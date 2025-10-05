@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Threading.Tasks;
 using UnityEngine;
 
 /// Mantık: hız, skor, coin/booster hesapları, booster süreci
@@ -70,6 +71,10 @@ public class GameplayLogicApplier : MonoBehaviour
     public event Action<Vector3,int> OnCoinPickupFXRequest;     // worldPos, count (genelde 1)
     public event Action OnBoosterUsed;
 
+    // Session submit callbacks (remote)
+    public event Action<bool, double, double> OnSessionResultSubmitted; // (alreadyProcessed, currencyTotal, maxScore)
+    public event Action<string> OnSessionResultFailed;                  // error message
+
     public event Action<float> OnComboMultiplierChanged; // emits current combo multiplier (e.g., 1.00, 1.15, ...)
     public event Action OnComboReset;                    // fires when combo is reset to baseline
     
@@ -138,9 +143,7 @@ public class GameplayLogicApplier : MonoBehaviour
 
         if (armedForFirstMove)
         {
-            // Defer actual movement until NotifyFirstPlayerMove() is called
             isRunning = false;
-            // OnRunStarted, skor artışı vb. henüz başlamaz
         }
         else
         {
@@ -182,6 +185,29 @@ public class GameplayLogicApplier : MonoBehaviour
         }
 
         OnRunStopped?.Invoke();
+    }
+
+    /// <summary>
+    /// Sunucuya bu oturumun sonuçlarını gönderir. GameplayManager bu metodu tetikler.
+    /// Varsayılan olarak logic içindeki Score ve Coins değerlerini gönderir; istenirse override verilebilir.
+    /// </summary>
+    public async Task<bool> SubmitSessionResultAsync(string sessionId, double? currencyOverride = null, double? scoreOverride = null)
+    {
+        double earnedCurrency = currencyOverride ?? Coins;
+        double earnedScore    = scoreOverride ?? Score;
+
+        try
+        {
+            var res = await SessionResultRemoteService.SubmitAsync(sessionId, earnedCurrency, earnedScore);
+            OnSessionResultSubmitted?.Invoke(res.alreadyProcessed, res.currency, res.maxScore);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[GameplayLogicApplier] SubmitSessionResultAsync failed: {ex.Message}");
+            OnSessionResultFailed?.Invoke(ex.Message);
+            return false;
+        }
     }
 
     public void ResetRun()

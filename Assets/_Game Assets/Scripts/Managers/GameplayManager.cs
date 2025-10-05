@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using System;
 
 public class GameplayManager : MonoBehaviour
 {
@@ -30,6 +31,7 @@ public class GameplayManager : MonoBehaviour
     private GameObject playerGO;
     private bool sessionActive;
     private float sessionStartTime;
+    private double _sessionCurrencyTotal = 0d; // this session's earned currency (coins value after bonuses)
     // --- Cached finals coming from PlayerStatHandler (per session) ---
     private int   _comboPowerFactor = 1;     // integer factor, base 1
     private int   _coinBonusPercent = 0;     // integer percent, base 0
@@ -114,6 +116,12 @@ public class GameplayManager : MonoBehaviour
         {
             visualApplier.Bind(logicApplier);
             visualApplier?.SetCoinFXAnchor(playerGO.transform);
+
+            // optional: listen submit feedback for logs
+            logicApplier.OnSessionResultSubmitted -= OnRemoteSubmitOk;
+            logicApplier.OnSessionResultSubmitted += OnRemoteSubmitOk;
+            logicApplier.OnSessionResultFailed    -= OnRemoteSubmitFail;
+            logicApplier.OnSessionResultFailed    += OnRemoteSubmitFail;
         }
 
         // TERTİP: Tüm yerleştirme/initialize bittikten SONRA stat'ları uygula (trash-in, trash-out değil; emir sırası doğru)
@@ -157,13 +165,7 @@ public class GameplayManager : MonoBehaviour
             logicApplier.SetComboPowerPercent(comboPowerPercent);
         }
 
-        // Bir frame bekle: olası geç-yerleştirme/reset akışları (spawn point vb.) bittikten sonra boyutu son kez uygula
-        yield return null;
-        var mv2 = playerGO ? playerGO.GetComponent<PlayerMovement>() : null;
-        if (mv2 != null)
-        {
-            mv2.SetPlayerSize(_playerSizePct);
-        }
+        _sessionCurrencyTotal = 0d; // reset session currency accumulator
 
         logicApplier?.StartRun();
 
@@ -223,9 +225,20 @@ public class GameplayManager : MonoBehaviour
         stats.levelSuccess = success;
         stats.playtimeSeconds = Mathf.Max(0f, Time.time - sessionStartTime);
 
+        // Remote reporting (fire-and-forget) – logic layer owns the call
+        var earnedScore = logicApplier != null ? (double)logicApplier.Score : 0d;
+        var earnedCurrency = _sessionCurrencyTotal;
+        SubmitSessionToServer(earnedCurrency, earnedScore);
+
         // Let player stats cleanup (if any)
         var statEnd = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
         statEnd?.OnRunEnd();
+
+        if (logicApplier != null)
+        {
+            logicApplier.OnSessionResultSubmitted -= OnRemoteSubmitOk;
+            logicApplier.OnSessionResultFailed    -= OnRemoteSubmitFail;
+        }
 
         // Koşuyu durdur ve temizle
         visualApplier?.Unbind();
@@ -259,6 +272,12 @@ public class GameplayManager : MonoBehaviour
         var statTear = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
         statTear?.OnRunEnd();
 
+        if (logicApplier != null)
+        {
+            logicApplier.OnSessionResultSubmitted -= OnRemoteSubmitOk;
+            logicApplier.OnSessionResultFailed    -= OnRemoteSubmitFail;
+        }
+
         visualApplier?.Unbind();
         logicApplier?.StopRun();
         logicApplier?.ResetCombo();
@@ -287,6 +306,11 @@ public class GameplayManager : MonoBehaviour
         if (delta <= 0f) return;
         var factor = 1f + (_coinBonusPercent / 100f);
         var effective = delta * factor;
+
+        // Track currency at manager level (logic layer does not track currency by design)
+        _sessionCurrencyTotal += effective;
+
+        // Logic layer: combo + booster + FX only (delta ignored internally)
         logicApplier?.AddCoins(effective, worldFxAt, fxCount);
     }
     public void BoosterUse() => logicApplier?.BoosterUse();
@@ -326,5 +350,28 @@ public class GameplayManager : MonoBehaviour
             _playerSpeedAdd   = 0f;
             _playerSizePct    = 0;
         }
+    }
+
+    private async void SubmitSessionToServer(double earnedCurrency, double earnedScore)
+    {
+        if (logicApplier == null) return;
+        try
+        {
+            string sessionId = Guid.NewGuid().ToString("N");
+            await logicApplier.SubmitSessionResultAsync(sessionId, earnedCurrency, earnedScore);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[GameplayManager] SubmitSessionToServer failed: {ex.Message}");
+        }
+    }
+
+    private void OnRemoteSubmitOk(bool alreadyProcessed, double totalCurrency, double maxScore)
+    {
+        Debug.Log($"[GameplayManager] Session submit ok. alreadyProcessed={alreadyProcessed} currency={totalCurrency} maxScore={maxScore}");
+    }
+    private void OnRemoteSubmitFail(string msg)
+    {
+        Debug.LogWarning($"[GameplayManager] Session submit failed: {msg}");
     }
 }
