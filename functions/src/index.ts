@@ -278,6 +278,10 @@ export const createUserProfile = functionsV1
         mail: email,
         username: "",
         currency: 0,
+        energyCurrent: 6,
+        energyMax: 6,
+        energyRegenPeriodSec: 14400,
+        energyUpdatedAt: Timestamp.now(),
         statsJson: JSON.stringify({
           comboPower: 0,
           coinMultiplierPercent: 0,
@@ -318,6 +322,10 @@ export const ensureUserProfile = onCall(async (req) => {
         mail: email,
         username: "",
         currency: 0,
+        energyCurrent: 6,
+        energyMax: 6,
+        energyRegenPeriodSec: 14400,
+        energyUpdatedAt: Timestamp.now(),
         statsJson: JSON.stringify({
           comboPower: 0,
           coinMultiplierPercent: 0,
@@ -385,9 +393,7 @@ export const submitSessionResult = onCall(async (req) => {
   const earnedCurrency = Number(req.data?.earnedCurrency ?? 0);
   const earnedScore = Number(req.data?.earnedScore ?? 0);
 
-  if (!sessionId) {
-    throw new HttpsError("invalid-argument", "sessionId required.");
-  }
+  if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required.");
   if (!isFinite(earnedCurrency) || !isFinite(earnedScore)) {
     throw new HttpsError("invalid-argument", "Numeric inputs required.");
   }
@@ -399,65 +405,150 @@ export const submitSessionResult = onCall(async (req) => {
   const sessRef = userRef.collection("sessions").doc(sessionId);
 
   const result = await db.runTransaction(async (tx) => {
+    // session must exist and be granted by requestSession
     const sSnap = await tx.get(sessRef);
-    if (sSnap.exists) {
-      // idempotent: already processed; return current user totals
-      const uSnap = await tx.get(userRef);
-      const uData = uSnap.data() || {};
-      return {
-        alreadyProcessed: true,
-        currency: Number(uData.currency ?? 0),
-        maxScore: Number(uData.maxScore ?? 0),
-      };
+    if (!sSnap.exists) {
+      throw new HttpsError("failed-precondition", "Unknown sessionId");
     }
 
+    const alreadyDone = !!sSnap.get("processedAt");
+    if (alreadyDone) {
+      // idempotent: return current totals from user
+      const uSnap = await tx.get(userRef);
+      const uData = uSnap.data() || {};
+      return {alreadyProcessed:true, currency:Number(uData.currency ?? 0),
+        maxScore:Number(uData.maxScore ?? 0)};
+    }
+
+    // update user totals
     const uSnap = await tx.get(userRef);
     if (!uSnap.exists) {
-      // create a minimal user doc if missing (shouldn't happen in normal flow)
-      tx.set(userRef, {
-        mail: "",
-        username: "",
-        currency: 0,
-        maxScore: 0,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, {merge: true});
+      tx.set(userRef, {mail:"", username:"", currency:0, maxScore:0, createdAt:FieldValue.serverTimestamp(), updatedAt:FieldValue.serverTimestamp()}, {merge:true});
     }
 
     const currentCurrency = Number(uSnap.get("currency") ?? 0) || 0;
     const currentBest = Number(uSnap.get("maxScore") ?? 0) || 0;
-
     const newCurrency = currentCurrency + earnedCurrency;
     const newBest = Math.max(currentBest, earnedScore);
 
-    tx.set(userRef, {
-      currency: newCurrency,
-      maxScore: newBest,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, {merge: true});
+    tx.set(userRef, {currency:newCurrency, maxScore:newBest,
+      updatedAt:FieldValue.serverTimestamp()}, {merge:true});
 
-    tx.set(sessRef, {
-      earnedCurrency,
-      earnedScore,
-      processedAt: Timestamp.now(),
-    }, {merge: true});
+    // mark session as processed
+    tx.set(sessRef, {state:"completed", earnedCurrency, earnedScore, processedAt:Timestamp.now()}, {merge:true});
 
-    return {
-      alreadyProcessed: false,
-      currency: newCurrency,
-      maxScore: newBest,
-    };
+    return {alreadyProcessed:false, currency:newCurrency, maxScore:newBest};
   });
 
   return result;
 });
 
-/**
- * Auth'lu kullanıcının "referredByUid == me" olan kullanıcılarını listeler.
- * İsteğe bağlı: includeEarnings=true ise, users/{me}/referralsChildren/{child}
- * doc'undan earnedTotal'ı da (varsa) ekler. Yoksa 0 döner.
- * NOT: Büyük listeler için sayfalama eklenebilir; burada limit parametresi var.
- */
+// -------- Energy (lazy regen) helpers --------
+async function lazyRegenInTx(
+  tx: FirebaseFirestore.Transaction,
+  userRef: FirebaseFirestore.DocumentReference,
+  now: Timestamp
+): Promise<{cur:number; max:number; period:number; nextAt:Timestamp|null}> {
+  const snap = await tx.get(userRef);
+  if (!snap.exists) throw new HttpsError("failed-precondition", "User doc missing");
+
+  const max = Number(snap.get("energyMax") ?? 6) || 6;
+  const period = Number(snap.get("energyRegenPeriodSec") ?? 14400) || 14400; // seconds
+  let cur = Number(snap.get("energyCurrent") ?? 0) || 0;
+  let updatedAt = (snap.get("energyUpdatedAt") as Timestamp | undefined) || now;
+
+  if (cur < max) {
+    const elapsedMs = Math.max(0, now.toMillis() - updatedAt.toMillis());
+    const ticks = Math.floor(elapsedMs / (period * 1000));
+    if (ticks > 0) {
+      const newCur = Math.min(max, cur + ticks);
+      const newUpdated = 
+        Timestamp.fromMillis(updatedAt.toMillis() + ticks * period * 1000);
+      tx.set(userRef, {energyCurrent:newCur, energyUpdatedAt:newUpdated, 
+        updatedAt:FieldValue.serverTimestamp()}, {merge:true});
+      cur = newCur;
+      updatedAt = newUpdated;
+    }
+  }
+
+  const nextAt = cur < max
+    ? Timestamp.fromMillis(updatedAt.toMillis() + (period * 1000))
+    : null;
+
+  return {cur, max, period, nextAt};
+}
+
+// -------- getEnergyStatus (callable) --------
+export const getEnergyStatus = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+  const st = await db.runTransaction(async (tx) => {
+    return await lazyRegenInTx(tx, userRef, now);
+  });
+
+  return {
+    ok:true,
+    energyCurrent: st.cur,
+    energyMax: st.max,
+    regenPeriodSec: st.period,
+    nextEnergyAt: st.nextAt ? st.nextAt.toDate().toISOString() : null,
+  };
+});
+
+// -------- spendEnergy (callable) --------
+export const spendEnergy = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const sessionId = String(req.data?.sessionId || "").trim();
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+
+  const res = await db.runTransaction(async (tx) => {
+    // idempotency (optional but cheap)
+    if (sessionId) {
+      const sRef = userRef.collection("energySpends").doc(sessionId);
+      const sSnap = await tx.get(sRef);
+      if (sSnap.exists) {
+        const st0 = await lazyRegenInTx(tx, userRef, now);
+        return {alreadyProcessed:true, cur:st0.cur, max:st0.max,
+          period:st0.period, nextAt:st0.nextAt};
+      }
+    }
+
+    const st = await lazyRegenInTx(tx, userRef, now);
+    if (st.cur <= 0) {
+      throw new HttpsError("failed-precondition", "Not enough energy");
+    }
+
+    const newCur = st.cur - 1;
+    // spending resets the timer to now for a clean 4h window
+    tx.set(userRef, {energyCurrent:newCur, energyUpdatedAt:now,
+      updatedAt:FieldValue.serverTimestamp()}, {merge:true});
+
+    if (sessionId) {
+      tx.set(userRef.collection("energySpends").doc(sessionId), {spentAt:now}, {merge:true});
+    }
+
+    const nextAt = Timestamp.fromMillis(now.toMillis() + st.period * 1000);
+    return {alreadyProcessed:false, cur:newCur, max:st.max,
+      period:st.period, nextAt};
+  });
+
+  return {
+    ok:true,
+    alreadyProcessed: !!(res as any).alreadyProcessed,
+    energyCurrent: (res as any).cur,
+    energyMax: (res as any).max,
+    regenPeriodSec: (res as any).period,
+    nextEnergyAt: (res as any).nextAt ? (res as any).nextAt.toDate()
+      .toISOString() : null,
+  };
+});
+
 export const listReferredUsers = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
@@ -615,15 +706,6 @@ export const getGalleryItems = onCall(async (req) => {
     throw new HttpsError("internal", "Failed to fetch gallery items.");
   }
 });
-
-// ---------------- Map Meta Pools (indexer) ----------------
-// When a map JSON doc is created/updated at appdata/maps/{mapId}/raw,
-// parse its difficultyTag from the single string field and:
-// 1) upsert appdata/maps_meta/by_map/{mapId} with {difficultyTag}
-// 2) maintain pool lists under appdata/maps_meta/pools/{1|2|3}.ids (array)
-//
-// On delete of the raw doc, remove 
-// the map from its pools and delete by_map entry.
 
 export const indexMapMeta = onDocumentWritten(
   {document:"appdata/maps/{mapId}/raw", database:DB_ID},
@@ -882,4 +964,46 @@ export const getSequencedMaps = onCall(async (req) => {
     pattern,
     entries
   };
+});
+// -------- requestSession (callable) --------
+export const requestSession = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+
+  const out = await db.runTransaction(async (tx) => {
+    // 1) lazy regen inside tx
+    const st = await lazyRegenInTx(tx, userRef, now);
+    if (st.cur <= 0) {
+      throw new HttpsError("failed-precondition", "Not enough energy");
+    }
+
+    // 2) spend 1 energy and reset timer window to now
+    const newCur = st.cur - 1;
+    tx.set(userRef, {energyCurrent:newCur, energyUpdatedAt:now,
+      updatedAt:FieldValue.serverTimestamp()}, {merge:true});
+
+    // 3) create server-owned session doc
+    const sessionId = `${now.toMillis()}_${Math.random().toString(36).slice(2,10)}`;
+    const sessRef = userRef.collection("sessions").doc(sessionId);
+    tx.set(sessRef, {state:"granted", startedAt:now}, {merge:true});
+
+    const nextAt = Timestamp.fromMillis(now.toMillis() + st.period * 1000);
+    return {sessionId, energyCurrent:newCur, energyMax:st.max,
+      regenPeriodSec:st.period, nextEnergyAt:nextAt};
+  });
+
+  const nextMs = out.nextEnergyAt ? out.nextEnergyAt.toMillis() : null;
+  const resp = {
+    ok: true,
+    sessionId: out.sessionId,
+    energyCurrent: out.energyCurrent,
+    energyMax: out.energyMax,
+    regenPeriodSec: out.regenPeriodSec,
+    nextEnergyAtMillis: nextMs,
+  };
+  console.log("requestSession returning", resp);
+  return resp;
 });

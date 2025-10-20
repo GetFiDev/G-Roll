@@ -31,6 +31,7 @@ public class GameplayManager : MonoBehaviour
     private GameObject playerGO;
     private bool sessionActive;
     private float sessionStartTime;
+    private string _currentSessionId = null; // server-granted session id
     private double _sessionCurrencyTotal = 0d; // this session's earned currency (coins value after bonuses)
     // --- Cached finals coming from PlayerStatHandler (per session) ---
     private int   _comboPowerFactor = 1;     // integer factor, base 1
@@ -79,6 +80,15 @@ public class GameplayManager : MonoBehaviour
         // Faz değişimini GameManager yapacak; ben sadece hazırlığa odaklanıyorum.
         // Metin UI "Play" butonu bu kanalı raise edince GameManager fazı Gameplay yapar,
         // OnPhaseChanged ile hasControl=true olur ve akış başlar.
+        StartCoroutine(BeginSessionWhenInGameplay());
+    }
+
+    /// <summary>
+    /// GameManager sunucudan sessionId aldığında çağırır. Faz zaten Gameplay'e alınmış olmalı.
+    /// </summary>
+    public void BeginSessionWithServerGrant(string sessionId)
+    {
+        _currentSessionId = sessionId;
         StartCoroutine(BeginSessionWhenInGameplay());
     }
 
@@ -297,6 +307,7 @@ public class GameplayManager : MonoBehaviour
         stats = null;
         sessionActive = false;
         sessionStartTime = 0f;
+        _currentSessionId = null;
     }
 
 
@@ -355,14 +366,22 @@ public class GameplayManager : MonoBehaviour
     private async void SubmitSessionToServer(double earnedCurrency, double earnedScore)
     {
         if (logicApplier == null) return;
+        if (string.IsNullOrEmpty(_currentSessionId))
+        {
+            Debug.LogWarning("[GameplayManager] No sessionId set; skipping submit.");
+            return;
+        }
         try
         {
-            string sessionId = Guid.NewGuid().ToString("N");
-            await logicApplier.SubmitSessionResultAsync(sessionId, earnedCurrency, earnedScore);
+            await logicApplier.SubmitSessionResultAsync(_currentSessionId, earnedCurrency, earnedScore);
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"[GameplayManager] SubmitSessionToServer failed: {ex.Message}");
+        }
+        finally
+        {
+            _currentSessionId = null; // consume once
         }
     }
 

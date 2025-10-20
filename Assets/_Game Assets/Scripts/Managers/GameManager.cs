@@ -14,21 +14,22 @@ public class GameManager : MonoBehaviour
     void Awake()
     {
         if (Instance == null) Instance = this;
-        else { Destroy(Instance.gameObject); }
+        else { Destroy(gameObject); return; }
 
-        audioManager.Initialize();
+        if (audioManager != null)
+            audioManager.Initialize();
     }
 
     private void OnEnable()
     {
-        requestStartGameplay.OnEvent += OnRequestStartGameplay;
-        requestReturnToMeta.OnEvent += OnRequestReturnToMeta;
+        if (requestStartGameplay != null) requestStartGameplay.OnEvent += OnRequestStartGameplay;
+        if (requestReturnToMeta != null) requestReturnToMeta.OnEvent += OnRequestReturnToMeta;
     }
 
     private void OnDisable()
     {
-        requestStartGameplay.OnEvent -= OnRequestStartGameplay;
-        requestReturnToMeta.OnEvent -= OnRequestReturnToMeta;
+        if (requestStartGameplay != null) requestStartGameplay.OnEvent -= OnRequestStartGameplay;
+        if (requestReturnToMeta != null) requestReturnToMeta.OnEvent -= OnRequestReturnToMeta;
     }
 
     private void Start()
@@ -39,8 +40,7 @@ public class GameManager : MonoBehaviour
 
     private void OnRequestStartGameplay()
     {
-        // Gameplay’in varlığını bilmeden sadece fazı değiştirir.
-        SetPhase(GamePhase.Gameplay);
+        OnPlayButtonPressed();
     }
 
     private void OnRequestReturnToMeta()
@@ -53,5 +53,44 @@ public class GameManager : MonoBehaviour
         if (current == next) return;
         current = next;
         phaseChanged.Raise(current);
+    }
+
+    [SerializeField] private UISessionGate sessionGate; // Inspector’dan ver
+    [SerializeField] private GameplayManager gameplayManager; // zaten vardır
+
+    public void OnPlayButtonPressed()
+    {
+        // UI kapı: requesting
+        sessionGate?.ShowRequesting();
+        StartCoroutine(RequestAndStart());
+    }
+
+    private System.Collections.IEnumerator RequestAndStart()
+    {
+        // requestSession server call
+        var task = SessionRemoteService.RequestSessionAsync();
+        while (!task.IsCompleted) yield return null;
+
+        if (task.IsFaulted || task.IsCanceled)
+        {
+            // ağ hatası vs.
+            yield return sessionGate?.ShowInsufficientToast();
+            yield break;
+        }
+
+        var resp = task.Result;
+        if (resp.ok && !string.IsNullOrEmpty(resp.sessionId))
+        {
+            yield return sessionGate?.ShowGrantedToast();
+
+            // Eski mimariyi koru: grant sonrası fazı Gameplay'e al, dinleyenler çalışsın
+            SetPhase(GamePhase.Gameplay);
+            gameplayManager?.BeginSessionWithServerGrant(resp.sessionId);
+        }
+        else
+        {
+            // yeterli enerji yok
+            yield return sessionGate?.ShowInsufficientToast();
+        }
     }
 }
