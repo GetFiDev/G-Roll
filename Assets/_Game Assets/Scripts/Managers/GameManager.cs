@@ -57,16 +57,26 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] private UISessionGate sessionGate; // Inspector’dan ver
     [SerializeField] private GameplayManager gameplayManager; // zaten vardır
+    private float _gateShownAt;
 
     public void OnPlayButtonPressed()
     {
-        // UI kapı: requesting
-        sessionGate?.ShowRequesting();
+        // 1) UI kapıyı HEMEN göster ve zaman damgasını al
+        if (sessionGate)
+        {
+            sessionGate.ShowRequesting();
+            _gateShownAt = Time.realtimeSinceStartup;
+        }
+
+        // 2) Ardından isteği başlat
         StartCoroutine(RequestAndStart());
     }
 
     private System.Collections.IEnumerator RequestAndStart()
     {
+        // UI'nın gerçekten bir frame çizmesine izin ver
+        if (sessionGate) yield return null;
+
         // requestSession server call
         var task = SessionRemoteService.RequestSessionAsync();
         while (!task.IsCompleted) yield return null;
@@ -74,14 +84,24 @@ public class GameManager : MonoBehaviour
         if (task.IsFaulted || task.IsCanceled)
         {
             // ağ hatası vs.
-            yield return sessionGate?.ShowInsufficientToast();
+            if (sessionGate) yield return sessionGate.ShowInsufficientToast();
             yield break;
         }
 
         var resp = task.Result;
         if (resp.ok && !string.IsNullOrEmpty(resp.sessionId))
         {
-            yield return sessionGate?.ShowGrantedToast();
+            // 'Please wait…' en az kısa bir süre görünsün (ör. 0.2s)
+            const float minVisible = 0.2f;
+            if (sessionGate)
+            {
+                float elapsed = Time.realtimeSinceStartup - _gateShownAt;
+                if (elapsed < minVisible)
+                    yield return new WaitForSecondsRealtime(minVisible - elapsed);
+            }
+
+            // 0.5s granted tostu
+            if (sessionGate) yield return sessionGate.ShowGrantedToast();
 
             // Eski mimariyi koru: grant sonrası fazı Gameplay'e al, dinleyenler çalışsın
             SetPhase(GamePhase.Gameplay);
@@ -90,7 +110,7 @@ public class GameManager : MonoBehaviour
         else
         {
             // yeterli enerji yok
-            yield return sessionGate?.ShowInsufficientToast();
+            if (sessionGate) yield return sessionGate.ShowInsufficientToast();
         }
     }
 }

@@ -108,6 +108,7 @@ public class GameplayManager : MonoBehaviour
         if (playerMov != null && logicApplier != null)
         {
             playerMov.BindToGameplay(logicApplier, gameplayTouch);
+            gameplayTouch?.BindPlayer(playerMov);
             // güvence: sahne başında donuk kaldıysa açalım
             playerMov._isFrozen = false;
 
@@ -250,6 +251,8 @@ public class GameplayManager : MonoBehaviour
             logicApplier.OnSessionResultFailed    -= OnRemoteSubmitFail;
         }
 
+        gameplayTouch?.UnbindPlayer();
+
         // Koşuyu durdur ve temizle
         visualApplier?.Unbind();
         logicApplier?.StopRun();
@@ -279,6 +282,7 @@ public class GameplayManager : MonoBehaviour
     private void TearDownIfAny()
     {
         // Önce görsel ve mantık bağlantılarını kapat
+        gameplayTouch?.UnbindPlayer();
         var statTear = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
         statTear?.OnRunEnd();
 

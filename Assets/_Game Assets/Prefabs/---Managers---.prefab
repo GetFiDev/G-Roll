@@ -1,0 +1,753 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2058853461026498479
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4571006519052195263}
+  - component: {fileID: 8223993656655430492}
+  m_Layer: 0
+  m_Name: Game Manager
+  m_TagString: GameController
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4571006519052195263
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2058853461026498479}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -504.47275, y: -1322.7186, z: -5.818363}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4922365609392270316}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8223993656655430492
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2058853461026498479}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2ce1b0932ad649f3b361f889bca3b50, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  requestStartGameplay: {fileID: 11400000, guid: 0520f195d005945e19fb9af74e72ca0d,
+    type: 2}
+  requestReturnToMeta: {fileID: 11400000, guid: f5bc9d4f88eb14007874b1cd243f744e,
+    type: 2}
+  phaseChanged: {fileID: 11400000, guid: 960276a1cb10943f9a81118f37209e73, type: 2}
+  current: 0
+  audioManager: {fileID: 1930497190062027331}
+  sessionGate: {fileID: 0}
+  gameplayManager: {fileID: 7071323614463618336}
+--- !u!1 &2462062726591147285
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5063697834043578280}
+  - component: {fileID: 201574166066052779}
+  m_Layer: 0
+  m_Name: Touch Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5063697834043578280
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2462062726591147285}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -504.47275, y: -1322.7186, z: -5.818363}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4922365609392270316}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &201574166066052779
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2462062726591147285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3acffa8a012942fcb4471697c32e580, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ignoreUITouches: 1
+  singleFingerOnly: 1
+  doubleTapDuration: 0.25
+  doubleTapMaxDistancePx: 40
+  swipeThresholdPx: 60
+  playerMovement: {fileID: 0}
+--- !u!1 &3383476096239959787
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 642752408965805021}
+  - component: {fileID: 2034506320415473394}
+  m_Layer: 0
+  m_Name: Object Pooling Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &642752408965805021
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3383476096239959787}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -504.47275, y: -1322.7186, z: -5.818363}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4922365609392270316}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2034506320415473394
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3383476096239959787}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 63a0e7cc182574510a1fe6ab2a35bb26, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  poolObjects: []
+--- !u!1 &4069319178446286502
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8454476613058032122}
+  - component: {fileID: 7071323614463618336}
+  - component: {fileID: 8377167956117370508}
+  - component: {fileID: 5323406861821442087}
+  m_Layer: 0
+  m_Name: GameplayManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8454476613058032122
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4069319178446286502}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -504.47275, y: -1322.7186, z: -5.818363}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4922365609392270316}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7071323614463618336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4069319178446286502}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e7121954a9a9041e1add4958ec18b260, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  requestStartGameplay: {fileID: 11400000, guid: 0520f195d005945e19fb9af74e72ca0d,
+    type: 2}
+  requestReturnToMeta: {fileID: 11400000, guid: f5bc9d4f88eb14007874b1cd243f744e,
+    type: 2}
+  phaseChanged: {fileID: 11400000, guid: 960276a1cb10943f9a81118f37209e73, type: 2}
+  playerSpawnerBehaviour: {fileID: 425574123459510951}
+  mapLoaderBehaviour: {fileID: 2207558144252139848}
+  logicApplier: {fileID: 8377167956117370508}
+  visualApplier: {fileID: 5323406861821442087}
+  targetCamera: {fileID: 0}
+  gameplayTouch: {fileID: 201574166066052779}
+--- !u!114 &8377167956117370508
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4069319178446286502}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce9ed4248041c4c4d946079c994d0f38, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  startSpeed: 1.5
+  maxSpeed: 10
+  accelerationPerSecond: 0.02
+  startOnFirstPlayerMove: 1
+  boosterFillPerCollectedCoin: 1
+  boosterFillMin: 0
+  boosterFillMax: 100
+  boosterDurationSeconds: 5
+  gameplaySpeedMultiplier: 1
+  playerSpeedMultiplier: 1
+  player: {fileID: 0}
+  scorePerSecond: 1
+  baseIncPerCoin: 0.01
+  comboTimeout: 10
+--- !u!114 &5323406861821442087
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4069319178446286502}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7359ac9125663435394b77a8d969178d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  scoreText: {fileID: 0}
+  scoreAsInteger: 1
+  coinText: {fileID: 0}
+  coinAsInteger: 0
+  comboText: {fileID: 0}
+  comboDecreaseDuration: 0.5
+  comboIncreaseDuration: 0.12
+  comboBounceScale: 1.08
+  boosterSlider: {fileID: 0}
+  coinPickupParticle: {fileID: 0}
+  coinFXScreenOffset: {x: 0, y: 0}
+  uiCameraOverride: {fileID: 0}
+  worldCameraForCoinFX: {fileID: 0}
+  autoPlayUIParticle: 1
+  coinFXUseInstancePerBurst: 1
+  coinFXDespawnSeconds: 1.5
+  playerTransformForCoinFX: {fileID: 0}
+  onCoinPickupFX:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!1 &4331483642353450256
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1107493106198334010}
+  - component: {fileID: 1930497190062027331}
+  m_Layer: 0
+  m_Name: Audio Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1107493106198334010
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4331483642353450256}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -504.47275, y: -1322.7186, z: -5.818363}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4922365609392270316}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1930497190062027331
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4331483642353450256}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ad1357b75f5f9f64fbb18f97a7aa2677, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pop: {fileID: 8300000, guid: e6ffa9a087c66284ca8501711e53484a, type: 3}
+  masterMixer: {fileID: 24100000, guid: 104af8302fbe64d189fdf09444b25799, type: 2}
+--- !u!1 &5550267507284631682
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5832786576862567870}
+  - component: {fileID: 425574123459510951}
+  m_Layer: 0
+  m_Name: Spawners
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5832786576862567870
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5550267507284631682}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4922365609392270316}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &425574123459510951
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5550267507284631682}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 813fb944f5d4b4fafae5988d6c012182, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerPrefab: {fileID: 6942240846770388931, guid: cdeddd268828208439b3ddb63fdbcf80,
+    type: 3}
+--- !u!1 &7523263841522996813
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6123572856810273001}
+  - component: {fileID: 2207558144252139848}
+  - component: {fileID: 3401937052761231238}
+  m_Layer: 0
+  m_Name: MapManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6123572856810273001
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7523263841522996813}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -422.48834, y: -483.73743, z: -6.5694394}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4922365609392270316}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2207558144252139848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7523263841522996813}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51eef4ca4c64247f5b0ce1a47f1c2e7c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mapManager: {fileID: 3401937052761231238}
+--- !u!114 &3401937052761231238
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7523263841522996813}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 926aeda9082664e669251cd22b5c6922, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  remoteService: {fileID: 0}
+  count: 24
+  seedOverride: 
+  isReady: 0
+  mapJsonList: []
+  mapIds: []
+  difficulties: 
+  mapPrefab: {fileID: 23769104891627334, guid: 4db80a633e562498090af6f6522332fd, type: 3}
+  mapsParent: {fileID: 0}
+  startPosition: {x: 0, y: 0, z: 0}
+  step: {x: 0, y: 0, z: 60}
+  clearBeforeBuild: 1
+  starterMapJson: "{\n    \"savedAtIso\": \"2025-10-04T07:33:42.6436010+03:00\",\n   
+    \"mapName\": \"startercagil_pizza_04/10/25 - 07:33:42\",\n    \"mapDisplayName\":
+    \"startercagil_pizza\",\n    \"difficultyTag\": 1,\n    \"backgroundMaterialId\":
+    1,\n    \"items\": [\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 11,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    5,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 3,\n           
+    \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 2,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 12,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 3,\n            \"gridY\": 95,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    15,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    3,\n            \"gridY\": 74,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n           
+    \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    78,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 6,\n            \"gridY\": 108,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 14,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    11,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    7,\n            \"gridY\": 101,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    11,\n            \"gridY\": 73,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    14,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    4,\n            \"gridY\": 79,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"MovingRedWall\",\n            \"gridX\": 0,\n           
+    \"gridY\": 71,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 10,\n            \"gridY\":
+    108,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 0,\n            \"gridY\":
+    72,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 1,\n            \"gridY\": 80,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 11,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    6,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 9,\n           
+    \"gridY\": 74,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 14,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 2,\n            \"gridY\": 81,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"CameraSpeedBooster\",\n           
+    \"gridX\": 1,\n            \"gridY\": 97,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    15,\n            \"gridY\": 71,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    3,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 15,\n           
+    \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 6,\n            \"gridY\":
+    68,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"MovingRedWall\",\n            \"gridX\": 0,\n            \"gridY\": 69,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 15,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    11,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    5,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"Fan\",\n            \"gridX\": 0,\n           
+    \"gridY\": 104,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 13,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 3,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 1,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    108,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 1,\n            \"gridY\":
+    95,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 14,\n            \"gridY\": 70,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 10,\n            \"gridY\": 107,\n            \"linkedPortalId\":
+    -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 7,\n            \"gridY\": 99,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    4,\n            \"gridY\": 96,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"BlueWall\",\n            \"gridX\": 2,\n           
+    \"gridY\": 107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 6,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n            \"gridY\":
+    97,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 14,\n            \"gridY\": 73,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 8,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    12,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    7,\n            \"gridY\": 76,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n           
+    \"gridY\": 101,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"BlueWall\",\n            \"gridX\": 0,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\": 68,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 12,\n            \"gridY\": 73,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    11,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Portal\",\n            \"gridX\":
+    12,\n            \"gridY\": 89,\n            \"linkedPortalId\": 5\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 0,\n           
+    \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 15,\n            \"gridY\":
+    73,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 2,\n            \"gridY\": 79,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 13,\n            \"gridY\": 73,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Portal\",\n            \"gridX\":
+    12,\n            \"gridY\": 76,\n            \"linkedPortalId\": 5\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 14,\n           
+    \"gridY\": 69,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 14,\n            \"gridY\":
+    81,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\": 74,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 9,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    13,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"BlueWall\",\n            \"gridX\":
+    12,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"MovingRedWall\",\n            \"gridX\": 0,\n           
+    \"gridY\": 73,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 1,\n            \"gridY\":
+    81,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 15,\n            \"gridY\": 72,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 8,\n            \"gridY\": 77,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    8,\n            \"gridY\": 96,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n           
+    \"gridY\": 100,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\":
+    96,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\": 72,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 107,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"BoosterInstaFill\",\n           
+    \"gridX\": 4,\n            \"gridY\": 84,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Camera Speed Decreaser\",\n           
+    \"gridX\": 13,\n            \"gridY\": 97,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    3,\n            \"gridY\": 78,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 7,\n           
+    \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 7,\n            \"gridY\":
+    77,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 7,\n            \"gridY\": 97,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 78,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    13,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"BlueWall\",\n            \"gridX\": 15,\n           
+    \"gridY\": 107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 9,\n            \"gridY\":
+    81,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\": 69,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 2,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    0,\n            \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 14,\n           
+    \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 13,\n            \"gridY\":
+    71,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 13,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 14,\n            \"gridY\": 71,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    5,\n            \"gridY\": 108,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    2,\n            \"gridY\": 95,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 11,\n           
+    \"gridY\": 71,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 1,\n            \"gridY\":
+    70,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 11,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 12,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    7,\n            \"gridY\": 96,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"BoosterInstaFill\",\n            \"gridX\":
+    1,\n            \"gridY\": 84,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"PlayerSpeedDecreaser\",\n            \"gridX\":
+    4,\n            \"gridY\": 117,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    12,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    13,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    12,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"PlayerSpeedBooster\",\n           
+    \"gridX\": 10,\n            \"gridY\": 117,\n            \"linkedPortalId\":
+    -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    7,\n            \"gridY\": 98,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 4,\n           
+    \"gridY\": 81,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 3,\n            \"gridY\":
+    79,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 4,\n            \"gridY\": 107,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 12,\n            \"gridY\": 71,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 76,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"GetCoin\",\n            \"gridX\": 5,\n           
+    \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"Fan\",\n            \"gridX\": 13,\n            \"gridY\":
+    104,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 4,\n            \"gridY\":
+    95,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"BlueWall\",\n            \"gridX\": 14,\n            \"gridY\": 107,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 10,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    12,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    12,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"Portal\",\n            \"gridX\":
+    7,\n            \"gridY\": 112,\n            \"linkedPortalId\": 6\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 5,\n           
+    \"gridY\": 107,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 10,\n            \"gridY\":
+    80,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 15,\n            \"gridY\": 95,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 10,\n            \"gridY\": 75,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    10,\n            \"gridY\": 81,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    7,\n            \"gridY\": 108,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    9,\n            \"gridY\": 70,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 7,\n           
+    \"gridY\": 79,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 7,\n            \"gridY\":
+    100,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 8,\n            \"gridY\":
+    75,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"RedWall\",\n            \"gridX\": 9,\n            \"gridY\": 75,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 75,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    9,\n            \"gridY\": 80,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 9,\n           
+    \"gridY\": 108,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"RedWall\",\n            \"gridX\": 10,\n            \"gridY\":
+    74,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"Portal\",\n            \"gridX\": 7,\n            \"gridY\": 103,\n           
+    \"linkedPortalId\": 6\n        },\n        {\n            \"displayName\": \"GetCoin\",\n           
+    \"gridX\": 11,\n            \"gridY\": 72,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    15,\n            \"gridY\": 69,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    15,\n            \"gridY\": 68,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"RedWall\",\n            \"gridX\":
+    8,\n            \"gridY\": 79,\n            \"linkedPortalId\": -1\n        },\n       
+    {\n            \"displayName\": \"RedWall\",\n            \"gridX\": 4,\n           
+    \"gridY\": 72,\n            \"linkedPortalId\": -1\n        },\n        {\n           
+    \"displayName\": \"GetCoin\",\n            \"gridX\": 8,\n            \"gridY\":
+    98,\n            \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\":
+    \"GetCoin\",\n            \"gridX\": 4,\n            \"gridY\": 80,\n           
+    \"linkedPortalId\": -1\n        },\n        {\n            \"displayName\": \"RedWall\",\n           
+    \"gridX\": 7,\n            \"gridY\": 74,\n            \"linkedPortalId\": -1\n       
+    },\n        {\n            \"displayName\": \"GetCoin\",\n            \"gridX\":
+    8,\n            \"gridY\": 99,\n            \"linkedPortalId\": -1\n        }\n   
+    ]\n}"
+  starterMapDisplayName: StartingMap_bycagil
+  useStarterMap: 1
+--- !u!1 &7861731729949475479
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4922365609392270316}
+  m_Layer: 0
+  m_Name: ---Managers---
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4922365609392270316
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7861731729949475479}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 504.47275, y: 1322.7186, z: 5.818363}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 4571006519052195263}
+  - {fileID: 8454476613058032122}
+  - {fileID: 6123572856810273001}
+  - {fileID: 5063697834043578280}
+  - {fileID: 1107493106198334010}
+  - {fileID: 642752408965805021}
+  - {fileID: 5832786576862567870}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

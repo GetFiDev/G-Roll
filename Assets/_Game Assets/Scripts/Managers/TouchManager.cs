@@ -50,8 +50,21 @@ public class TouchManager : MonoBehaviour
             ETouch.EnhancedTouchSupport.Disable();
     }
 
+    [SerializeField] private PlayerMovement playerMovement;
+
+    public void BindPlayer(PlayerMovement pm)  => playerMovement = pm;
+    public void UnbindPlayer()                 => playerMovement = null;
+
     void Update()
     {
+        // Meta/Requesting fazında input işleme
+        if (GameManager.Instance == null || GameManager.Instance.current != GamePhase.Gameplay)
+            return;
+
+        // Destroy edilmiş Unity objesi "== null" döner (fake null)
+        if (playerMovement == null || !playerMovement || !playerMovement.isActiveAndEnabled)
+            return;
+
         var touches = ETouch.Touch.activeTouches;
         if (touches.Count == 0 && _activeFinger == null) return;
 
@@ -122,6 +135,8 @@ public class TouchManager : MonoBehaviour
 
     void HandleDoubleTap(Vector2 upPos)
     {
+        if (!playerMovement) return;
+        
         var now = Time.unscaledTime;
         float dt = now - _lastTapTime;
         bool closeInTime = dt <= doubleTapDuration;
@@ -141,6 +156,8 @@ public class TouchManager : MonoBehaviour
 
     void HandleSwipe(Vector2 currentPos)
     {
+        if (!playerMovement) return;
+
         var total = currentPos - _startPos;
         if (total.magnitude < swipeThresholdPx) return;
 

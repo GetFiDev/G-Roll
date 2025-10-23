@@ -213,10 +213,12 @@ public class PlayerMovement : MonoBehaviour
         );
     }
 
+    private bool IsAlive() => this != null && isActiveAndEnabled;
+
     private void SetDirection(Vector3 dir)
     {
         EnsureFirstMoveNotified();
-        if (_isFrozen) return;
+        if (!IsAlive() || _isFrozen) return;
         if (dir.sqrMagnitude < 0.0001f) return;
         _movementDirection = new Vector3(dir.x, 0f, dir.z).normalized;
         StartTurnBoost();
@@ -225,13 +227,14 @@ public class PlayerMovement : MonoBehaviour
     private void ChangeDirection(SwipeDirection swipeDirection)
     {
         EnsureFirstMoveNotified();
-        if (_isFrozen) return;
+        if (!IsAlive() || _isFrozen) return;
         _movementDirection = SwipeToWorld(swipeDirection);
         StartTurnBoost();
     }
 
     private void StartTurnBoost()
     {
+        if (!IsAlive() || _isFrozen) return;
         if (_turnBoostRoutine != null)
             StopCoroutine(_turnBoostRoutine);
         _turnBoostRoutine = StartCoroutine(TurnBoostUntilAligned());
@@ -264,6 +267,7 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     public void RequestTeleport(Transform exitTransform, Transform entryCenter, Vector3 preservedEntryForward)
     {
+        if (!IsAlive() || _isFrozen) return;
         if (exitTransform == null || entryCenter == null) return;
         if (teleportInProgress) return;
         _preservedEntryForward = preservedEntryForward;
@@ -396,10 +400,39 @@ public class PlayerMovement : MonoBehaviour
         _teleportSeq = null;
     }
 
+    private void OnDisable()
+    {
+        // Stop any running Unity coroutines and scheduled invokes
+        StopAllCoroutines();
+        CancelInvoke();
+
+        // Kill active tweens safely (do not complete)
+        if (_jumpTween != null && _jumpTween.IsActive()) { _jumpTween.Kill(false); _jumpTween = null; }
+        if (_knockbackTween != null && _knockbackTween.IsActive()) { _knockbackTween.Kill(false); _knockbackTween = null; }
+        if (_teleportSeq != null && _teleportSeq.IsActive()) { _teleportSeq.Kill(false); _teleportSeq = null; }
+
+        _turnBoostRoutine = null;
+        _wallHitCo = null;
+    }
+
+    private void OnDestroy()
+    {
+        // Mirror OnDisable for safety in case of destroy directly
+        StopAllCoroutines();
+        CancelInvoke();
+
+        if (_jumpTween != null && _jumpTween.IsActive()) { _jumpTween.Kill(false); _jumpTween = null; }
+        if (_knockbackTween != null && _knockbackTween.IsActive()) { _knockbackTween.Kill(false); _knockbackTween = null; }
+        if (_teleportSeq != null && _teleportSeq.IsActive()) { _teleportSeq.Kill(false); _teleportSeq = null; }
+
+        _turnBoostRoutine = null;
+        _wallHitCo = null;
+    }
+
     public void Jump(float jumpHeight)
     {
         EnsureFirstMoveNotified();
-        if (_isFrozen) return;
+        if (!IsAlive() || _isFrozen) return;
         if (_jumpTween != null && _jumpTween.IsActive()) return;
 
         IsJumping = true;
@@ -455,7 +488,7 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     public void JumpCustom(float jumpHeight, float airTimeMultiplier = 1.15f, float scaleMultiplier = 1.35f)
     {
-        if (_isFrozen) return;
+        if (!IsAlive() || _isFrozen) return;
 
         // Custom jump her zaman mevcut zıplamayı iptal edip yeni tween başlatır
         if (_jumpTween != null && _jumpTween.IsActive()) { _jumpTween.Kill(false); _jumpTween = null; }
@@ -629,12 +662,14 @@ public class PlayerMovement : MonoBehaviour
     private void HandleSwipe(SwipeDirection dir)
     {
         EnsureFirstMoveNotified();
+        if (!IsAlive() || _isFrozen) return;
         ChangeDirection(dir);
     }
 
     private void HandleDoubleTap()
     {
         EnsureFirstMoveNotified();
+        if (!IsAlive() || _isFrozen) return;
         Jump(doubleTapJumpForce);
     }
 
