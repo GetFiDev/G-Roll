@@ -1,0 +1,108 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using UnityEngine;
+
+public class ShopItemManager : MonoBehaviour
+{
+    [Header("Item Prefab")]
+    [SerializeField] private UIShopItemDisplay itemPrefab;
+
+    [Header("Tab Roots (assign in Inspector)")]
+    [SerializeField] private Transform referralRoot;
+    [SerializeField] private Transform coreRoot;
+    [SerializeField] private Transform premiumRoot;
+    [SerializeField] private Transform bullMarketRoot;
+
+    private readonly List<GameObject> _spawned = new();
+
+    private async void OnEnable()
+    {
+        await RefreshShopAsync();
+    }
+
+    public async Task RefreshShopAsync()
+    {
+        if (itemPrefab == null)
+        {
+            Debug.LogWarning("[ShopItemManager] itemPrefab not assigned.");
+            return;
+        }
+
+        // Repo hazır değilse initialize et
+        if (!ItemDatabaseManager.IsReady)
+            await ItemDatabaseManager.InitializeAsync();
+
+        ClearSpawned();
+
+        foreach (var item in ItemDatabaseManager.GetAllItems())
+        {
+            var cat = DetermineCategory(item);
+
+            Transform parent = GetParentFor(cat);
+            if (parent == null)
+            {
+                Debug.LogWarning($"[ShopItemManager] No root for category {cat}");
+                continue;
+            }
+
+            var inst = Instantiate(itemPrefab, parent);
+            inst.Setup(item, cat);
+            _spawned.Add(inst.gameObject);
+        }
+
+        Debug.Log($"[ShopItemManager] Spawned: {_spawned.Count}");
+    }
+
+    private Transform GetParentFor(ShopCategory cat)
+    {
+        switch (cat)
+        {
+            case ShopCategory.Referral:   return referralRoot;
+            case ShopCategory.Core:       return coreRoot;
+            case ShopCategory.Premium:    return premiumRoot;
+            case ShopCategory.BullMarket: return bullMarketRoot;
+        }
+        return null;
+    }
+
+    private void ClearSpawned()
+    {
+        for (int i = 0; i < _spawned.Count; i++)
+        {
+            if (_spawned[i] != null)
+                Destroy(_spawned[i]);
+        }
+        _spawned.Clear();
+    }
+
+    /// <summary>
+    /// Kurallar (öncelik sırası):
+    /// 1) Referral: referralThreshold > 0
+    /// 2) BullMarket: isConsumable == true && referralThreshold == 0
+    /// 3) Premium: dollarPrice > 0 && getPrice == 0 && referralThreshold == 0 && isConsumable == false && isRewardedAd == false
+    /// 4) Core: getPrice > 0 && dollarPrice == 0 && referralThreshold == 0 && isConsumable == false && isRewardedAd == false
+    /// (Hiçbirine uymuyorsa logla ve Core'a at.)
+    /// </summary>
+    private ShopCategory DetermineCategory(ItemDatabaseManager.ReadableItemData d)
+    {
+        // 1) Referral
+        if (d.referralThreshold > 0)
+            return ShopCategory.Referral;
+
+        // 2) BullMarket (tüketilebilir, 0 referral)
+        if (d.isConsumable && d.referralThreshold == 0)
+            return ShopCategory.BullMarket;
+
+        // 3) Premium (real money only)
+        if (d.dollarPrice > 0 && d.getPrice <= 0 && d.referralThreshold == 0 && !d.isConsumable && !d.isRewardedAd)
+            return ShopCategory.Premium;
+
+        // 4) Core (in-game currency only)
+        if (d.getPrice > 0 && d.dollarPrice <= 0 && d.referralThreshold == 0 && !d.isConsumable && !d.isRewardedAd)
+            return ShopCategory.Core;
+
+        // Uymayanları uyar ve Core'a düşür (ya da skip etmeyi tercih edebilirsin)
+        Debug.LogWarning($"[ShopItemManager] Item '{d.id}' no strict category matched. Fallback -> Core.");
+        return ShopCategory.Core;
+    }
+}

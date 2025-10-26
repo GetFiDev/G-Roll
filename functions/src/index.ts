@@ -1035,3 +1035,32 @@ export const requestSession = onCall(async (req) => {
   console.log("requestSession returning", resp);
   return resp;
 });
+
+// ========================= getAllItems =========================
+// /appdata/items/... altındaki tüm itemları JSON string olarak döndürür.
+export const getAllItems = onCall(async (request) => {
+  try {
+    const itemsCol = db.collection("appdata").doc("items");
+    const itemsSnap = await itemsCol.listCollections();
+
+    const out: Record<string, any> = {};
+
+    for (const subCol of itemsSnap) {
+      const docSnap = await subCol.doc("itemdata").get();
+      if (!docSnap.exists) continue;
+      out[subCol.id] = docSnap.data();
+    }
+
+    return {
+      ok: true,
+      items: out,
+      count: Object.keys(out).length,
+    };
+  } catch (err) {
+    console.error("[getAllItems] error", err);
+    return {
+      ok: false,
+      error: (err as Error).message || "unknown",
+    };
+  }
+});

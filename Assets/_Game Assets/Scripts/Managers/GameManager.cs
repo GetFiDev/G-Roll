@@ -36,6 +36,7 @@ public class GameManager : MonoBehaviour
     {
         // Boot tamamlanınca Meta’ya geç.
         SetPhase(GamePhase.Meta);
+        StartCoroutine(FetchAndDebugItems());
     }
 
     private void OnRequestStartGameplay()
@@ -111,6 +112,15 @@ public class GameManager : MonoBehaviour
         {
             // yeterli enerji yok
             if (sessionGate) yield return sessionGate.ShowInsufficientToast();
+        }
+    }
+    private System.Collections.IEnumerator FetchAndDebugItems()
+    {
+        var initTask = ItemDatabaseManager.InitializeAsync();
+        while (!initTask.IsCompleted) yield return null;
+        foreach (var item in ItemDatabaseManager.GetAllItems())
+        {
+            Debug.Log(item);
         }
     }
 }
