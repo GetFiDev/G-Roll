@@ -530,6 +530,7 @@ GameObject:
   - component: {fileID: 515607532}
   - component: {fileID: 515607533}
   - component: {fileID: 515607534}
+  - component: {fileID: 515607535}
   m_Layer: 0
   m_Name: RemoteAppDataService
   m_TagString: Untagged
@@ -580,6 +581,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 50b1d1db6a912449a9fec135ead62ac2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &515607535
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515607530}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 13c46e81f40d644dd84a94316dfbfc0c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  itemName: bnbraider
+  itemDescription: item description demo
+  itemIconUrl: https://cdn-icons-png.freepik.com/256/4957/4957671.png
+  itemDollarPrice: 0
+  itemGetPrice: 0.05
+  itemReferralThreshold: 1
+  itemIsConsumable: 0
+  itemIsRewardedAd: 0
+  itemstat_coinMultiplierPercent: 0
+  itemstat_comboPower: 0
+  itemstat_gameplaySpeedMultiplierPercent: 0
+  itemstat_magnetPowerPercent: 0
+  itemstat_playerAcceleration: 0
+  itemstat_playerSizePercent: 0
+  itemstat_playerSpeed: 0
 --- !u!114 &549524367 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 4367092869191452057, guid: d30f68de9f937c641a97bc7163100b6c,

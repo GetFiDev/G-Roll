@@ -1064,3 +1064,82 @@ export const getAllItems = onCall(async (request) => {
     };
   }
 });
+
+// ========================= createItem =========================
+// Unity Editor'dan (Odin butonuyla) çağırmak için:
+// Callable name: createItem
+// Path: appdata/items/{itemId}/itemdata  (itemId = "item_" + slug(itemName))
+export const createItem = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const p = (req.data as Record<string, any>) || {};
+
+  // ---- helper'lar
+  const num = (v: any, def = 0) =>
+    Number.isFinite(Number(v)) ? Number(v) : def;
+  const str = (v: any, def = "") =>
+    typeof v === "string" ? v : def;
+  const bool = (v: any, def = false) =>
+    typeof v === "boolean" ? v : !!def;
+
+  const itemName = str(p.itemName, "itemname (demo)").trim();
+  // "item_<slug>"
+  const slug = itemName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const baseId = `item_${slug || "noname"}`;
+
+  // yazılacak veri (tüm alanlar)
+  const docData = {
+    itemDescription: str(p.itemDescription, "item description demo"),
+    itemDollarPrice: num(p.itemDollarPrice, 0),
+    itemGetPrice: num(p.itemGetPrice, 0.05),
+    itemIconUrl: str(
+      p.itemIconUrl,
+      "https://cdn-icons-png.freepik.com/256/4957/4957671.png"
+    ),
+    itemIsConsumable: bool(p.itemIsConsumable, false),
+    itemIsRewardedAd: bool(p.itemIsRewardedAd, false),
+    itemName,
+    itemReferralThreshold: num(p.itemReferralThreshold, 0),
+
+    itemstat_coinMultiplierPercent: num(p.itemstat_coinMultiplierPercent, 0),
+    itemstat_comboPower: num(p.itemstat_comboPower, 0),
+    itemstat_gameplaySpeedMultiplierPercent: num(
+      p.itemstat_gameplaySpeedMultiplierPercent,
+      0
+    ),
+    itemstat_magnetPowerPercent: num(p.itemstat_magnetPowerPercent, 0),
+    itemstat_playerAcceleration: num(p.itemstat_playerAcceleration, 0),
+    itemstat_playerSizePercent: num(p.itemstat_playerSizePercent, 0),
+    itemstat_playerSpeed: num(p.itemstat_playerSpeed, 0),
+
+    createdAt: Timestamp.now(),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdBy: uid,
+  };
+
+  // Aynı isim varsa çakışmayı çöz: baseId, sonra kısa random ekle
+  let itemId = baseId;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const ref = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
+    const snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set(docData, {merge: false});
+      return {
+        ok: true,
+        itemId,
+        path: `appdata/items/${itemId}/itemdata`,
+      };
+    }
+    // çakıştı; yeni bir ek kuyruk dene
+    itemId = `${baseId}_${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  throw new HttpsError(
+    "aborted",
+    "Could not allocate a unique itemId after several attempts."
+  );
+});
