@@ -479,7 +479,7 @@ public class UserDatabaseManager : MonoBehaviour
         catch (Exception e) { EmitLog("❌ GetReferralKeyAsync error: " + e.Message); }
         return "-";
     }
-    
+
     // Örnek: users/{userId}/profile/stats  veya users/{userId} içinde "statsJson" alanı gibi
     public async Task<string> FetchPlayerStatsJsonAsync(string userId)
     {

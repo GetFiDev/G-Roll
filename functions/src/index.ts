@@ -478,6 +478,33 @@ async function lazyRegenInTx(
   return {cur, max, period, nextAt};
 }
 
+// -------- getEnergySnapshot (callable, preferred by clients) --------
+export const getEnergySnapshot = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+
+  const st = await db.runTransaction(async (tx) => {
+    return await lazyRegenInTx(tx, userRef, now);
+  });
+
+  const nextMs = st.cur < st.max
+    ? st.nextAt ? st.nextAt.toMillis() : (Timestamp.fromMillis(
+        now.toMillis() + st.period * 1000
+      ).toMillis())
+    : null;
+
+  return {
+    ok: true,
+    energyCurrent: st.cur,
+    energyMax: st.max,
+    regenPeriodSec: st.period,
+    nextEnergyAtMillis: nextMs,
+  };
+});
+
 // -------- getEnergyStatus (callable) --------
 export const getEnergyStatus = onCall(async (req) => {
   const uid = req.auth?.uid;
@@ -490,11 +517,12 @@ export const getEnergyStatus = onCall(async (req) => {
   });
 
   return {
-    ok:true,
+    ok: true,
     energyCurrent: st.cur,
     energyMax: st.max,
     regenPeriodSec: st.period,
     nextEnergyAt: st.nextAt ? st.nextAt.toDate().toISOString() : null,
+    nextEnergyAtMillis: st.nextAt ? st.nextAt.toMillis() : null,
   };
 });
 
