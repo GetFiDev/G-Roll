@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using Firebase.Storage;
 
 public enum ShopCategory
 {
@@ -22,7 +23,6 @@ public class UIShopItemDisplay : MonoBehaviour
     [SerializeField] private TMP_Text nameText;
     [SerializeField] private TMP_Text descriptionText;
     [SerializeField] private TMP_Text priceText;
-    [SerializeField] private TMP_Text categoryText;
 
     [Header("Stat Chips")]
     [SerializeField] private Transform statChipsRoot;
@@ -37,25 +37,45 @@ public class UIShopItemDisplay : MonoBehaviour
     [SerializeField] private Sprite iconPlayerSizePercent;
     [SerializeField] private Sprite iconPlayerSpeed;
 
+    [SerializeField] private bool setNativeSizeOnLoad = false;
+
+    private Coroutine _blinkCoroutine;
+
     public ItemDatabaseManager.ReadableItemData Data { get; private set; }
     public ShopCategory Category { get; private set; }
 
     public void Setup(ItemDatabaseManager.ReadableItemData data, ShopCategory category)
     {
+        Debug.Log($"[UIShopItemDisplay] Setup called | goActive={gameObject.activeInHierarchy} enabled={enabled} name={data?.name ?? "<null>"}");
+
         Data = data;
         Category = category;
+
+        if (_blinkCoroutine != null)
+        {
+            StopCoroutine(_blinkCoroutine);
+            _blinkCoroutine = null;
+        }
 
         // ---- Header ----
         nameText.text = data?.name ?? "Unnamed";
         descriptionText.text = data?.description ?? "";
 
-        // Icon (remote)
-        iconImage.sprite = null;
-        if (!string.IsNullOrEmpty(data?.iconUrl))
-            StartCoroutine(LoadIcon(data.iconUrl));
+        // Icon
+        if (data?.iconSprite != null)
+        {
+            iconImage.sprite = data.iconSprite;
+            var col = iconImage.color;
+            col.a = 1f;
+            iconImage.color = col;
+        }
+        else
+        {
+            iconImage.sprite = null;
+            _blinkCoroutine = StartCoroutine(BlinkWhileNoIcon());
+        }
 
         // ---- Price / Category Badge ----
-        categoryText.text = Category.ToString();
         priceText.text = BuildPriceLabel(data, category);
 
         // ---- Stat Chips ----
@@ -128,28 +148,50 @@ public class UIShopItemDisplay : MonoBehaviour
         if (statChipPrefab == null || statChipsRoot == null) return;
 
         var go = Instantiate(statChipPrefab, statChipsRoot);
-        var img = go.GetComponentInChildren<Image>();
-        var tmp = go.GetComponentInChildren<TMP_Text>();
+
+        var imgs = go.GetComponentsInChildren<Image>(true);
+        Image img = null;
+        foreach (var i in imgs)
+        {
+            if (i.gameObject != go)
+            {
+                img = i;
+                break;
+            }
+        }
+
+        var tmps = go.GetComponentsInChildren<TMP_Text>(true);
+        TMP_Text tmp = null;
+        foreach (var t in tmps)
+        {
+            if (t.gameObject != go)
+            {
+                tmp = t;
+                break;
+            }
+        }
 
         if (img != null) img.sprite = icon;
         if (tmp != null) tmp.text = text;
     }
 
-    private IEnumerator LoadIcon(string url)
+    private IEnumerator BlinkWhileNoIcon()
     {
-        using (var req = UnityEngine.Networking.UnityWebRequestTexture.GetTexture(url))
+        const float speed = 2.5f;
+        while (iconImage.sprite == null)
         {
-            yield return req.SendWebRequest();
-            if (req.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+            if (iconImage != null)
             {
-                var tex = UnityEngine.Networking.DownloadHandlerTexture.GetContent(req);
-                iconImage.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                float alpha = Mathf.Lerp(0.3f, 0.7f, Mathf.PingPong(Time.unscaledTime * speed, 1f));
+                var col = iconImage.color; col.a = alpha; iconImage.color = col;
             }
-            else
-            {
-                Debug.LogWarning($"[UIShopItemDisplay] Icon load failed: {url}");
-            }
+            yield return null;
         }
+        if (iconImage != null)
+        {
+            var finalCol = iconImage.color; finalCol.a = 1f; iconImage.color = finalCol;
+        }
+        _blinkCoroutine = null;
     }
 
     private void Clear(Transform root)

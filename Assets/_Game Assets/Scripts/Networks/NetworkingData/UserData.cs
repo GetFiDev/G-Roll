@@ -18,6 +18,12 @@ namespace NetworkingData
         [FirestoreProperty] public string referralKey { get; set; } = ""; // string
         [FirestoreProperty] public int referrals { get; set; } = 0;  //  int
 
+        // Energy system (added to match Firestore document)
+        [FirestoreProperty] public int energyCurrent { get; set; } = 0;          // current energy
+        [FirestoreProperty] public int energyMax { get; set; } = 6;              // max energy
+        [FirestoreProperty] public int energyRegenPeriodSec { get; set; } = 14400; // 4 hours in seconds
+        [FirestoreProperty, ServerTimestamp] public Timestamp energyUpdatedAt { get; set; } // last server update
+
 
         [FirestoreProperty] public bool hasElitePass { get; set; } = false;
 

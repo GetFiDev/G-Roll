@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Firebase;
 using Firebase.Functions;
 using UnityEngine;
+using UnityEngine.Networking;
 
 public static class RemoteItemService
 {
@@ -26,6 +27,7 @@ public static class RemoteItemService
         public double itemstat_playerAcceleration;
         public double itemstat_playerSizePercent;
         public double itemstat_playerSpeed;
+        public Sprite iconSprite;
     }
 
     private static FirebaseFunctions Fn => FirebaseFunctions.GetInstance(FirebaseApp.DefaultInstance, "us-central1");
@@ -76,6 +78,53 @@ public static class RemoteItemService
         return dict;
     }
 
+    public static async Task<Dictionary<string, ItemData>> FetchAllItemsWithIconsAsync()
+    {
+        var items = await FetchAllItemsAsync();
+        foreach (var kvp in items)
+        {
+            var item = kvp.Value;
+            if (!string.IsNullOrEmpty(item.itemIconUrl) && (item.itemIconUrl.StartsWith("http://") || item.itemIconUrl.StartsWith("https://")))
+            {
+                var texture = await DownloadTextureAsync(item.itemIconUrl);
+                if (texture != null)
+                {
+                    item.iconSprite = CreateSprite(texture);
+                }
+            }
+        }
+        return items;
+    }
+
+    private static async Task<Texture2D> DownloadTextureAsync(string url)
+    {
+        using (UnityWebRequest uwr = UnityWebRequestTexture.GetTexture(url))
+        {
+            var op = uwr.SendWebRequest();
+            while (!op.isDone)
+                await Task.Yield();
+
+#if UNITY_2020_1_OR_NEWER
+            if (uwr.result != UnityWebRequest.Result.Success)
+#else
+            if (uwr.isNetworkError || uwr.isHttpError)
+#endif
+            {
+                Debug.LogWarning($"[RemoteItemService] Failed to download texture from {url}: {uwr.error}");
+                return null;
+            }
+            else
+            {
+                return DownloadHandlerTexture.GetContent(uwr);
+            }
+        }
+    }
+
+    private static Sprite CreateSprite(Texture2D tex)
+    {
+        if (tex == null) return null;
+        return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+    }
 
     private static Dictionary<string, object> NormalizeToStringKeyDict(object dataObj)
     {

@@ -26,7 +26,7 @@ public static class ItemDatabaseManager
         // 2) Remote (best-effort)
         try
         {
-            var fetched = await RemoteItemService.FetchAllItemsAsync();
+            var fetched = await RemoteItemService.FetchAllItemsWithIconsAsync();
             if (fetched != null && fetched.Count > 0)
             {
                 _items = fetched;
@@ -108,6 +108,7 @@ public static class ItemDatabaseManager
         public string name;
         public string description;
         public string iconUrl;
+        public Sprite iconSprite;
 
         public double dollarPrice;
         public double getPrice;
@@ -149,6 +150,7 @@ public static class ItemDatabaseManager
             name = src.itemName ?? string.Empty,
             description = src.itemDescription ?? string.Empty,
             iconUrl = src.itemIconUrl ?? string.Empty,
+            iconSprite = src.iconSprite,
 
             dollarPrice = src.itemDollarPrice,
             getPrice = src.itemGetPrice,
