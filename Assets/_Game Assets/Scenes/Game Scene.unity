@@ -257,6 +257,7 @@ GameObject:
   - component: {fileID: 109920474}
   - component: {fileID: 109920476}
   - component: {fileID: 109920477}
+  - component: {fileID: 109920478}
   m_Layer: 0
   m_Name: UserDatabaseManager
   m_TagString: Untagged
@@ -362,6 +363,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   userDB: {fileID: 109920471}
+--- !u!114 &109920478
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 109920470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ea5dd6d99dbe491d936b02fcef5cd16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &354428686 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5704399374178871830, guid: d30f68de9f937c641a97bc7163100b6c,

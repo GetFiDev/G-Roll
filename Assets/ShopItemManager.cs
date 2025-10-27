@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using System.Linq;
 
 public class ShopItemManager : MonoBehaviour
 {
@@ -34,21 +35,38 @@ public class ShopItemManager : MonoBehaviour
 
         ClearSpawned();
 
-        foreach (var item in ItemDatabaseManager.GetAllItems())
-        {
-            var cat = DetermineCategory(item);
+        var allItems = ItemDatabaseManager.GetAllItems().ToList();
 
-            Transform parent = GetParentFor(cat);
-            if (parent == null)
-            {
-                Debug.LogWarning($"[ShopItemManager] No root for category {cat}");
-                continue;
-            }
+        // --- REFERRAL --- (min referral -> max)
+        var referralItems = allItems
+            .Where(i => DetermineCategory(i) == ShopCategory.Referral)
+            .OrderBy(i => i.referralThreshold)
+            .ToList();
+        SpawnList(referralItems, ShopCategory.Referral);
 
-            var inst = Instantiate(itemPrefab, parent);
-            inst.Setup(item, cat);
-            _spawned.Add(inst.gameObject);
-        }
+        // --- CORE --- (cheapest getPrice -> expensive)
+        var coreItems = allItems
+            .Where(i => DetermineCategory(i) == ShopCategory.Core)
+            .OrderBy(i => i.getPrice)
+            .ToList();
+        SpawnList(coreItems, ShopCategory.Core);
+
+        // --- PREMIUM --- (cheapest dollarPrice -> expensive)
+        var premiumItems = allItems
+            .Where(i => DetermineCategory(i) == ShopCategory.Premium)
+            .OrderBy(i => i.dollarPrice)
+            .ToList();
+        SpawnList(premiumItems, ShopCategory.Premium);
+
+        // --- BULL MARKET --- (RewardedAd first -> GetPrice asc -> DollarPrice asc)
+        var bullAll = allItems.Where(i => DetermineCategory(i) == ShopCategory.BullMarket).ToList();
+        var bullRewarded = bullAll.Where(i => i.isRewardedAd).ToList();
+        var bullInGame   = bullAll.Where(i => !i.isRewardedAd && i.getPrice > 0 && i.dollarPrice <= 0)
+                                  .OrderBy(i => i.getPrice).ToList();
+        var bullDollar   = bullAll.Where(i => !i.isRewardedAd && i.dollarPrice > 0)
+                                  .OrderBy(i => i.dollarPrice).ToList();
+        var bullItemsOrdered = bullRewarded.Concat(bullInGame).Concat(bullDollar).ToList();
+        SpawnList(bullItemsOrdered, ShopCategory.BullMarket);
 
         Debug.Log($"[ShopItemManager] Spawned: {_spawned.Count}");
     }
@@ -104,5 +122,20 @@ public class ShopItemManager : MonoBehaviour
         // Uymayanları uyar ve Core'a düşür (ya da skip etmeyi tercih edebilirsin)
         Debug.LogWarning($"[ShopItemManager] Item '{d.id}' no strict category matched. Fallback -> Core.");
         return ShopCategory.Core;
+    }
+    private void SpawnList(List<ItemDatabaseManager.ReadableItemData> list, ShopCategory cat)
+    {
+        var parent = GetParentFor(cat);
+        if (parent == null) {
+            Debug.LogWarning($"[ShopItemManager] No root for category {cat}");
+            return;
+        }
+        foreach (var item in list)
+        {
+            var inst = Instantiate(itemPrefab, parent);
+            if (!inst.gameObject.activeSelf) inst.gameObject.SetActive(true);
+            StartCoroutine(inst.Setup(item, cat));
+            _spawned.Add(inst.gameObject);
+        }
     }
 }

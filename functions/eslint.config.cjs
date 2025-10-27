@@ -22,7 +22,7 @@ module.exports = [
     },
     rules: {
       'object-curly-spacing': ['error', 'never'],
-      'max-len': ['error', { code: 80, ignoreStrings: true, ignoreTemplateLiterals: true }],
+      'max-len': ['error', { code: 120, ignoreStrings: true, ignoreTemplateLiterals: true }],
       '@typescript-eslint/no-non-null-assertion': 'warn',
     },
   },

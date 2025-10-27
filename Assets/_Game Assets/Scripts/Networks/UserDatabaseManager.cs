@@ -10,6 +10,7 @@ using NetworkingData;
 
 public class UserDatabaseManager : MonoBehaviour
 {
+    public static UserDatabaseManager Instance { get; private set; }
     // --- Log & Durum Event'leri ---
     public event Action<string> OnLog;
     public event Action OnRegisterSucceeded;
@@ -47,7 +48,16 @@ public class UserDatabaseManager : MonoBehaviour
     }
 
     [Sirenix.OdinInspector.ReadOnly] public string currentLoggedUserID;
-
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject); // İstersen kaldır
+    }
     void Start() => InitializeFirebase();
 
     private void InitializeFirebase()
@@ -520,4 +530,46 @@ public class UserDatabaseManager : MonoBehaviour
             return string.Empty;
         }
     }
+    /// <summary>
+    /// Fetches the current user's referral count from Firestore.
+    /// Returns 0 if not logged in, on error, or if the field is missing.
+    /// </summary>
+    public async Task<int> GetReferralCountAsync()
+    {
+        if (currentUser == null)
+        {
+            EmitLog("❌ GetReferralCountAsync: No Login");
+            return 0;
+        }
+        try
+        {
+            var snap = await UserDoc().GetSnapshotAsync();
+            if (!snap.Exists)
+            {
+                EmitLog("⚠️ GetReferralCountAsync: user doc not found");
+                return 0;
+            }
+
+            if (snap.TryGetValue("referrals", out object val))
+            {
+                // Try to convert to int
+                if (val is int i) return i;
+                if (val is long l) return (int)l;
+                if (val is double d) return (int)d;
+                if (val is float f) return (int)f;
+                if (val is string s && int.TryParse(s, out var parsed)) return parsed;
+                EmitLog($"ℹ️ GetReferralCountAsync: 'referrals' field type unexpected ({val?.GetType()})");
+            }
+            else
+            {
+                EmitLog("ℹ️ GetReferralCountAsync: 'referrals' field not set, returning 0");
+            }
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ GetReferralCountAsync error: " + e.Message);
+        }
+        return 0;
+    }
 }
+

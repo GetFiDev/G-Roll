@@ -1143,3 +1143,211 @@ export const createItem = onCall(async (req) => {
     "Could not allocate a unique itemId after several attempts."
   );
 });
+
+// ========================= Inventory System =========================
+export const getInventorySnapshot = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const userRef = db.collection("users").doc(uid);
+  const invCol = userRef.collection("inventory");
+  const loadRef = userRef.collection("loadout").doc("current");
+  const [invSnap, loadSnap] = await Promise.all([
+    invCol.get(),
+    loadRef.get()
+  ]);
+  const inventory: Record<string, any> = {};
+  invSnap.forEach((d) => (inventory[d.id] = d.data()));
+  const equippedItemIds: string[] = loadSnap.exists ? loadSnap.get("equippedItemIds") || [] : [];
+  return {ok: true, inventory, equippedItemIds};
+});
+
+// ---------------- purchaseItem ----------------
+export const purchaseItem = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  // method: "GET" | "IAP" | "AD"
+  const {itemId, method} = (req.data || {}) as {
+    itemId?: string;
+    method?: string;
+    // IAP extras (optional):
+    platform?: string; // "ios" | "android" | etc.
+    receipt?: string;  // base64 / json
+    orderId?: string;  // provider order id (anti-replay)
+    // AD extras:
+    adToken?: string;  // unique grant token (anti-replay)
+  };
+
+  if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
+  const m = String(method || "").toUpperCase();
+  if (!["GET", "IAP", "AD"].includes(m)) {
+    throw new HttpsError("invalid-argument", "Invalid method. Use GET | IAP | AD.");
+  }
+
+  const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+
+  // helpers (local to this scope)
+  const verifyIapReceipt = async (platform?: string, receipt?: string, orderId?: string) => {
+    // TODO: Integrate with App Store / Play Billing server-side validation.
+    // For now, accept non-empty payload and prevent replay by orderId locking.
+    if (!platform || !receipt || !orderId) {
+      throw new HttpsError("invalid-argument", "platform, receipt and orderId are required for IAP.");
+    }
+    const lockRef = userRef.collection("iapReceipts").doc(orderId);
+    const existing = await lockRef.get();
+    if (existing.exists) {
+      throw new HttpsError("already-exists", "This purchase receipt was already processed.");
+    }
+    // Mark as consumed (will be committed in outer transaction as well if needed)
+    await lockRef.set({usedAt: now, platform, previewHash: String(receipt).slice(0, 32)}, {merge: true});
+    return true;
+  };
+
+  const verifyAdGrant = async (adToken?: string) => {
+    if (!adToken) throw new HttpsError("invalid-argument", "adToken required for AD method.");
+    const grantRef = userRef.collection("adGrants").doc(adToken);
+    const g = await grantRef.get();
+    if (g.exists) {
+      throw new HttpsError("already-exists", "This ad grant token was already used.");
+    }
+    await grantRef.set({usedAt: now});
+    return true;
+  };
+
+  return await db.runTransaction(async (tx) => {
+    const [itemSnap, userSnap] = await Promise.all([
+      tx.get(itemRef),
+      tx.get(userRef),
+    ]);
+
+    if (!itemSnap.exists) throw new HttpsError("not-found", "Item not found.");
+    const item = itemSnap.data() || {};
+
+    const isReferralOnly = Number(item.itemReferralThreshold ?? 0) > 0;
+    if (isReferralOnly) {
+      throw new HttpsError("failed-precondition", "Referral-only item cannot be purchased.");
+    }
+
+    const isConsumable = !!item.itemIsConsumable;
+    const priceGet = Number(item.itemGetPrice ?? 0) || 0;      // in-game currency
+    const priceUsd = Number(item.itemDollarPrice ?? 0) || 0;   // real money price hint
+    const isAd = !!item.itemIsRewardedAd;
+
+    // Validate method vs item flags
+    if (m === "GET" && priceGet <= 0) {
+      throw new HttpsError("failed-precondition", "This item is not purchasable with game currency.");
+    }
+    if (m === "IAP" && priceUsd <= 0) {
+      throw new HttpsError("failed-precondition", "This item is not an IAP item.");
+    }
+    if (m === "AD" && !isAd) {
+      throw new HttpsError("failed-precondition", "This item is not ad-reward purchasable.");
+    }
+
+    // Ownership check (non-consumables cannot be purchased twice)
+    const invRef = userRef.collection("inventory").doc(itemId);
+    const invSnap = await tx.get(invRef);
+    const alreadyOwned = invSnap.exists && !!invSnap.get("owned");
+    if (alreadyOwned && !isConsumable) {
+      throw new HttpsError("failed-precondition", "Already owned.");
+    }
+
+    // Charge / verify depending on method
+    let newBalance = Number(userSnap.get("currency") ?? 0) || 0;
+    if (m === "GET") {
+      if (newBalance < priceGet) {
+        throw new HttpsError("failed-precondition", "Not enough currency.");
+      }
+      newBalance -= priceGet;
+      tx.update(userRef, {currency: newBalance, updatedAt: FieldValue.serverTimestamp()});
+    } else if (m === "IAP") {
+      // Run verification outside of transaction (network calls)
+      tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    } else if (m === "AD") {
+      // Mark ad token usage to prevent replay; will also exist outside txn
+      tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    }
+
+    // Upsert inventory
+    const nextQty = isConsumable ? (Number(invSnap.get("quantity") ?? 0) + 1) : 0;
+    const invData: any = {
+      owned: true,
+      equipped: invSnap.get("equipped") === true, // preserve equip
+      quantity: nextQty,
+      itemIsConsumable: isConsumable,
+      lastChangedAt: FieldValue.serverTimestamp(),
+      acquiredAt: invSnap.exists ? invSnap.get("acquiredAt") ?? now : now,
+    };
+    tx.set(invRef, invData, {merge: true});
+
+    // Audit trail
+    const logRef = userRef.collection("purchases").doc();
+    tx.set(logRef, {
+      itemId,
+      method: m,
+      priceGet: m === "GET" ? priceGet : 0,
+      priceUsd: m === "IAP" ? priceUsd : 0,
+      isConsumable,
+      at: now,
+    });
+
+    return {ok: true, itemId, owned: true, currencyLeft: newBalance};
+  }).then(async (res) => {
+    // Post-transaction external checks (IAP/AD anti-replay) — outside tx to avoid network in txn
+    if (String(method || "").toUpperCase() === "IAP") {
+      const {platform, receipt, orderId} = (req.data || {}) as any;
+      await verifyIapReceipt(platform, receipt, orderId);
+    } else if (String(method || "").toUpperCase() === "AD") {
+      const {adToken} = (req.data || {}) as any;
+      await verifyAdGrant(adToken);
+    }
+    return res;
+  });
+});
+
+// ---------------- equipItem ----------------
+export const equipItem = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const {itemId} = req.data || {};
+  if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
+  const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
+  const userRef = db.collection("users").doc(uid);
+  const invRef = userRef.collection("inventory").doc(itemId);
+  const loadRef = userRef.collection("loadout").doc("current");
+  await db.runTransaction(async (tx) => {
+    const invSnap = await tx.get(invRef);
+    if (!invSnap.exists || !invSnap.get("owned")) throw new HttpsError("failed-precondition", "Item not owned.");
+    const itemSnap = await tx.get(itemRef);
+    if (!itemSnap.exists) throw new HttpsError("not-found", "Item not found.");
+    const isConsumable = !!itemSnap.get("itemIsConsumable");
+    if (isConsumable) throw new HttpsError("failed-precondition", "Consumables cannot be equipped.");
+    const loadSnap = await tx.get(loadRef);
+    let equipped: string[] = loadSnap.exists ? loadSnap.get("equippedItemIds") || [] : [];
+    if (!equipped.includes(itemId)) equipped.push(itemId);
+    tx.set(loadRef, {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(invRef, {equipped: true, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
+  });
+  return {ok: true, itemId};
+});
+
+// ---------------- unequipItem ----------------
+export const unequipItem = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const {itemId} = req.data || {};
+  if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
+  const userRef = db.collection("users").doc(uid);
+  const invRef = userRef.collection("inventory").doc(itemId);
+  const loadRef = userRef.collection("loadout").doc("current");
+  await db.runTransaction(async (tx) => {
+    const loadSnap = await tx.get(loadRef);
+    let equipped: string[] = loadSnap.exists ? loadSnap.get("equippedItemIds") || [] : [];
+    equipped = equipped.filter((x) => x !== itemId);
+    tx.set(loadRef, {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(invRef, {equipped: false, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
+  });
+  return {ok: true, itemId};
+});

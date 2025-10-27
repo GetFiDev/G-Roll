@@ -16,6 +16,8 @@ public class UIEnergyDisplay : MonoBehaviour
 
     private void OnEnable()
     {
+        // Eğer önceden alınmış bir snap varsa ve nesne yeniden aktif olduysa ticker'ı başlat
+        StartTickerIfNeeded();
         // 1) bir kere çek
         RefreshNow();
     }
@@ -47,6 +49,13 @@ public class UIEnergyDisplay : MonoBehaviour
 
         if (energyText) energyText.text = $"{Mathf.Clamp(snap.current, 0, snap.max)}/{snap.max}";
 
+        StartTickerIfNeeded();
+    }
+
+    private void StartTickerIfNeeded()
+    {
+        if (!isActiveAndEnabled) return;
+        if (!_hasSnap) return;
         if (_tickCo != null) StopCoroutine(_tickCo);
         _tickCo = StartCoroutine(TickCountdown());
     }
