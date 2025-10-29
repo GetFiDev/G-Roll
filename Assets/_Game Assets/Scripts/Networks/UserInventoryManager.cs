@@ -124,37 +124,41 @@ public class UserInventoryManager : MonoBehaviour
         InventoryRemoteService.PurchaseResult result = null;
         try
         {
+            // call server (InventoryRemoteService will uppercase method internally)
             result = await InventoryRemoteService.PurchaseItemAsync(id, method.ToString());
             if (result == null)
             {
                 Debug.LogWarning($"[UserInventoryManager] Null result for purchase {id}");
-                return new InventoryRemoteService.PurchaseResult { ok = false, error = "Null result" };
+                return new InventoryRemoteService.PurchaseResult { ok = false, error = "Null result", itemId = id };
             }
 
             if (result.ok || result.alreadyOwned)
             {
-                // Optimistic local patch if server says alreadyOwned
-                if (result.alreadyOwned)
-                {
-                    if (!_inventory.TryGetValue(id, out var e))
-                        e = new InventoryRemoteService.InventoryEntry();
-                    e.owned = true;
-                    _inventory[id] = e;
-                    OnInventoryChanged?.Invoke(); // reflect immediately in UI
-                }
+                // --- Optimistic local update ---
+                if (!_inventory.TryGetValue(id, out var entry) || entry == null)
+                    entry = new InventoryRemoteService.InventoryEntry();
 
-                await RefreshAsync(); // then sync with server truth
-                Debug.Log($"[UserInventoryManager] Purchase success for {id}");
+                entry.owned = true; // quantity will be reconciled by server in RefreshAsync()
+                _inventory[id] = entry;
+
+                // UI'ya hemen yansıt
+                OnInventoryChanged?.Invoke();
+
+                // --- Server truth ile arkaplanda senkronize et ---
+                _ = RefreshAsync(); // fire-and-forget; UI zaten yukarıda güncellendi
+
+                Debug.Log($"[UserInventoryManager] Purchase success (optimistic) for {id}");
                 return result;
             }
 
+            // Hata: server'dan gelen mesajı yüzeye taşı
             Debug.LogWarning($"[UserInventoryManager] Purchase failed for {id}: {result.error}");
             return result;
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"[UserInventoryManager] TryPurchaseItemAsync exception: {ex.Message}");
-            return new InventoryRemoteService.PurchaseResult { ok = false, error = ex.Message };
+            return new InventoryRemoteService.PurchaseResult { ok = false, error = ex.Message, itemId = id };
         }
     }
 
@@ -177,10 +181,21 @@ public class UserInventoryManager : MonoBehaviour
             return false;
         }
 
-        _equipped = new HashSet<string>(
-            (result.equippedItemIds ?? new List<string>()).Select(IdUtil.NormalizeId),
-            StringComparer.OrdinalIgnoreCase
-        );
+        var equippedList = result.equippedItemIds;
+        if (equippedList != null && equippedList.Count > 0)
+        {
+            _equipped = new HashSet<string>(
+                equippedList.Select(IdUtil.NormalizeId),
+                StringComparer.OrdinalIgnoreCase
+            );
+        }
+        else
+        {
+            // Fallback: some server versions may not return equippedItemIds
+            // Apply optimistic local toggle so UI doesn't blank out
+            _equipped.Add(id);
+            Debug.Log("[UserInventoryManager] EquipAsync: server returned no equipped list; applied local add.");
+        }
         OnInventoryChanged?.Invoke();
         return true;
     }
@@ -200,10 +215,20 @@ public class UserInventoryManager : MonoBehaviour
             return false;
         }
 
-        _equipped = new HashSet<string>(
-            (result.equippedItemIds ?? new List<string>()).Select(IdUtil.NormalizeId),
-            StringComparer.OrdinalIgnoreCase
-        );
+        var equippedList = result.equippedItemIds;
+        if (equippedList != null && equippedList.Count > 0)
+        {
+            _equipped = new HashSet<string>(
+                equippedList.Select(IdUtil.NormalizeId),
+                StringComparer.OrdinalIgnoreCase
+            );
+        }
+        else
+        {
+            // Fallback: some server versions may not return equippedItemIds
+            _equipped.Remove(id);
+            Debug.Log("[UserInventoryManager] UnequipAsync: server returned no equipped list; applied local remove.");
+        }
         OnInventoryChanged?.Invoke();
         return true;
     }

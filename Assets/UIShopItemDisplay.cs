@@ -56,6 +56,11 @@ public class UIShopItemDisplay : MonoBehaviour
     private bool _buyInProgress = false;
     private bool _pendingRefresh; // if true, run refresh on OnEnable
 
+    [Header("Status Feedback")]
+    [SerializeField] private TMP_Text statusLabel;    // (opsiyonel) buton yakınında küçük metin
+    [SerializeField] private float statusDuration = 1.8f; // saniye
+    private Coroutine _statusRoutine;                 // çalışan status coroutine
+
     private void OnEnable()
     {
         if (UserInventoryManager.Instance != null)
@@ -404,14 +409,67 @@ public class UIShopItemDisplay : MonoBehaviour
             return;
         }
 
-        // Referral tabında satın alma yok; eşik sağlanmadıysa kilitli, sağlandıysa zaten sahip/claim sunucuda yapılır.
+        // Referral tabında satın alma yok
         if (Category == ShopCategory.Referral)
         {
             Debug.Log("[UIShopItemDisplay] Referral item cannot be purchased from shop. Unlock via referrals.");
             return;
         }
 
+        var nid = IdUtil.NormalizeId(Data.id);
+        var inv = UserInventoryManager.Instance;
+        if (inv == null) return;
+
+        bool owned = inv.IsOwned(nid);
+        bool equipped = inv.IsEquipped(nid);
+
+        // Eğer zaten sahipsek toggle davranışı uygula
+        if (owned)
+        {
+            // coroutine başlat; equip/unequip asenkron yapılacak
+            StartCoroutine(ToggleEquipRoutine(inv, nid, equipped));
+            return;
+        }
+
+        // Sahip değilse satın alma sürecine devam et
         StartCoroutine(BuyRoutine());
+    }
+    private IEnumerator ToggleEquipRoutine(UserInventoryManager inv, string itemId, bool currentlyEquipped)
+    {
+        _buyInProgress = true;
+        if (buyButton != null) buyButton.interactable = false;
+
+        ShowStatus(currentlyEquipped ? "Unequipping..." : "Equipping...");
+
+        var task = currentlyEquipped ? inv.UnequipAsync(itemId) : inv.EquipAsync(itemId);
+        while (!task.IsCompleted)
+            yield return null;
+
+        if (task.Exception != null)
+        {
+            Debug.LogWarning($"[UIShopItemDisplay] Toggle equip EX: {task.Exception.Message}");
+            ShowStatus("Action failed!");
+            if (buyButton != null) buyButton.interactable = true;
+            _buyInProgress = false;
+            yield break;
+        }
+
+        bool ok = task.Result;
+        if (!ok)
+        {
+            ShowStatus("Action failed!");
+        }
+        else
+        {
+            ShowStatus(currentlyEquipped ? "Unequipped!" : "Equipped!");
+        }
+
+        // UI'yi güvenli şekilde iki aşamalı tazele (hemen + 1 frame sonra)
+        yield return null;
+        RequestRefresh();
+
+        _buyInProgress = false;
+        if (buyButton != null) buyButton.interactable = true;
     }
 
     private IEnumerator BuyRoutine()
@@ -429,6 +487,7 @@ public class UIShopItemDisplay : MonoBehaviour
             method = UserInventoryManager.PurchaseMethod.Get;
 
         // Yeni API: token/receipt göndermiyoruz; UserInventoryManager sunucu yanıtını normalize ediyor
+        ShowStatus("Purchase in progress...");
         var task = UserInventoryManager.Instance.TryPurchaseItemAsync(Data.id, method);
         while (!task.IsCompleted)
             yield return null;
@@ -436,6 +495,7 @@ public class UIShopItemDisplay : MonoBehaviour
         if (task.Exception != null)
         {
             Debug.LogWarning($"[UIShopItemDisplay] Purchase EX for {Data.id}: {task.Exception.Message}");
+            ShowStatus("Purchase failed!");
             if (buyButton != null) buyButton.interactable = true;
             _buyInProgress = false;
             yield break;
@@ -443,13 +503,27 @@ public class UIShopItemDisplay : MonoBehaviour
 
         var result = task.Result; // PurchaseResult beklenir (ok/alreadyOwned bilgisi içerir)
         bool success = result.ok || result.alreadyOwned;
+        if (success)
+        {
+            ShowStatus("Purchase done!");
+        }
+        else
+        {
+            var err = result.error ?? string.Empty;
+            if (err.IndexOf("currency", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                ShowStatus("Out of currency!");
+            else
+                ShowStatus("Purchase failed!");
+        }
         if (!success)
         {
             Debug.LogWarning($"[UIShopItemDisplay] Purchase failed for {Data.id}: {result.error}");
+            ShowStatus("Purchase failed!");
             if (buyButton != null) buyButton.interactable = true;
             _buyInProgress = false;
             yield break;
         }
+        
 
         // 1 frame bekleyelim; event ve cache güncellemeleri otursun
         yield return null;
@@ -507,5 +581,20 @@ public class UIShopItemDisplay : MonoBehaviour
     {
         yield return null;
         SendMessage("RefreshVisualState", SendMessageOptions.DontRequireReceiver);
+    }
+
+    private void ShowStatus(string msg)
+    {
+        if (statusLabel == null) return; // Bağlanmadıysa sessizce geç
+        if (_statusRoutine != null) StopCoroutine(_statusRoutine);
+        _statusRoutine = StartCoroutine(StatusRoutine(msg));
+    }
+
+    private IEnumerator StatusRoutine(string msg)
+    {
+        statusLabel.text = msg;
+        statusLabel.gameObject.SetActive(true);
+        yield return new WaitForSeconds(statusDuration);
+        statusLabel.gameObject.SetActive(false);
     }
 }

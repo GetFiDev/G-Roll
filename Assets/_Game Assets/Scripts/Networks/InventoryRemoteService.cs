@@ -265,23 +265,47 @@ public static class InventoryRemoteService
 
     public static async Task<PurchaseResult> PurchaseItemAsync(string itemId, string method = "GET")
     {
-        var result = new PurchaseResult { ok = false, itemId = itemId, currencyLeft = 0, error = null };
-        var id = IdUtil.NormalizeId(itemId);
-        result.itemId = id;
+        var result = new PurchaseResult { ok = false, itemId = IdUtil.NormalizeId(itemId), currencyLeft = 0, error = null };
+        var id = result.itemId;
         try
         {
             var payload = new Dictionary<string, object> {
                 { "itemId", id },
-                { "method", method }
+                { "method", (method ?? "GET").ToUpperInvariant() }
             };
             var callable = Fn.GetHttpsCallable("purchaseItem");
             var resp = await callable.CallAsync(payload);
-            var dict = resp?.Data as IDictionary<string, object>;
-            if (dict == null) { result.error = "Bad response"; return result; }
+            var dict = AsStringObjectDict(resp?.Data);
+            if (dict == null)
+            {
+                result.error = "Bad response (null/invalid)";
+                return result;
+            }
+
+            // parse fields
             result.ok = GetBool(dict, "ok");
+            var outId = dict.TryGetValue("itemId", out var idRaw) ? IdUtil.NormalizeId(idRaw?.ToString()) : id;
+            if (!string.IsNullOrEmpty(outId)) result.itemId = outId;
             result.alreadyOwned = GetBool(dict, "alreadyOwned");
             result.owned = GetBool(dict, "owned") || result.alreadyOwned;
             result.currencyLeft = GetDouble(dict, "currencyLeft", 0);
+
+            if (!result.ok)
+            {
+                // surface server-provided message if any
+                if (dict.TryGetValue("message", out var msg) && msg != null)
+                    result.error = msg.ToString();
+                else if (dict.TryGetValue("error", out var err) && err != null)
+                    result.error = err.ToString();
+                else
+                    result.error = "Bad response";
+            }
+            return result;
+        }
+        catch (FunctionsException ex)
+        {
+            Debug.LogWarning($"[InventoryRemoteService] PurchaseItemAsync FAILED: {ex.Message}");
+            result.error = ex.Message;
             return result;
         }
         catch (Exception e)
@@ -293,7 +317,7 @@ public static class InventoryRemoteService
     }
 
     public static Task<PurchaseResult> PurchaseWithCurrencyAsync(string itemId)
-        => PurchaseItemAsync(itemId, "Get");
+        => PurchaseItemAsync(itemId, "GET");
 
     public static Task<PurchaseResult> PurchaseWithAdAsync(string itemId, string adToken)
     {
@@ -308,9 +332,8 @@ public static class InventoryRemoteService
 
     private static async Task<PurchaseResult> PurchaseItemWithAdInternalAsync(string itemId, string adToken)
     {
-        var result = new PurchaseResult { ok = false, itemId = itemId, error = null };
-        var id = IdUtil.NormalizeId(itemId);
-        result.itemId = id;
+        var result = new PurchaseResult { ok = false, itemId = IdUtil.NormalizeId(itemId), error = null };
+        var id = result.itemId;
         try
         {
             var payload = new Dictionary<string, object> {
@@ -320,12 +343,29 @@ public static class InventoryRemoteService
             };
             var callable = Fn.GetHttpsCallable("purchaseItem");
             var resp = await callable.CallAsync(payload);
-            var dict = resp?.Data as IDictionary<string, object>;
-            if (dict == null) { result.error = "Bad response"; return result; }
+            var dict = AsStringObjectDict(resp?.Data);
+            if (dict == null) { result.error = "Bad response (null/invalid)"; return result; }
             result.ok = GetBool(dict, "ok");
+            var outId = dict.TryGetValue("itemId", out var idRaw) ? IdUtil.NormalizeId(idRaw?.ToString()) : id;
+            if (!string.IsNullOrEmpty(outId)) result.itemId = outId;
             result.alreadyOwned = GetBool(dict, "alreadyOwned");
             result.owned = GetBool(dict, "owned") || result.alreadyOwned;
             result.currencyLeft = GetDouble(dict, "currencyLeft", 0);
+            if (!result.ok)
+            {
+                if (dict.TryGetValue("message", out var msg) && msg != null)
+                    result.error = msg.ToString();
+                else if (dict.TryGetValue("error", out var err) && err != null)
+                    result.error = err.ToString();
+                else
+                    result.error = "Bad response";
+            }
+            return result;
+        }
+        catch (FunctionsException ex)
+        {
+            Debug.LogWarning($"[InventoryRemoteService] PurchaseItemWithAd FAILED: {ex.Message}");
+            result.error = ex.Message;
             return result;
         }
         catch (Exception e)
@@ -338,9 +378,8 @@ public static class InventoryRemoteService
 
     private static async Task<PurchaseResult> PurchaseItemWithIapInternalAsync(string itemId, string platform, string receipt, string orderId)
     {
-        var result = new PurchaseResult { ok = false, itemId = itemId, error = null };
-        var id = IdUtil.NormalizeId(itemId);
-        result.itemId = id;
+        var result = new PurchaseResult { ok = false, itemId = IdUtil.NormalizeId(itemId), error = null };
+        var id = result.itemId;
         try
         {
             var payload = new Dictionary<string, object> {
@@ -352,12 +391,29 @@ public static class InventoryRemoteService
             };
             var callable = Fn.GetHttpsCallable("purchaseItem");
             var resp = await callable.CallAsync(payload);
-            var dict = resp?.Data as IDictionary<string, object>;
-            if (dict == null) { result.error = "Bad response"; return result; }
+            var dict = AsStringObjectDict(resp?.Data);
+            if (dict == null) { result.error = "Bad response (null/invalid)"; return result; }
             result.ok = GetBool(dict, "ok");
+            var outId = dict.TryGetValue("itemId", out var idRaw) ? IdUtil.NormalizeId(idRaw?.ToString()) : id;
+            if (!string.IsNullOrEmpty(outId)) result.itemId = outId;
             result.alreadyOwned = GetBool(dict, "alreadyOwned");
             result.owned = GetBool(dict, "owned") || result.alreadyOwned;
             result.currencyLeft = GetDouble(dict, "currencyLeft", 0);
+            if (!result.ok)
+            {
+                if (dict.TryGetValue("message", out var msg) && msg != null)
+                    result.error = msg.ToString();
+                else if (dict.TryGetValue("error", out var err) && err != null)
+                    result.error = err.ToString();
+                else
+                    result.error = "Bad response";
+            }
+            return result;
+        }
+        catch (FunctionsException ex)
+        {
+            Debug.LogWarning($"[InventoryRemoteService] PurchaseItemWithIAP FAILED: {ex.Message}");
+            result.error = ex.Message;
             return result;
         }
         catch (Exception e)
@@ -378,7 +434,7 @@ public static class InventoryRemoteService
             var payload = new Dictionary<string, object> { { "itemId", id } };
             var callable = Fn.GetHttpsCallable("equipItem");
             var resp = await callable.CallAsync(payload);
-            var dict = resp?.Data as IDictionary<string, object>;
+            var dict = AsStringObjectDict(resp?.Data);
             if (dict == null) { result.error = "Bad response"; return result; }
             result.ok = GetBool(dict, "ok");
             result.equippedItemIds = GetStringList(dict, "equippedItemIds").Select(IdUtil.NormalizeId).ToList();
@@ -402,7 +458,7 @@ public static class InventoryRemoteService
             var payload = new Dictionary<string, object> { { "itemId", id } };
             var callable = Fn.GetHttpsCallable("unequipItem");
             var resp = await callable.CallAsync(payload);
-            var dict = resp?.Data as IDictionary<string, object>;
+            var dict = AsStringObjectDict(resp?.Data);
             if (dict == null) { result.error = "Bad response"; return result; }
             result.ok = GetBool(dict, "ok");
             result.equippedItemIds = GetStringList(dict, "equippedItemIds").Select(IdUtil.NormalizeId).ToList(); // tolerate null/missing
