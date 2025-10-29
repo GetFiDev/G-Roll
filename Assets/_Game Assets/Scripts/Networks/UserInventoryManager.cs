@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using System.Linq;
 
 /// <summary>
 /// Centralized cache and controller for player's inventory.
@@ -14,10 +15,35 @@ public class UserInventoryManager : MonoBehaviour
 
     public event Action OnInventoryChanged;
 
-    private Dictionary<string, InventoryRemoteService.InventoryEntry> _inventory = new();
-    private HashSet<string> _equipped = new();
+    private Dictionary<string, InventoryRemoteService.InventoryEntry> _inventory =
+        new Dictionary<string, InventoryRemoteService.InventoryEntry>(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _equipped = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     public bool IsInitialized { get; private set; }
+
+    // Replace local caches with normalized IDs and case-insensitive collections
+    private void ReplaceInventory(
+        Dictionary<string, InventoryRemoteService.InventoryEntry> src,
+        IEnumerable<string> equippedIds)
+    {
+        _inventory.Clear();
+        if (src != null)
+        {
+            foreach (var kv in src)
+            {
+                var nid = IdUtil.NormalizeId(kv.Key);
+                var entry = kv.Value ?? new InventoryRemoteService.InventoryEntry();
+                // Safety: quantity>0 implies owned (server already sends owned:true, but keep tolerant)
+                if (!entry.owned && entry.quantity > 0) entry.owned = true;
+                _inventory[nid] = entry;
+            }
+        }
+
+        _equipped = new HashSet<string>(
+            (equippedIds ?? Array.Empty<string>()).Select(IdUtil.NormalizeId),
+            StringComparer.OrdinalIgnoreCase
+        );
+    }
 
     private void Awake()
     {
@@ -46,10 +72,8 @@ public class UserInventoryManager : MonoBehaviour
             return;
         }
 
-        _inventory = snapshot.inventory ?? new Dictionary<string, InventoryRemoteService.InventoryEntry>();
-        _equipped = new HashSet<string>(snapshot.equippedItemIds ?? new List<string>());
+        ReplaceInventory(snapshot.inventory, snapshot.equippedItemIds);
         IsInitialized = true;
-
         OnInventoryChanged?.Invoke();
         Debug.Log($"[UserInventoryManager] Initialized. Items={_inventory.Count} Equipped={_equipped.Count}");
     }
@@ -63,8 +87,7 @@ public class UserInventoryManager : MonoBehaviour
         var snapshot = await InventoryRemoteService.GetInventoryAsync();
         if (snapshot == null || !snapshot.ok) return;
 
-        _inventory = snapshot.inventory ?? new Dictionary<string, InventoryRemoteService.InventoryEntry>();
-        _equipped = new HashSet<string>(snapshot.equippedItemIds ?? new List<string>());
+        ReplaceInventory(snapshot.inventory, snapshot.equippedItemIds);
         OnInventoryChanged?.Invoke();
     }
 
@@ -73,7 +96,8 @@ public class UserInventoryManager : MonoBehaviour
     /// </summary>
     public bool Owns(string itemId)
     {
-        return _inventory.ContainsKey(itemId) && _inventory[itemId].owned;
+        var id = IdUtil.NormalizeId(itemId);
+        return _inventory.TryGetValue(id, out var e) && e.owned;
     }
 
     public bool IsOwned(string itemId)
@@ -86,7 +110,7 @@ public class UserInventoryManager : MonoBehaviour
     /// </summary>
     public bool IsEquipped(string itemId)
     {
-        return _equipped.Contains(itemId);
+        return _equipped.Contains(IdUtil.NormalizeId(itemId));
     }
 
     public enum PurchaseMethod { Get, Ad, IAP }
@@ -96,24 +120,35 @@ public class UserInventoryManager : MonoBehaviour
     /// </summary>
     public async Task<InventoryRemoteService.PurchaseResult> TryPurchaseItemAsync(string itemId, PurchaseMethod method)
     {
+        var id = IdUtil.NormalizeId(itemId);
         InventoryRemoteService.PurchaseResult result = null;
         try
         {
-            result = await InventoryRemoteService.PurchaseItemAsync(itemId, method.ToString());
+            result = await InventoryRemoteService.PurchaseItemAsync(id, method.ToString());
             if (result == null)
             {
-                Debug.LogWarning($"[UserInventoryManager] Null result for purchase {itemId}");
+                Debug.LogWarning($"[UserInventoryManager] Null result for purchase {id}");
                 return new InventoryRemoteService.PurchaseResult { ok = false, error = "Null result" };
             }
 
             if (result.ok || result.alreadyOwned)
             {
-                await RefreshAsync();
-                Debug.Log($"[UserInventoryManager] Purchase success for {itemId}");
+                // Optimistic local patch if server says alreadyOwned
+                if (result.alreadyOwned)
+                {
+                    if (!_inventory.TryGetValue(id, out var e))
+                        e = new InventoryRemoteService.InventoryEntry();
+                    e.owned = true;
+                    _inventory[id] = e;
+                    OnInventoryChanged?.Invoke(); // reflect immediately in UI
+                }
+
+                await RefreshAsync(); // then sync with server truth
+                Debug.Log($"[UserInventoryManager] Purchase success for {id}");
                 return result;
             }
 
-            Debug.LogWarning($"[UserInventoryManager] Purchase failed for {itemId}: {result.error}");
+            Debug.LogWarning($"[UserInventoryManager] Purchase failed for {id}: {result.error}");
             return result;
         }
         catch (Exception ex)
@@ -128,20 +163,24 @@ public class UserInventoryManager : MonoBehaviour
     /// </summary>
     public async Task<bool> EquipAsync(string itemId)
     {
-        if (!Owns(itemId))
+        var id = IdUtil.NormalizeId(itemId);
+        if (!Owns(id))
         {
-            Debug.LogWarning($"[UserInventoryManager] Can't equip unowned item {itemId}");
+            Debug.LogWarning($"[UserInventoryManager] Can't equip unowned item {id}");
             return false;
         }
 
-        var result = await InventoryRemoteService.EquipItemAsync(itemId);
+        var result = await InventoryRemoteService.EquipItemAsync(id);
         if (!result.ok)
         {
             Debug.LogWarning($"[UserInventoryManager] Equip failed: {result.error}");
             return false;
         }
 
-        _equipped = new HashSet<string>(result.equippedItemIds ?? new List<string>());
+        _equipped = new HashSet<string>(
+            (result.equippedItemIds ?? new List<string>()).Select(IdUtil.NormalizeId),
+            StringComparer.OrdinalIgnoreCase
+        );
         OnInventoryChanged?.Invoke();
         return true;
     }
@@ -151,16 +190,20 @@ public class UserInventoryManager : MonoBehaviour
     /// </summary>
     public async Task<bool> UnequipAsync(string itemId)
     {
-        if (!_equipped.Contains(itemId)) return true;
+        var id = IdUtil.NormalizeId(itemId);
+        if (!_equipped.Contains(id)) return true;
 
-        var result = await InventoryRemoteService.UnequipItemAsync(itemId);
+        var result = await InventoryRemoteService.UnequipItemAsync(id);
         if (!result.ok)
         {
             Debug.LogWarning($"[UserInventoryManager] Unequip failed: {result.error}");
             return false;
         }
 
-        _equipped = new HashSet<string>(result.equippedItemIds ?? new List<string>());
+        _equipped = new HashSet<string>(
+            (result.equippedItemIds ?? new List<string>()).Select(IdUtil.NormalizeId),
+            StringComparer.OrdinalIgnoreCase
+        );
         OnInventoryChanged?.Invoke();
         return true;
     }

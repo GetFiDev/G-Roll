@@ -7,9 +7,16 @@ import {Firestore, Timestamp, FieldValue} from "@google-cloud/firestore";
 
 admin.initializeApp();
 // nam5 -> us-central1
+
 setGlobalOptions({region:"us-central1"});
 
+// --- ID Normalization Helper (use everywhere for itemId) ---
+const normId = (s?: string) => (s || "").trim().toLowerCase();
+
 const DB_ID = "getfi";
+const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GCLOUD_PROJECT_ID || "";
+const DB_PATH = `projects/${PROJECT_ID}/databases/${DB_ID}`;
+console.log(`[boot] Firestore DB selected: ${DB_PATH}`);
 const SEASON = "current";
 const TOP_N = 50;
 
@@ -1040,6 +1047,7 @@ export const requestSession = onCall(async (req) => {
 // /appdata/items/... altındaki tüm itemları JSON string olarak döndürür.
 export const getAllItems = onCall(async (request) => {
   try {
+    console.log(`[getAllItems:start] db=${DB_ID}`);
     const itemsCol = db.collection("appdata").doc("items");
     const itemsSnap = await itemsCol.listCollections();
 
@@ -1051,6 +1059,8 @@ export const getAllItems = onCall(async (request) => {
       out[subCol.id] = docSnap.data();
     }
 
+    const sample = Object.keys(out).slice(0, 5);
+    console.log(`[getAllItems:done] count=${Object.keys(out).length} sample=[${sample.join(', ')}]`);
     return {
       ok: true,
       items: out,
@@ -1144,6 +1154,48 @@ export const createItem = onCall(async (req) => {
   );
 });
 
+// ========================= checkOwnership =========================
+// Kullanıcının sahip olduğu item ID'lerini döndürür (normalize edilerek).
+// Sahiplik kriteri: owned == true  **veya** quantity > 0  (consumable destekli)
+export const checkOwnership = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  console.log(`[checkOwnership:start] uid=${uid} db=${DB_ID}`);
+
+  const userRef = db.collection("users").doc(uid);
+  const invCol = userRef.collection("inventory");
+
+  // 1) owned=true olanlar
+  const ownedQ = await invCol.where("owned", "==", true).get();
+
+  // 2) quantity>0 olanlar (consumable'lar için)
+  // Not: Firestore 'OR' desteklemediği için iki sorguyu birleştiriyoruz.
+  let qtyQDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+  try {
+    const qtyQ = await invCol.where("quantity", ">", 0).get();
+    qtyQDocs = qtyQ.docs;
+  } catch (e) {
+    // quantity alanı yoksa da sorun değil; sadece owned=true setine güveniriz.
+    qtyQDocs = [];
+  }
+
+  // 3) Birleştir + normalize et + tekilleştir
+  const set = new Set<string>();
+  ownedQ.forEach(d => set.add(normId(d.id)));
+  qtyQDocs.forEach(d => set.add(normId(d.id)));
+
+  // 4) İsteğe bağlı: equipped listesi de dönmek istersen ileride buraya eklenebilir.
+  const itemIds = Array.from(set.values()).sort();
+
+  console.log(`[checkOwnership:done] uid=${uid} ownedQ=${ownedQ.size} qtyQ=${qtyQDocs.length} count=${itemIds.length}`);
+
+  return {
+    ok: true,
+    count: itemIds.length,
+    itemIds,
+  };
+});
+
 // ========================= Inventory System =========================
 export const getInventorySnapshot = onCall(async (req) => {
   const uid = req.auth?.uid;
@@ -1155,9 +1207,16 @@ export const getInventorySnapshot = onCall(async (req) => {
     invCol.get(),
     loadRef.get()
   ]);
+  console.log(`[getInventorySnapshot] uid=${uid} invDocs=${invSnap.size} loadoutDoc=${loadSnap.exists} db=${DB_ID}`);
   const inventory: Record<string, any> = {};
-  invSnap.forEach((d) => (inventory[d.id] = d.data()));
-  const equippedItemIds: string[] = loadSnap.exists ? loadSnap.get("equippedItemIds") || [] : [];
+  invSnap.forEach((d) => {
+    const id = normId(d.id);
+    // include normalized id in payload for clients if needed
+    inventory[id] = {id, ...d.data()};
+  });
+  const equippedItemIds: string[] = loadSnap.exists
+    ? (loadSnap.get("equippedItemIds") || []).map((x: string) => normId(x))
+    : [];
   return {ok: true, inventory, equippedItemIds};
 });
 
@@ -1167,17 +1226,19 @@ export const purchaseItem = onCall(async (req) => {
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
   // method: "GET" | "IAP" | "AD"
-  const {itemId, method} = (req.data || {}) as {
+  const {
+    itemId: rawItemId,
+    method
+  } = (req.data || {}) as {
     itemId?: string;
     method?: string;
-    // IAP extras (optional):
-    platform?: string; // "ios" | "android" | etc.
-    receipt?: string;  // base64 / json
-    orderId?: string;  // provider order id (anti-replay)
-    // AD extras:
-    adToken?: string;  // unique grant token (anti-replay)
+    platform?: string;
+    receipt?: string;
+    orderId?: string;
+    adToken?: string;
   };
 
+  const itemId = normId(rawItemId);
   if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
   const m = String(method || "").toUpperCase();
   if (!["GET", "IAP", "AD"].includes(m)) {
@@ -1311,7 +1372,8 @@ export const purchaseItem = onCall(async (req) => {
 export const equipItem = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
-  const {itemId} = req.data || {};
+  const rawItemId = (req.data?.itemId as string) || "";
+  const itemId = normId(rawItemId);
   if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
   const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
   const userRef = db.collection("users").doc(uid);
@@ -1325,9 +1387,14 @@ export const equipItem = onCall(async (req) => {
     const isConsumable = !!itemSnap.get("itemIsConsumable");
     if (isConsumable) throw new HttpsError("failed-precondition", "Consumables cannot be equipped.");
     const loadSnap = await tx.get(loadRef);
-    let equipped: string[] = loadSnap.exists ? loadSnap.get("equippedItemIds") || [] : [];
+    let equipped: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
+    equipped = equipped.map((x: string) => normId(x));
     if (!equipped.includes(itemId)) equipped.push(itemId);
-    tx.set(loadRef, {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(
+      loadRef,
+      {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()},
+      {merge: true}
+    );
     tx.set(invRef, {equipped: true, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
   });
   return {ok: true, itemId};
@@ -1337,16 +1404,21 @@ export const equipItem = onCall(async (req) => {
 export const unequipItem = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
-  const {itemId} = req.data || {};
+  const rawItemId = (req.data?.itemId as string) || "";
+  const itemId = normId(rawItemId);
   if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
   const userRef = db.collection("users").doc(uid);
   const invRef = userRef.collection("inventory").doc(itemId);
   const loadRef = userRef.collection("loadout").doc("current");
   await db.runTransaction(async (tx) => {
     const loadSnap = await tx.get(loadRef);
-    let equipped: string[] = loadSnap.exists ? loadSnap.get("equippedItemIds") || [] : [];
-    equipped = equipped.filter((x) => x !== itemId);
-    tx.set(loadRef, {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    let equipped: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
+    equipped = equipped.map((x: string) => normId(x)).filter((x) => x !== itemId);
+    tx.set(
+      loadRef,
+      {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()},
+      {merge: true}
+    );
     tx.set(invRef, {equipped: false, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
   });
   return {ok: true, itemId};

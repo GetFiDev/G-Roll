@@ -54,11 +54,20 @@ public class UIShopItemDisplay : MonoBehaviour
     private Coroutine _blinkCoroutine;
     private int _cachedReferralCount = 0;
     private bool _buyInProgress = false;
+    private bool _pendingRefresh; // if true, run refresh on OnEnable
 
     private void OnEnable()
     {
         if (UserInventoryManager.Instance != null)
             UserInventoryManager.Instance.OnInventoryChanged += HandleInventoryChanged;
+
+        // If this card was inactive when a refresh was requested, do it now safely
+        if (_pendingRefresh)
+        {
+            _pendingRefresh = false;
+            SendMessage("RefreshVisualState", SendMessageOptions.DontRequireReceiver);
+            StartCoroutine(_RequestRefreshCo()); // 1-frame delayed second pass
+        }
     }
 
     private void OnDisable()
@@ -69,9 +78,24 @@ public class UIShopItemDisplay : MonoBehaviour
 
     private void HandleInventoryChanged()
     {
-        // Inventory değiştiğinde tek kartı güncelle
-        if (isActiveAndEnabled && Data != null)
-            StartCoroutine(RefreshVisualStateCoroutine());
+        // Inventory değiştiğinde tek kartı güncelle; inaktifse ertele
+        if (Data == null) return;
+        if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+        {
+            _pendingRefresh = true;
+            return;
+        }
+        StartCoroutine(RefreshVisualStateCoroutine());
+    }
+    // Called via SendMessage from RequestRefresh or external callers
+    public void RefreshVisualState()
+    {
+        if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+        {
+            _pendingRefresh = true; // run on next OnEnable
+            return;
+        }
+        StartCoroutine(RefreshVisualStateCoroutine());
     }
 
     private enum ShopVisualState
@@ -133,8 +157,9 @@ public class UIShopItemDisplay : MonoBehaviour
 
         if (UserInventoryManager.Instance != null && data != null)
         {
-            owned = UserInventoryManager.Instance.IsOwned(data.id);
-            equipped = UserInventoryManager.Instance.IsEquipped(data.id);
+            var nid = IdUtil.NormalizeId(data.id);
+            owned = UserInventoryManager.Instance.IsOwned(nid);
+            equipped = UserInventoryManager.Instance.IsEquipped(nid);
         }
 
         if (UserDatabaseManager.Instance != null)
@@ -193,36 +218,51 @@ public class UIShopItemDisplay : MonoBehaviour
 
         if (referralProgressText != null) referralProgressText.gameObject.SetActive(false);
         if (iconImage != null) iconImage.enabled = true;
+        if (buyButton != null) buyButton.interactable = true;
 
         switch (state)
         {
             case ShopVisualState.Normal_NotOwned:
                 backgroundImage.sprite = bgNormalNotOwned;
                 priceText.gameObject.SetActive(true);
+                buyButton?.gameObject.SetActive(true);
+                if (buyButton != null) buyButton.interactable = true;
                 break;
             case ShopVisualState.Normal_Owned:
                 backgroundImage.sprite = bgNormalOwned;
                 priceText.gameObject.SetActive(false);
+                buyButton?.gameObject.SetActive(true);
+                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Normal_Equipped:
                 backgroundImage.sprite = bgNormalEquipped;
                 priceText.gameObject.SetActive(false);
+                buyButton?.gameObject.SetActive(true);
+                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Premium_NotOwned:
                 backgroundImage.sprite = bgPremiumNotOwned;
                 priceText.gameObject.SetActive(true);
+                buyButton?.gameObject.SetActive(true);
+                if (buyButton != null) buyButton.interactable = true;
                 break;
             case ShopVisualState.Premium_Owned:
                 backgroundImage.sprite = bgPremiumOwned;
                 priceText.gameObject.SetActive(false);
+                buyButton?.gameObject.SetActive(true);
+                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Premium_Equipped:
                 backgroundImage.sprite = bgPremiumEquipped;
                 priceText.gameObject.SetActive(false);
+                buyButton?.gameObject.SetActive(true);
+                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Referral_Locked:
                 backgroundImage.sprite = bgReferralLocked;
                 priceText.gameObject.SetActive(false);
+                buyButton?.gameObject.SetActive(true);
+                if (buyButton != null) buyButton.interactable = false;
                 if (iconImage != null) iconImage.enabled = false;
                 if (nameText != null) nameText.text = "Locked";
                 if (referralProgressText != null && Data != null)
@@ -411,6 +451,8 @@ public class UIShopItemDisplay : MonoBehaviour
             yield break;
         }
 
+        // 1 frame bekleyelim; event ve cache güncellemeleri otursun
+        yield return null;
         // Başarılı → görsel durumu tazele (owned/equipped/price)
         yield return RefreshVisualStateCoroutine();
 
@@ -420,14 +462,17 @@ public class UIShopItemDisplay : MonoBehaviour
 
     private IEnumerator RefreshVisualStateCoroutine()
     {
+        // 1 frame bekle: aynı frame'de gelen OnInventoryChanged yarışlarını kes
+        yield return null;
         bool owned = false;
         bool equipped = false;
         int referralCount = _cachedReferralCount;
 
         if (UserInventoryManager.Instance != null && Data != null)
         {
-            owned = UserInventoryManager.Instance.IsOwned(Data.id);
-            equipped = UserInventoryManager.Instance.IsEquipped(Data.id);
+            var nid = IdUtil.NormalizeId(Data.id);
+            owned = UserInventoryManager.Instance.IsOwned(nid);
+            equipped = UserInventoryManager.Instance.IsEquipped(nid);
         }
 
         if (UserDatabaseManager.Instance != null)
@@ -442,5 +487,25 @@ public class UIShopItemDisplay : MonoBehaviour
         _cachedReferralCount = referralCount;
         var visualState = DetermineVisualState(Data, Category, owned, equipped, referralCount);
         ApplyVisualState(visualState);
+    }
+
+    public void RequestRefresh()
+    {
+        // Inaktif objede coroutine başlatma; ertele
+        if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+        {
+            _pendingRefresh = true;
+            return;
+        }
+
+        // Aktifken: hemen ve 1 frame sonra tekrar
+        SendMessage("RefreshVisualState", SendMessageOptions.DontRequireReceiver);
+        StartCoroutine(_RequestRefreshCo());
+    }
+
+    private IEnumerator _RequestRefreshCo()
+    {
+        yield return null;
+        SendMessage("RefreshVisualState", SendMessageOptions.DontRequireReceiver);
     }
 }

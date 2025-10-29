@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -11,6 +12,8 @@ public static class ItemLocalDatabase
 
     // Bellek-içi cache
     private static Dictionary<string, RemoteItemService.ItemData> _cache;
+    private static Dictionary<string, RemoteItemService.ItemData> NewDict() =>
+        new Dictionary<string, RemoteItemService.ItemData>(StringComparer.OrdinalIgnoreCase);
 
     [Serializable]
     private class Wrapper
@@ -25,7 +28,7 @@ public static class ItemLocalDatabase
 
         if (!File.Exists(FilePath))
         {
-            _cache = new Dictionary<string, RemoteItemService.ItemData>();
+            _cache = NewDict();
             return _cache;
         }
 
@@ -33,18 +36,22 @@ public static class ItemLocalDatabase
         {
             var json = File.ReadAllText(FilePath);
             var wrap = JsonUtility.FromJson<Wrapper>(json);
-            var dict = new Dictionary<string, RemoteItemService.ItemData>();
+            var dict = NewDict();
 
             if (wrap != null && wrap.keys != null && wrap.values != null)
             {
                 for (int i = 0; i < Mathf.Min(wrap.keys.Count, wrap.values.Count); i++)
                 {
-                    var key = wrap.keys[i];
+                    var rawKey = wrap.keys[i];
+                    var key = IdUtil.NormalizeId(rawKey);
                     var itemData = wrap.values[i];
 
-                    // Load icon sprite if exists
-                    var iconPath = Path.Combine(_iconsPath, key + ".png");
-                    if (File.Exists(iconPath))
+                    // Load icon sprite if exists (try normalized, then legacy filename)
+                    var iconPathNorm = Path.Combine(_iconsPath, key + ".png");
+                    var iconPathLegacy = Path.Combine(_iconsPath, rawKey + ".png");
+                    var iconPath = File.Exists(iconPathNorm) ? iconPathNorm :
+                                   (File.Exists(iconPathLegacy) ? iconPathLegacy : null);
+                    if (!string.IsNullOrEmpty(iconPath))
                     {
                         try
                         {
@@ -69,7 +76,7 @@ public static class ItemLocalDatabase
         }
         catch
         {
-            _cache = new Dictionary<string, RemoteItemService.ItemData>();
+            _cache = NewDict();
         }
 
         return _cache;
@@ -77,7 +84,14 @@ public static class ItemLocalDatabase
 
     public static void Save(Dictionary<string, RemoteItemService.ItemData> data)
     {
-        _cache = data ?? new Dictionary<string, RemoteItemService.ItemData>();
+        // Rebuild into a fresh case-insensitive dictionary with normalized keys
+        var src = data ?? NewDict();
+        _cache = NewDict();
+        foreach (var kv in src)
+        {
+            var nid = IdUtil.NormalizeId(kv.Key);
+            _cache[nid] = kv.Value;
+        }
 
         if (!Directory.Exists(_iconsPath))
         {
@@ -87,7 +101,8 @@ public static class ItemLocalDatabase
         var wrap = new Wrapper();
         foreach (var kv in _cache)
         {
-            wrap.keys.Add(kv.Key);
+            var nid = IdUtil.NormalizeId(kv.Key);
+            wrap.keys.Add(nid);
             wrap.values.Add(kv.Value);
 
             var item = kv.Value;
@@ -99,7 +114,7 @@ public static class ItemLocalDatabase
                     byte[] pngData = tex.EncodeToPNG();
                     if (pngData != null)
                     {
-                        var iconFilePath = Path.Combine(_iconsPath, kv.Key + ".png");
+                        var iconFilePath = Path.Combine(_iconsPath, nid + ".png");
                         File.WriteAllBytes(iconFilePath, pngData);
                     }
                 }

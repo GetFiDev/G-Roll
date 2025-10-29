@@ -14,7 +14,11 @@ public class ShopItemManager : MonoBehaviour
     [SerializeField] private Transform premiumRoot;
     [SerializeField] private Transform bullMarketRoot;
 
-    private readonly List<GameObject> _spawned = new();
+    [Header("Loading Overlay")]
+    [SerializeField] private GameObject loadingOverlay;
+
+    private readonly List<UIShopItemDisplay> _spawned = new();
+    private bool _isRefreshing;
 
     private async void OnEnable()
     {
@@ -23,52 +27,90 @@ public class ShopItemManager : MonoBehaviour
 
     public async Task RefreshShopAsync()
     {
-        if (itemPrefab == null)
+        if (_isRefreshing)
         {
-            Debug.LogWarning("[ShopItemManager] itemPrefab not assigned.");
+            // already running; avoid concurrent refreshes and overlay flicker
             return;
         }
+        _isRefreshing = true;
 
-        // Repo hazır değilse initialize et
-        if (!ItemDatabaseManager.IsReady)
-            await ItemDatabaseManager.InitializeAsync();
+        // Overlay ON
+        if (loadingOverlay != null) loadingOverlay.SetActive(true);
 
-        ClearSpawned();
+        try
+        {
+            if (itemPrefab == null)
+            {
+                Debug.LogWarning("[ShopItemManager] itemPrefab not assigned.");
+                return;
+            }
 
-        var allItems = ItemDatabaseManager.GetAllItems().ToList();
+            // Repo hazır değilse initialize et
+            if (!ItemDatabaseManager.IsReady)
+                await ItemDatabaseManager.InitializeAsync();
 
-        // --- REFERRAL --- (min referral -> max)
-        var referralItems = allItems
-            .Where(i => DetermineCategory(i) == ShopCategory.Referral)
-            .OrderBy(i => i.referralThreshold)
-            .ToList();
-        SpawnList(referralItems, ShopCategory.Referral);
+            // Ensure inventory is initialized before spawning cards so ownership is correct on first render
+            if (UserInventoryManager.Instance != null && !UserInventoryManager.Instance.IsInitialized)
+            {
+                await UserInventoryManager.Instance.InitializeAsync();
+            }
+            else if (UserInventoryManager.Instance == null)
+            {
+                Debug.LogWarning("[ShopItemManager] UserInventoryManager.Instance is null. Ownership may be incorrect on first render.");
+            }
 
-        // --- CORE --- (cheapest getPrice -> expensive)
-        var coreItems = allItems
-            .Where(i => DetermineCategory(i) == ShopCategory.Core)
-            .OrderBy(i => i.getPrice)
-            .ToList();
-        SpawnList(coreItems, ShopCategory.Core);
+            ClearSpawned();
 
-        // --- PREMIUM --- (cheapest dollarPrice -> expensive)
-        var premiumItems = allItems
-            .Where(i => DetermineCategory(i) == ShopCategory.Premium)
-            .OrderBy(i => i.dollarPrice)
-            .ToList();
-        SpawnList(premiumItems, ShopCategory.Premium);
+            var allItems = ItemDatabaseManager.GetAllItems().ToList();
 
-        // --- BULL MARKET --- (RewardedAd first -> GetPrice asc -> DollarPrice asc)
-        var bullAll = allItems.Where(i => DetermineCategory(i) == ShopCategory.BullMarket).ToList();
-        var bullRewarded = bullAll.Where(i => i.isRewardedAd).ToList();
-        var bullInGame   = bullAll.Where(i => !i.isRewardedAd && i.getPrice > 0 && i.dollarPrice <= 0)
-                                  .OrderBy(i => i.getPrice).ToList();
-        var bullDollar   = bullAll.Where(i => !i.isRewardedAd && i.dollarPrice > 0)
-                                  .OrderBy(i => i.dollarPrice).ToList();
-        var bullItemsOrdered = bullRewarded.Concat(bullInGame).Concat(bullDollar).ToList();
-        SpawnList(bullItemsOrdered, ShopCategory.BullMarket);
+            // --- REFERRAL --- (min referral -> max)
+            var referralItems = allItems
+                .Where(i => DetermineCategory(i) == ShopCategory.Referral)
+                .OrderBy(i => i.referralThreshold)
+                .ToList();
+            SpawnList(referralItems, ShopCategory.Referral);
 
-        Debug.Log($"[ShopItemManager] Spawned: {_spawned.Count}");
+            // --- CORE --- (cheapest getPrice -> expensive)
+            var coreItems = allItems
+                .Where(i => DetermineCategory(i) == ShopCategory.Core)
+                .OrderBy(i => i.getPrice)
+                .ToList();
+            SpawnList(coreItems, ShopCategory.Core);
+
+            // --- PREMIUM --- (cheapest dollarPrice -> expensive)
+            var premiumItems = allItems
+                .Where(i => DetermineCategory(i) == ShopCategory.Premium)
+                .OrderBy(i => i.dollarPrice)
+                .ToList();
+            SpawnList(premiumItems, ShopCategory.Premium);
+
+            // --- BULL MARKET --- (RewardedAd first -> GetPrice asc -> DollarPrice asc)
+            var bullAll = allItems.Where(i => DetermineCategory(i) == ShopCategory.BullMarket).ToList();
+            var bullRewarded = bullAll.Where(i => i.isRewardedAd).ToList();
+            var bullInGame   = bullAll.Where(i => !i.isRewardedAd && i.getPrice > 0 && i.dollarPrice <= 0)
+                                      .OrderBy(i => i.getPrice).ToList();
+            var bullDollar   = bullAll.Where(i => !i.isRewardedAd && i.dollarPrice > 0)
+                                      .OrderBy(i => i.dollarPrice).ToList();
+            var bullItemsOrdered = bullRewarded.Concat(bullInGame).Concat(bullDollar).ToList();
+            SpawnList(bullItemsOrdered, ShopCategory.BullMarket);
+
+            // Post-spawn nudge: once inventory is initialized, ask cards to re-evaluate their visual state.
+            foreach (var card in _spawned)
+            {
+                if (card != null)
+                {
+                    card.RequestRefresh(); // safe: defers if inactive
+                }
+            }
+
+            Debug.Log($"[ShopItemManager] Spawned: {_spawned.Count}");
+        }
+        finally
+        {
+            // Overlay OFF
+            if (loadingOverlay != null) loadingOverlay.SetActive(false);
+            _isRefreshing = false;
+        }
     }
 
     private Transform GetParentFor(ShopCategory cat)
@@ -88,7 +130,7 @@ public class ShopItemManager : MonoBehaviour
         for (int i = 0; i < _spawned.Count; i++)
         {
             if (_spawned[i] != null)
-                Destroy(_spawned[i]);
+                Destroy(_spawned[i].gameObject);
         }
         _spawned.Clear();
     }
@@ -134,8 +176,13 @@ public class ShopItemManager : MonoBehaviour
         {
             var inst = Instantiate(itemPrefab, parent);
             if (!inst.gameObject.activeSelf) inst.gameObject.SetActive(true);
+            // Normalize id at bind-time for consistent naming and optional SetItemId()
+            var nid = IdUtil.NormalizeId(item.id);
+            inst.gameObject.name = $"ShopCard_{nid}";
+            // If UIShopItemDisplay exposes SetItemId(string), this will set; otherwise it's safely ignored
+            inst.SendMessage("SetItemId", nid, SendMessageOptions.DontRequireReceiver);
             StartCoroutine(inst.Setup(item, cat));
-            _spawned.Add(inst.gameObject);
+            _spawned.Add(inst);
         }
     }
 }
