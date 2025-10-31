@@ -9,7 +9,6 @@ public class UIMainMenu : MonoBehaviour
     [SerializeField] private UIMetaSettingsPanel settingsPanel;
     [SerializeField] private UIShopPanel shopPanel;
     [SerializeField] private UIReferralPanel referralPanel;
-    [SerializeField] private UICustomizationPanel customizationPanel;
     [SerializeField] private UIRankingPanel rankingPanel;
     [SerializeField] private UITaskPanel TaskPanel;
     [SerializeField] private UIProfilePanel profilePanel;
@@ -37,7 +36,6 @@ public class UIMainMenu : MonoBehaviour
             { PanelType.Settings, settingsPanel.gameObject },
             { PanelType.Shop, shopPanel.gameObject },
             { PanelType.Referral, referralPanel.gameObject },
-            { PanelType.Customization, customizationPanel.gameObject },
             { PanelType.Ranking, rankingPanel.gameObject },
             { PanelType.Task, TaskPanel.gameObject },
             { PanelType.Profile, profilePanel.gameObject },
@@ -64,19 +62,6 @@ public class UIMainMenu : MonoBehaviour
         };
     }
 
-    public void OnReferralsPanelClick()
-    {
-        topPanel.ChangeAllColorToDefault();
-        bottomPanel.ChangeAllColorToDefault();
-        ShowPanel(PanelType.Referral);
-    }
-
-    public void OnTaskPanelClick()
-    {
-        topPanel.ChangeAllColorToDefault();
-        bottomPanel.ChangeAllColorToDefault();
-        ShowPanel(PanelType.Task);
-    }
     public void OnElitePassButtonClick()
     {
         TogglePanel(PanelType.ElitePass);
@@ -85,4 +70,5 @@ public class UIMainMenu : MonoBehaviour
     {
         TogglePanel(PanelType.AutoPilot);
     }
+    
 }

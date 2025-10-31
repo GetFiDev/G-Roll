@@ -4,13 +4,13 @@ using UnityEngine.UI;
 public class UIBottomPanel : MonoBehaviour
 {
     [Header("Buttons")]
-    [SerializeField] private Image homeIcon;
-    
-    [SerializeField] private Image settingsIcon;
-    
+    [SerializeField] private Image homeIcon;    
     [SerializeField] private Image shopIcon;
-
     [SerializeField] private Image referralIcon;
+    [SerializeField] private Image rankingIcon;
+    [SerializeField] private Image achievementsIcon;
+
+
 
     [Header("Settings")]
     [SerializeField] private Color defaultColor;
@@ -22,35 +22,18 @@ public class UIBottomPanel : MonoBehaviour
     public UITopPanel topPanel;
 
 
-    private void Start()
-    {
-        OnClickHomeButton();
-    }
-
     public void OnClickHomeButton()
     {
         ChangeAllColorToDefault();
-        topPanel.ChangeAllColorToDefault();
         
         homeIcon.color = selectedColor;
         
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Home);
     }
 
-    public void OnClickCustomizationButton()
-    {
-        ChangeAllColorToDefault();
-        topPanel.ChangeAllColorToDefault();
-        
-        settingsIcon.color = selectedColor;
-        
-        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Customization);
-    }
-
     public void OnClickPlayButton()
     {
         ChangeAllColorToDefault();
-        topPanel.ChangeAllColorToDefault();
 
         // Phase değişimini GameManager yönetsin; UI sadece isteği yayınlar
         if (requestStartGameplay != null)
@@ -60,17 +43,33 @@ public class UIBottomPanel : MonoBehaviour
     public void OnClickShopButton()
     {
         ChangeAllColorToDefault();
-        topPanel.ChangeAllColorToDefault();
-        
+
         shopIcon.color = selectedColor;
-        
+
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Shop);
+    }
+
+    public void OnClickReferralButton()
+    {
+        ChangeAllColorToDefault();
+
+        shopIcon.color = selectedColor;
+
+        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Referral);
+    }
+    
+    public void OnClickAchievementsButton()
+    {
+        ChangeAllColorToDefault();
+
+        achievementsIcon.color = selectedColor;
+
+        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Task);
     }
 
     public void OnClickRankingButton()
     {
         ChangeAllColorToDefault();
-        topPanel.ChangeAllColorToDefault();
         
         referralIcon.color = selectedColor;
         
@@ -80,7 +79,6 @@ public class UIBottomPanel : MonoBehaviour
     public void ChangeAllColorToDefault()
     {
         homeIcon.color = defaultColor;
-        settingsIcon.color = defaultColor;
         shopIcon.color = defaultColor;
         referralIcon.color = defaultColor;
     }

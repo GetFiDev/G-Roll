@@ -20,7 +20,42 @@ console.log(`[boot] Firestore DB selected: ${DB_PATH}`);
 const SEASON = "current";
 const TOP_N = 50;
 
+
 const db = new Firestore({databaseId:DB_ID});
+
+// ---- Stats helpers for equip/unequip merging ----
+function parseStatsJson(s: any): Record<string, number> {
+  if (typeof s !== "string") return {};
+  try {
+    const o = JSON.parse(s);
+    if (o && typeof o === "object") return o as Record<string, number>;
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeStats(base: Record<string, number>, delta: Record<string, number>, sign: 1 | -1) {
+  const out: Record<string, number> = {...base};
+  for (const k of Object.keys(delta)) {
+    const v = Number(delta[k]);
+    if (!Number.isFinite(v)) continue;
+    const cur = Number(out[k] ?? 0);
+    out[k] = cur + sign * v;
+  }
+  return out;
+}
+
+function extractItemStats(raw: Record<string, any>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw || {})) {
+    if (k.startsWith("itemstat_")) {
+      const statKey = k.replace("itemstat_", "");
+      out[statKey] = Number(v) || 0;
+    }
+  }
+  return out;
+}
 
 // ---------------- Leaderboard Sync ----------------
 export const syncLeaderboard = onDocumentWritten(
@@ -1375,28 +1410,66 @@ export const equipItem = onCall(async (req) => {
   const rawItemId = (req.data?.itemId as string) || "";
   const itemId = normId(rawItemId);
   if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
+
   const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
   const userRef = db.collection("users").doc(uid);
   const invRef = userRef.collection("inventory").doc(itemId);
   const loadRef = userRef.collection("loadout").doc("current");
+
   await db.runTransaction(async (tx) => {
-    const invSnap = await tx.get(invRef);
-    if (!invSnap.exists || !invSnap.get("owned")) throw new HttpsError("failed-precondition", "Item not owned.");
-    const itemSnap = await tx.get(itemRef);
-    if (!itemSnap.exists) throw new HttpsError("not-found", "Item not found.");
+    // ---- READS FIRST (required by Firestore) ----
+    const [invSnap, itemSnap, loadSnap, userSnap] = await Promise.all([
+      tx.get(invRef),
+      tx.get(itemRef),
+      tx.get(loadRef),
+      tx.get(userRef),
+    ]);
+
+    if (!invSnap.exists || !invSnap.get("owned")) {
+      throw new HttpsError("failed-precondition", "Item not owned.");
+    }
+    if (!itemSnap.exists) {
+      throw new HttpsError("not-found", "Item not found.");
+    }
+
     const isConsumable = !!itemSnap.get("itemIsConsumable");
-    if (isConsumable) throw new HttpsError("failed-precondition", "Consumables cannot be equipped.");
-    const loadSnap = await tx.get(loadRef);
+    if (isConsumable) {
+      throw new HttpsError("failed-precondition", "Consumables cannot be equipped.");
+    }
+
+    // Normalize current equipped list
     let equipped: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
     equipped = equipped.map((x: string) => normId(x));
-    if (!equipped.includes(itemId)) equipped.push(itemId);
+
+    const wasEquipped = equipped.includes(itemId);
+    if (!wasEquipped) {
+      equipped.push(itemId);
+    }
+
+    // ---- WRITES AFTER ALL READS ----
     tx.set(
       loadRef,
       {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()},
       {merge: true}
     );
-    tx.set(invRef, {equipped: true, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(
+      invRef,
+      {equipped: true, lastChangedAt: FieldValue.serverTimestamp()},
+      {merge: true}
+    );
+
+    // Merge item stats into user's stats only on first-time equip
+    if (!wasEquipped) {
+      const baseStats = parseStatsJson(userSnap.get("statsJson"));
+      const itemStats = extractItemStats(itemSnap.data() || {});
+      const merged = mergeStats(baseStats, itemStats, 1);
+      tx.update(userRef, {
+        statsJson: JSON.stringify(merged),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
   });
+
   return {ok: true, itemId};
 });
 
@@ -1407,19 +1480,50 @@ export const unequipItem = onCall(async (req) => {
   const rawItemId = (req.data?.itemId as string) || "";
   const itemId = normId(rawItemId);
   if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
+
   const userRef = db.collection("users").doc(uid);
   const invRef = userRef.collection("inventory").doc(itemId);
   const loadRef = userRef.collection("loadout").doc("current");
+  const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
+
   await db.runTransaction(async (tx) => {
-    const loadSnap = await tx.get(loadRef);
-    let equipped: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
-    equipped = equipped.map((x: string) => normId(x)).filter((x) => x !== itemId);
+    // ---- READS FIRST ----
+    const [loadSnap, userSnap, itemSnap] = await Promise.all([
+      tx.get(loadRef),
+      tx.get(userRef),
+      tx.get(itemRef),
+    ]);
+
+    let before: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
+    const beforeNorm = before.map((x: string) => normId(x));
+    const wasEquipped = beforeNorm.includes(itemId);
+
+    const afterEquipped = beforeNorm.filter((x) => x !== itemId);
+
+    // ---- WRITES AFTER ALL READS ----
     tx.set(
       loadRef,
-      {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()},
+      {equippedItemIds: afterEquipped, updatedAt: FieldValue.serverTimestamp()},
       {merge: true}
     );
-    tx.set(invRef, {equipped: false, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(
+      invRef,
+      {equipped: false, lastChangedAt: FieldValue.serverTimestamp()},
+      {merge: true}
+    );
+
+    // Subtract item stats from user's stats only if it was previously equipped
+    if (wasEquipped) {
+      if (!itemSnap.exists) throw new HttpsError("not-found", "Item not found.");
+      const baseStats = parseStatsJson(userSnap.get("statsJson"));
+      const itemStats = extractItemStats(itemSnap.data() || {});
+      const merged = mergeStats(baseStats, itemStats, -1);
+      tx.update(userRef, {
+        statsJson: JSON.stringify(merged),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
   });
+
   return {ok: true, itemId};
 });

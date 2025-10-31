@@ -28,8 +28,7 @@ public class UIPlayerStatsHandler : MonoBehaviour
         public int   magnetPowerPercent = 0;                  // % (new)
     }
 
-    // Parametresiz initialize: child'lardaki tüm UIPlayerStatDisplay'leri bulur
-    public void Initialize()
+    public void OnEnable()
     {
         var found = GetComponentsInChildren<UIPlayerStatDisplay>(true);
         displays = new List<UIPlayerStatDisplay>(found);

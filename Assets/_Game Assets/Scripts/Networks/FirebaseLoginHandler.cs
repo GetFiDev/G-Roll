@@ -10,6 +10,8 @@ public class FirebaseLoginHandler : MonoBehaviour
     public UILoginPanel loginPanel;          // Login panel (SetName bunun içinde)
     public UISetNamePanel setNamePanel;      // SetName step (loginPanel’in çocuğu)
     public UserDataEditHandler editHandler;  // username yazmak için
+    public UIMainMenu mainMenu;
+    public UITopPanel topPanel;
 
     public TMP_InputField registerEmailInput;
     public TMP_InputField registerPasswordInput;
@@ -167,6 +169,8 @@ public class FirebaseLoginHandler : MonoBehaviour
 
         // İsim gerekiyor mu?
         var needs = await NeedsUsernameAsync();
+        mainMenu.ShowPanel(UIMainMenu.PanelType.Home);
+        topPanel.Initialize();
 
         if (needs)
         {
