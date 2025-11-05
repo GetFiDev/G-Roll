@@ -11,13 +11,16 @@ public static class SessionResultRemoteService
         public double maxScore;
     }
 
-    public static async Task<SubmitResponse> SubmitAsync(string sessionId, double earnedCurrency, double earnedScore)
+    public static async Task<SubmitResponse> SubmitAsync(string sessionId, double earnedCurrency, double earnedScore, double maxComboInSession, int playtimeSec, int powerUpsCollectedInSession)
     {
         var callable = FirebaseFunctions.DefaultInstance.GetHttpsCallable("submitSessionResult");
         var data = new Dictionary<string, object> {
             { "sessionId", sessionId },
             { "earnedCurrency", earnedCurrency },
             { "earnedScore", earnedScore },
+            { "maxComboInSession", maxComboInSession },
+            { "playtimeSec", playtimeSec },
+            { "powerUpsCollectedInSession", powerUpsCollectedInSession },
         };
         var resp = await callable.CallAsync(data);
         var dict = resp.Data as IDictionary<string, object>;

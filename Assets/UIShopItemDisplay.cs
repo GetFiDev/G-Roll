@@ -532,6 +532,7 @@ public class UIShopItemDisplay : MonoBehaviour
 
         _buyInProgress = false;
         if (buyButton != null) buyButton.interactable = true;
+        UITopPanel.Instance.Initialize();
     }
 
     private IEnumerator RefreshVisualStateCoroutine()

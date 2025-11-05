@@ -18,10 +18,256 @@ const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GCLOUD_PROJECT_ID |
 const DB_PATH = `projects/${PROJECT_ID}/databases/${DB_ID}`;
 console.log(`[boot] Firestore DB selected: ${DB_PATH}`);
 const SEASON = "current";
-const TOP_N = 50;
+
+const RANK_BATCH = 500; // how many users to rank per page
+const RANK_LOCK_DOC = `leaderboards/${SEASON}/meta/rank_job`;
+
+async function acquireRankLock(dbNow: Timestamp, holdMs = 2 * 60 * 1000): Promise<boolean> {
+  const ref = db.doc(RANK_LOCK_DOC);
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const until = snap.exists ? (snap.get("lockedUntil") as Timestamp | null) : null;
+      const unlocked = !until || until.toMillis() <= dbNow.toMillis();
+      if (!unlocked) {
+        throw new Error("locked");
+      }
+      tx.set(ref, {lockedUntil: Timestamp.fromMillis(dbNow.toMillis() + holdMs),
+        updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function releaseRankLock() {
+  const ref = db.doc(RANK_LOCK_DOC);
+  try { await ref.set({lockedUntil: Timestamp.fromMillis(0),
+    updatedAt: FieldValue.serverTimestamp()}, {merge: true}); } catch {}
+}
+
+async function recomputeAllRanks(): Promise<{count:number}> {
+  const now = Timestamp.now();
+  const got = await acquireRankLock(now);
+  if (!got) {
+    console.log("[ranks] another job is running; skip");
+    return {count: 0};
+  }
+
+  let ranked = 0;
+  try {
+    // page through all users ordered by maxScore desc
+    let lastScore: number | null = null;
+    // Note: Firestore pagination with a single orderBy avoids composite index
+    while (true) {
+      let q = db.collection("users").orderBy("maxScore", "desc").limit(RANK_BATCH);
+      if (lastScore !== null) {
+        q = q.startAfter(lastScore);
+      }
+      const snap = await q.get();
+      if (snap.empty) break;
+
+      const batch = db.batch();
+      snap.docs.forEach((doc, i) => {
+        const rank = ranked + i + 1; // 1-based
+        batch.set(doc.ref, {rank, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+      });
+      await batch.commit();
+
+      ranked += snap.size;
+      const last = snap.docs[snap.docs.length - 1];
+      lastScore = Number(last.get("maxScore") ?? 0) || 0;
+
+      // extend lock while we are still working
+      await db.doc(RANK_LOCK_DOC).set({lockedUntil: Timestamp.fromMillis(Timestamp.now().toMillis() + 2 * 60 * 1000),
+        updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    }
+
+    console.log(`[ranks] recomputed for ${ranked} users`);
+    return {count: ranked};
+  } finally {
+    await releaseRankLock();
+  }
+}
+
+// Local date helper (YYYY-MM-DD) using client-provided tz offset in minutes
+function localDateString(ts: Timestamp, offsetMinutes: number): string {
+  const ms = ts.toMillis() + (Number(offsetMinutes) | 0) * 60000;
+  const d = new Date(ms);
+  return d.toISOString().slice(0, 10);
+}
 
 
 const db = new Firestore({databaseId:DB_ID});
+
+// ========================= Achievements =========================
+// Types: map to server-side progress sources on users/{uid}
+const ACH_TYPES = {
+  ENDLESS_ROLLER: "endless_roller",        // sessionsPlayed
+  SCORE_CHAMPION: "score_champion",         // maxScore
+  TOKEN_HUNTER:   "token_hunter",           // cumulativeCurrencyEarned
+  COMBO_GOD:      "combo_god",              // maxCombo
+  MARKET_WHISPER: "market_whisperer",       // itemsPurchasedCount
+  TIME_DRIFTER:   "time_drifter",           // totalPlaytimeMinutes
+  HABIT_MAKER:    "habit_maker",            // streak (daily login)
+  POWERUP_EXP:    "powerup_explorer",       // powerUpsCollected
+  SIGNAL_BOOST:   "signal_booster",         // referrals
+} as const;
+
+type AchType = typeof ACH_TYPES[keyof typeof ACH_TYPES];
+
+type AchLevel = { threshold: number; rewardGet: number };
+
+type AchDoc = {
+  levels: AchLevel[]; // length=5 expected
+  displayName?: string;
+  description?: string;
+  iconUrl?: string;
+  order?: number;
+};
+
+const achDefRef = (typeId:AchType) => db.collection("appdata").doc("achievements").collection("types").doc(typeId);
+const achUserRef = (uid:string, typeId:AchType) => db.collection("users").doc(uid).collection("achievements").doc(typeId);
+
+async function readAchDef(typeId: AchType): Promise<AchDoc> {
+  const snap = await achDefRef(typeId).get();
+  if (!snap.exists) throw new HttpsError("not-found", `Achievement def missing: ${typeId}`);
+  const d = snap.data() || {};
+  const levels = Array.isArray(d.levels) ? d.levels : [];
+  const norm: AchLevel[] = levels.map((x: any) => ({
+    threshold: Number(x?.threshold ?? 0) || 0,
+    rewardGet: Number(x?.rewardGet ?? 0) || 0,
+  }));
+  return {
+    levels: norm.slice(0, 5),
+    displayName: typeof d.displayName === "string" ? d.displayName : undefined,
+    description: typeof d.description === "string" ? d.description : undefined,
+    iconUrl: typeof d.iconUrl === "string" ? d.iconUrl : undefined,
+    order: Number(d.order ?? 0) || 0,
+  };
+}
+
+function computeLevel(progress:number, levels:AchLevel[]): number {
+  let lvl = 0;
+  for (let i = 0; i < levels.length; i++) {
+    if (progress >= levels[i].threshold) lvl = i + 1; else break;
+  }
+  return lvl; // 0..5
+}
+
+async function upsertUserAch(uid:string, typeId:AchType, progress:number) {
+  const def = await readAchDef(typeId);
+  const level = computeLevel(progress, def.levels);
+  const nextThreshold = level < def.levels.length ? def.levels[level].threshold : null;
+  const ref = achUserRef(uid, typeId);
+  await ref.set({
+    progress,
+    level,
+    nextThreshold,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge:true});
+}
+
+async function grantAchReward(uid:string, typeId:AchType, level:number) {
+  const def = await readAchDef(typeId);
+  if (level < 1 || level > def.levels.length) throw new HttpsError("invalid-argument", "Invalid level");
+  const reward = def.levels[level-1].rewardGet;
+  const uRef = db.collection("users").doc(uid);
+  const aRef = achUserRef(uid, typeId);
+
+  return await db.runTransaction(async (tx) => {
+    const [uSnap, aSnap] = await Promise.all([tx.get(uRef), tx.get(aRef)]);
+    if (!aSnap.exists) throw new HttpsError("failed-precondition", "Achievement progress missing");
+    const curLevel = Number(aSnap.get("level") ?? 0) || 0;
+    if (curLevel < level) throw new HttpsError("failed-precondition", "Level not reached");
+    const claimed: number[] = Array.isArray(aSnap.get("claimedLevels")) ? aSnap.get("claimedLevels") : [];
+    if (claimed.includes(level)) throw new HttpsError("already-exists", "Already claimed");
+
+    const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
+    tx.set(uRef, {currency: curCurrency + reward, updatedAt: FieldValue.serverTimestamp()}, {merge:true});
+    tx.set(aRef, {claimedLevels: FieldValue.arrayUnion(level), lastClaimedAt: Timestamp.now()}, {merge:true});
+    return {reward, newCurrency: curCurrency + reward};
+  });
+}
+
+// -------- getAchievementsSnapshot (callable) --------
+export const getAchievementsSnapshot = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  // 1) Load ALL achievement type docs (dynamic; no hardcoded ids)
+  const typesCol = db.collection("appdata").doc("achievements").collection("types");
+  const typeSnap = await typesCol.get();
+
+  type DefPayload = {
+    typeId: string;
+    displayName: string;
+    description: string;
+    iconUrl: string;
+    order: number;
+    maxLevel: number;
+    thresholds: number[];
+    rewards: number[];
+  };
+
+  const defs: DefPayload[] = [];
+
+  for (const doc of typeSnap.docs) {
+    const id = doc.id as string;
+    const raw = (doc.data() || {}) as Record<string, any>;
+    const levelsArr = Array.isArray(raw.levels) ? raw.levels : [];
+    const levels: AchLevel[] = levelsArr.map((x: any) => ({
+      threshold: Number(x?.threshold ?? 0) || 0,
+      rewardGet: Number(x?.rewardGet ?? 0) || 0,
+    }));
+
+    const thresholds = levels.map(l => l.threshold);
+    const rewards = levels.map(l => l.rewardGet);
+
+    defs.push({
+      typeId: id,
+      displayName: typeof raw.displayName === "string" ? raw.displayName : id,
+      description: typeof raw.description === "string" ? raw.description : "",
+      iconUrl: typeof raw.iconUrl === "string" ? raw.iconUrl : "",
+      order: Number(raw.order ?? 0) || 0,
+      maxLevel: levels.length,
+      thresholds,
+      rewards,
+    });
+  }
+
+  // Order by explicit order, then typeId for stability
+  defs.sort((a, b) => (a.order - b.order) || a.typeId.localeCompare(b.typeId));
+
+  // 2) Load user states for these types
+  const aCol = db.collection("users").doc(uid).collection("achievements");
+  const stateSnaps = await Promise.all(defs.map(d => aCol.doc(d.typeId).get()));
+
+  type StatePayload = 
+  { typeId: string; progress: number; level: number; claimedLevels: number[]; nextThreshold: number | null };
+  const states: StatePayload[] = defs.map((d, i) => {
+    const s = stateSnaps[i];
+    const progress = s.exists ? Number(s.get("progress") ?? 0) || 0 : 0;
+    const level = s.exists ? Number(s.get("level") ?? 0) || 0 : 0;
+    const claimed = s.exists && Array.isArray(s.get("claimedLevels")) ? (s.get("claimedLevels") as number[]) : [];
+    const nextThreshold = s.exists ? ((s.get("nextThreshold") ?? null) as number | null) : (d.thresholds[level] ?? null);
+    return {typeId: d.typeId, progress, level, claimedLevels: claimed, nextThreshold};
+  });
+
+  return {ok: true, defs, states};
+});
+
+// -------- claimAchievementReward (callable) --------
+export const claimAchievementReward = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const typeId = String(req.data?.typeId || "").trim() as AchType;
+  const level = Number(req.data?.level ?? 0);
+  if (!typeId || !level) throw new HttpsError("invalid-argument", "typeId and level required");
+  const res = await grantAchReward(uid, typeId, level);
+  return {ok:true, rewardGet: res.reward, newCurrency: res.newCurrency};
+});
 
 // ---- Stats helpers for equip/unequip merging ----
 function parseStatsJson(s: any): Record<string, number> {
@@ -79,43 +325,72 @@ export const syncLeaderboard = onDocumentWritten(
       {username, score, updatedAt:FieldValue.serverTimestamp()},
       {merge:true}
     );
-
-    // 2) materialize topN
-    const topRef = seasonRef.collection("meta").doc(`top${TOP_N}`);
-
-    type Entry = {uid:string; username:string; score:number};
-
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(topRef);
-
-      let entries: Entry[] = [];
-      const rawEntries = snap.exists ? snap.data()?.entries : null;
-
-      if (Array.isArray(rawEntries)) {
-        entries = rawEntries
-          .map((e:any) => ({
-            uid:String(e?.uid ?? ""),
-            username:String(e?.username ?? "Guest"),
-            score:Number(e?.score ?? 0)
-          }))
-          .filter((e:Entry) => e.uid.length > 0);
-      }
-
-      const i = entries.findIndex((e) => e.uid === uid);
-      const updated: Entry = {uid, username, score};
-      if (i >= 0) entries[i] = updated; else entries.push(updated);
-
-      entries.sort((a,b) => b.score - a.score);
-      if (entries.length > TOP_N) entries = entries.slice(0, TOP_N);
-
-      tx.set(
-        topRef,
-        {entries, updatedAt:FieldValue.serverTimestamp()},
-        {merge:true}
-      );
-    });
+    // NOTE: Removed materialization of topN and background rank recomputation.
   }
 );
+
+// ---------------- getLeaderboardsSnapshot (callable) ----------------
+// Returns a snapshot of the leaderboard from leaderboards/{SEASON}/entries.
+// Client should page using startAfterScore if needed. No ranks are written/returned.
+export const getLeaderboardsSnapshot = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  // params
+  const limitIn = Number(req.data?.limit ?? 100);
+  const startAfterScoreRaw = req.data?.startAfterScore;
+  const includeSelf = !!req.data?.includeSelf; // if true, echo caller's current entry
+
+  const limit = Math.max(1, Math.min(limitIn, 500));
+  const seasonRef = db.collection("leaderboards").doc(SEASON);
+  let q = seasonRef.collection("entries").orderBy("score", "desc").limit(limit);
+
+  if (startAfterScoreRaw !== undefined && startAfterScoreRaw !== null) {
+    const s = Number(startAfterScoreRaw);
+    if (Number.isFinite(s)) q = q.startAfter(s);
+  }
+
+  const snap = await q.get();
+
+  const items = snap.docs.map((d) => {
+    const data = d.data() || {} as any;
+    const username = (typeof data.username === "string" ? data.username : "").trim() || "Guest";
+    const score = typeof data.score === "number" ? data.score : 0;
+    const updatedAt = (data.updatedAt as Timestamp | undefined)?.toDate()?.toISOString() ?? null;
+    return {uid: d.id, username, score, updatedAt};
+  });
+
+  const hasMore = snap.size >= limit;
+  const next = hasMore && snap.docs.length > 0
+    ? {startAfterScore: (typeof snap.docs[snap.docs.length - 1].get("score") === 'number' ? snap.docs[snap.docs.length - 1].get("score") : 0)}
+    : null;
+
+  let me: { uid:string; username:string; score:number } | null = null;
+  if (includeSelf) {
+    // Prefer leaderboard entry; fallback to users doc
+    const [myEntrySnap, userSnap] = await Promise.all([
+      seasonRef.collection("entries").doc(uid).get(),
+      db.collection("users").doc(uid).get()
+    ]);
+    if (myEntrySnap.exists) {
+      const md = myEntrySnap.data() || {} as any;
+      me = {
+        uid,
+        username: (typeof md.username === "string" ? md.username : "").trim() || "Guest",
+        score: typeof md.score === "number" ? md.score : 0,
+      };
+    } else if (userSnap.exists) {
+      const ud = userSnap.data() || {} as any;
+      me = {
+        uid,
+        username: (typeof ud.username === "string" ? ud.username : "").trim() || "Guest",
+        score: typeof ud.maxScore === "number" ? ud.maxScore : 0,
+      };
+    }
+  }
+
+  return {ok: true, season: SEASON, count: items.length, hasMore, next, items, me};
+});
 
 // ---------------- Elite Pass ----------------
 export const purchaseElitePass = onCall(async (req) => {
@@ -300,6 +575,11 @@ async function applyReferralCodeToUser(
     );
   });
 
+  try {
+    const owner = await db.collection("users").doc(ownerUid).get();
+    await upsertUserAch(ownerUid, ACH_TYPES.SIGNAL_BOOST, Number(owner.get("referrals") ?? 0) || 0);
+  } catch (e) { console.warn("[ach] referral evaluate failed", e); }
+
   return {applied:true, referredByUid:ownerUid};
 }
 
@@ -334,6 +614,9 @@ export const createUserProfile = functionsV1
           playerSizePercent: 0
         }),
         streak: 0,
+        bestStreak: 0,
+        lastLoginLocalDate: "",
+        tzOffsetMinutes: 0,
         trustFactor: 100,
         rank: 0,
         maxScore: 0,
@@ -343,6 +626,14 @@ export const createUserProfile = functionsV1
         lastLogin: Timestamp.now(),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
+        sessionsPlayed: 0,
+        cumulativeCurrencyEarned: 0,
+        itemsPurchasedCount: 0,
+        totalPlaytimeSec: 0,
+        totalPlaytimeMinutes: 0,
+        totalPlaytimeMinutesFloat: 0,
+        powerUpsCollected: 0,
+        maxCombo: 0,
       });
     });
 
@@ -378,6 +669,9 @@ export const ensureUserProfile = onCall(async (req) => {
           playerSizePercent: 0
         }),
         streak: 0,
+        bestStreak: 0,
+        lastLoginLocalDate: "",
+        tzOffsetMinutes: 0,
         trustFactor: 100,
         rank: 0,
         maxScore: 0,
@@ -388,7 +682,15 @@ export const ensureUserProfile = onCall(async (req) => {
         ),
         lastLogin: Timestamp.now(),
         createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp(),
+        sessionsPlayed: 0,
+        cumulativeCurrencyEarned: 0,
+        itemsPurchasedCount: 0,
+        totalPlaytimeSec: 0,
+        totalPlaytimeMinutes: 0,
+        totalPlaytimeMinutesFloat: 0,
+        powerUpsCollected: 0,
+        maxCombo: 0,
       });
     } else {
       const needInit = !snap.get("elitePassExpiresAt");
@@ -400,6 +702,22 @@ export const ensureUserProfile = onCall(async (req) => {
         // backfill as expired if missing/null
         patch.elitePassExpiresAt = 
           Timestamp.fromMillis(Date.now() - 24*60*60*1000);
+      }
+      // Backfill missing progress counters for legacy users
+      for (const k of [
+        "sessionsPlayed",
+        "cumulativeCurrencyEarned",
+        "itemsPurchasedCount",
+        "totalPlaytimeSec",
+        "totalPlaytimeMinutes",
+        "totalPlaytimeMinutesFloat",
+        "powerUpsCollected",
+        "maxCombo",
+        "bestStreak",
+        "lastLoginLocalDate",
+        "tzOffsetMinutes",
+      ]) {
+        if (snap.get(k) === undefined) patch[k] = 0;
       }
       tx.set(userRef, patch, {merge:true});
     }
@@ -414,6 +732,61 @@ export const ensureUserProfile = onCall(async (req) => {
     ok: true,
     referralKey: key,
   };
+});
+
+// -------- updateDailyStreak (callable) --------
+export const updateDailyStreak = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+  const inputOffset = Number(req.data?.tzOffsetMinutes ?? 0);
+  const offset = Number.isFinite(inputOffset) ? Math.round(inputOffset) : 0;
+  const today = localDateString(now, offset);
+
+  let out = {streak: 0, bestStreak: 0, today};
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) {
+      throw new HttpsError("failed-precondition", "User doc missing");
+    }
+
+    const prevStreak = Number(snap.get("streak") ?? 0) || 0;
+    const prevBest = Number(snap.get("bestStreak") ?? 0) || 0;
+    const last = (snap.get("lastLoginLocalDate") as string) || "";
+
+    let nextStreak = prevStreak;
+    if (last !== today) {
+      const yesterday = localDateString(Timestamp.fromMillis(now.toMillis() - 24 * 60 * 60 * 1000), offset);
+      if (last === yesterday) nextStreak = prevStreak + 1; else nextStreak = 1; // skip days → reset to 1
+    }
+
+    const nextBest = Math.max(prevBest, nextStreak);
+
+    tx.set(
+      userRef,
+      {
+        streak: nextStreak,
+        bestStreak: nextBest,
+        lastLoginLocalDate: today,
+        tzOffsetMinutes: offset,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true}
+    );
+
+    out = {streak: nextStreak, bestStreak: nextBest, today};
+  });
+
+  try {
+    await upsertUserAch(uid, ACH_TYPES.HABIT_MAKER, out.streak);
+  } catch (e) {
+    console.warn("[ach] habit_maker evaluate failed", e);
+  }
+
+  return {ok: true, ...out};
 });
 
 // -------- apply referral later (optional) --------
@@ -434,6 +807,9 @@ export const submitSessionResult = onCall(async (req) => {
   const sessionId = String(req.data?.sessionId || "").trim();
   const earnedCurrency = Number(req.data?.earnedCurrency ?? 0);
   const earnedScore = Number(req.data?.earnedScore ?? 0);
+  const maxComboInSession = Number(req.data?.maxComboInSession ?? 0);
+  const playtimeSec = Number(req.data?.playtimeSec ?? 0);
+  const powerUpsCollectedInSession = Number(req.data?.powerUpsCollectedInSession ?? 0);
 
   if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required.");
   if (!isFinite(earnedCurrency) || !isFinite(earnedScore)) {
@@ -473,15 +849,55 @@ export const submitSessionResult = onCall(async (req) => {
     const newCurrency = currentCurrency + earnedCurrency;
     const newBest = Math.max(currentBest, earnedScore);
 
-    tx.set(userRef, {currency:newCurrency, maxScore:newBest,
-      updatedAt:FieldValue.serverTimestamp()}, {merge:true});
+    const prevSessions = Number(uSnap.get("sessionsPlayed") ?? 0) || 0;
+    const prevCumEarn = Number(uSnap.get("cumulativeCurrencyEarned") ?? 0) || 0;
+    const prevPlaySec = Number(uSnap.get("totalPlaytimeSec") ?? 0) || 0;
+    const prevPups = Number(uSnap.get("powerUpsCollected") ?? 0) || 0;
+    const prevMaxCombo = Number(uSnap.get("maxCombo") ?? 0) || 0;
+
+    const newSessions = prevSessions + 1;
+    const newCumEarn = prevCumEarn + earnedCurrency;
+    const newPlaySec = prevPlaySec + Math.max(0, Math.floor(playtimeSec));
+    const newPlayMin = Math.floor(newPlaySec / 60);
+    const newPlayMinFloat = newPlaySec / 60;
+    const newPups = prevPups + Math.max(0, powerUpsCollectedInSession);
+    const newMaxCombo = Math.max(prevMaxCombo, Math.max(0, maxComboInSession));
+
+    tx.set(userRef, {
+      currency: newCurrency,
+      maxScore: newBest,
+      sessionsPlayed: newSessions,
+      cumulativeCurrencyEarned: newCumEarn,
+      totalPlaytimeSec: newPlaySec,
+      totalPlaytimeMinutes: newPlayMin,
+      totalPlaytimeMinutesFloat: newPlayMinFloat,
+      powerUpsCollected: newPups,
+      maxCombo: newMaxCombo,
+      updatedAt: FieldValue.serverTimestamp()
+    }, {merge:true});
 
     // mark session as processed
     tx.set(sessRef, {state:"completed", earnedCurrency, earnedScore, processedAt:Timestamp.now()}, {merge:true});
 
     return {alreadyProcessed:false, currency:newCurrency, maxScore:newBest};
-  });
-
+    });
+      try {
+      const u = await db.collection("users").doc(uid).get();
+      await Promise.all([
+        upsertUserAch(uid, ACH_TYPES.ENDLESS_ROLLER, Number(u.get("sessionsPlayed") ?? 0) || 0),
+        upsertUserAch(uid, ACH_TYPES.SCORE_CHAMPION, Number(u.get("maxScore") ?? 0) || 0),
+        upsertUserAch(uid, ACH_TYPES.TOKEN_HUNTER, Number(u.get("cumulativeCurrencyEarned") ?? 0) || 0),
+        upsertUserAch(uid, ACH_TYPES.COMBO_GOD, Number(u.get("maxCombo") ?? 0) || 0),
+        upsertUserAch(
+          uid,
+          ACH_TYPES.TIME_DRIFTER,
+          Number(u.get("totalPlaytimeMinutesFloat") ?? u.get("totalPlaytimeMinutes") ?? 0) || 0
+        ),
+        upsertUserAch(uid, ACH_TYPES.POWERUP_EXP, Number(u.get("powerUpsCollected") ?? 0) || 0),
+      ]);
+    } catch (e) {
+      console.warn("[ach] post-session evaluate failed", e);
+    }
   return result;
 });
 
@@ -1389,6 +1805,10 @@ export const purchaseItem = onCall(async (req) => {
       at: now,
     });
 
+    // Increment purchased items counter (counts all purchases including consumables)
+    const curCount = Number(userSnap.get("itemsPurchasedCount") ?? 0) || 0;
+    tx.set(userRef, {itemsPurchasedCount: curCount + 1, updatedAt: FieldValue.serverTimestamp()}, {merge:true});
+
     return {ok: true, itemId, owned: true, currencyLeft: newBalance};
   }).then(async (res) => {
     // Post-transaction external checks (IAP/AD anti-replay) — outside tx to avoid network in txn
@@ -1399,6 +1819,12 @@ export const purchaseItem = onCall(async (req) => {
       const {adToken} = (req.data || {}) as any;
       await verifyAdGrant(adToken);
     }
+
+    try {
+      const u = await db.collection("users").doc(uid).get();
+      await upsertUserAch(uid, ACH_TYPES.MARKET_WHISPER, Number(u.get("itemsPurchasedCount") ?? 0) || 0);
+    } catch (e) { console.warn("[ach] purchase evaluate failed", e); }
+
     return res;
   });
 });
@@ -1526,4 +1952,12 @@ export const unequipItem = onCall(async (req) => {
   });
 
   return {ok: true, itemId};
+});
+
+// -------- recomputeRanks (callable) --------
+export const recomputeRanks = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const res = await recomputeAllRanks();
+  return {ok: true, updated: res.count};
 });

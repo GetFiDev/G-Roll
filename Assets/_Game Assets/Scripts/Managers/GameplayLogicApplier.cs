@@ -46,6 +46,10 @@ public class GameplayLogicApplier : MonoBehaviour
     private Quaternion _startCamRotation;
 
     // Runtime state
+    // ---- Session Tracking (for server submit) ----
+    private float _sessionStartTime;
+    private float _sessionMaxComboMultiplier = 1f;
+    private int _sessionPowerUpsCollected = 0;
     // Effective camera speed after multiplier
     public float CurrentSpeed { get; private set; }
     // Internal accelerating base (before multiplier)
@@ -70,6 +74,7 @@ public class GameplayLogicApplier : MonoBehaviour
     public event Action<bool> OnBoosterStateChanged;            // active?
     public event Action<Vector3,int> OnCoinPickupFXRequest;     // worldPos, count (genelde 1)
     public event Action OnBoosterUsed;
+    public event Action<int> OnPowerUpCollectedCountChanged; // emits total collected in this run
 
     // Session submit callbacks (remote)
     public event Action<bool, double, double> OnSessionResultSubmitted; // (alreadyProcessed, currencyTotal, maxScore)
@@ -125,6 +130,7 @@ public class GameplayLogicApplier : MonoBehaviour
         ResetMultipliersToDefault();
 
         ResetSessionValues(hardResetCameraSnapshot: true);
+        ResetSessionTrackers();
 
         ResetCombo(); // also notifies UI via events
     }
@@ -148,6 +154,7 @@ public class GameplayLogicApplier : MonoBehaviour
         else
         {
             isRunning = true;
+            _sessionStartTime = Time.time; // stamp the exact run start moment
             OnRunStarted?.Invoke();
         }
     }
@@ -165,6 +172,7 @@ public class GameplayLogicApplier : MonoBehaviour
         armedForFirstMove = false;
         isRunning = true;
         lastCamZ = targetCamera.position.z; // güvence: skor integrasyonu doğru başlasın
+        _sessionStartTime = Time.time; // stamp when the player truly starts the run
         OnRunStarted?.Invoke();
     }
 
@@ -198,7 +206,18 @@ public class GameplayLogicApplier : MonoBehaviour
 
         try
         {
-            var res = await SessionResultRemoteService.SubmitAsync(sessionId, earnedCurrency, earnedScore);
+            // Extended metrics (decimal combo, playtime, power-ups)
+            double maxComboInSession = GetMaxComboInSession();
+            int playtimeSec = GetPlaytimeSec();
+            int powerUpsCollectedInSession = GetPowerUpsCollectedInSession();
+            var res = await SessionResultRemoteService.SubmitAsync(
+                sessionId,
+                earnedCurrency,
+                earnedScore,
+                maxComboInSession,
+                playtimeSec,
+                powerUpsCollectedInSession
+            );
             OnSessionResultSubmitted?.Invoke(res.alreadyProcessed, res.currency, res.maxScore);
             return true;
         }
@@ -208,6 +227,53 @@ public class GameplayLogicApplier : MonoBehaviour
             OnSessionResultFailed?.Invoke(ex.Message);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Reset per-run trackers used when submitting session result to server.
+    /// </summary>
+    public void ResetSessionTrackers()
+    {
+        // Start time will be set at the exact moment the run begins (StartRun/NotifyFirstPlayerMove)
+        _sessionStartTime = 0f;
+        _sessionMaxComboMultiplier = 1f;
+        _sessionPowerUpsCollected = 0;
+        OnPowerUpCollectedCountChanged?.Invoke(_sessionPowerUpsCollected);
+    }
+
+    /// <summary>
+    /// Call this when a power-up is collected during the run.
+    /// </summary>
+    public void RegisterPowerUpPickup()
+    {
+        _sessionPowerUpsCollected++;
+        OnPowerUpCollectedCountChanged?.Invoke(_sessionPowerUpsCollected);
+    }
+
+    /// <summary>
+    /// Returns the highest combo multiplier reached in this run as a decimal (no rounding).
+    /// </summary>
+    public double GetMaxComboInSession()
+    {
+        // Hiç yuvarlama yapmıyoruz; 1.24x -> 1.24 olarak gider
+        return (double)_sessionMaxComboMultiplier;
+    }
+
+    /// <summary>
+    /// Returns the playtime for this run in whole seconds.
+    /// </summary>
+    public int GetPlaytimeSec()
+    {
+        if (_sessionStartTime <= 0f) return 0;
+        return Mathf.Max(0, Mathf.FloorToInt(Time.time - _sessionStartTime));
+    }
+
+    /// <summary>
+    /// Returns how many power-ups were collected during this run.
+    /// </summary>
+    public int GetPowerUpsCollectedInSession()
+    {
+        return _sessionPowerUpsCollected;
     }
 
     public void ResetRun()
@@ -434,6 +500,9 @@ public class GameplayLogicApplier : MonoBehaviour
         if (comboMultiplier < 0.0001f) comboMultiplier = 0.0001f; // güvence
         if (!Mathf.Approximately(prev, comboMultiplier))
             OnComboMultiplierChanged?.Invoke(comboMultiplier);
+        // Track session max combo for submit
+        if (_sessionMaxComboMultiplier < comboMultiplier)
+            _sessionMaxComboMultiplier = comboMultiplier;
     }
     private void RegisterCoinForCombo()
     {

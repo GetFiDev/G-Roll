@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using NetworkingData; // <-- LBEntry ve UserData burada
+using System.Linq;
 
 public class LeaderboardManager : MonoBehaviour
 {
@@ -10,10 +11,11 @@ public class LeaderboardManager : MonoBehaviour
     public UserDatabaseManager userDB;
 
     [Header("Options")]
-    [Range(1, 100)] public int topN = 50;
+    [Range(1, 100)] public int topN = 50; // number of top entries to fetch when not fetching all
+    public bool fetchAll = true;
 
     // Cache (sadece bu sınıf yazar)
-    public List<LBEntry> TopCached { get; private set; } = new();
+    public List<UserDatabaseManager.LBEntry> TopCached { get; private set; } = new();
     public string MyUsername { get; private set; } = "Guest";
     public int    MyScore    { get; private set; } = 0;
     public string MyRankText { get; private set; } = "";   // ilk 50’de değilse boş kalsın
@@ -53,27 +55,52 @@ public class LeaderboardManager : MonoBehaviour
     {
         if (userDB == null) return;
 
-        // 1) Kendi verin
-        UserData me = await userDB.LoadUserData();
-        MyUsername = string.IsNullOrWhiteSpace(me?.username) ? "Guest" : me.username;
-        MyScore    = (int)(me?.maxScore ?? 0);
+        // 1) Sunucudan snapshot (callable)
+        UserDatabaseManager.LeaderboardPage page = null;
+        try
+        {
+            int limit = fetchAll ? 500 : Mathf.Clamp(topN, 1, 500);
+            page = await userDB.GetLeaderboardsSnapshotAsync(limit: limit, startAfterScore: null, includeSelf: true);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[LeaderboardManager] Snapshot fetch failed: {ex.Message}");
+        }
 
-        // 2) TopN
-        List<LBEntry> top = await userDB.FetchLeaderboardTopAsync(topN);
-        // İsim olmayan veya "Guest" olanları liste dışı bırak
-        var filtered = (top ?? new List<LBEntry>()).FindAll(e =>
-            !string.IsNullOrWhiteSpace(e.username) &&
-            !string.Equals(e.username, "Guest", StringComparison.OrdinalIgnoreCase)
-        );
-        TopCached = filtered;
+        page ??= new UserDatabaseManager.LeaderboardPage();
 
-        // 3) Sıralama (ilk 50’de değilse boş kalsın)
-        MyRankText = "";
+        // 2) Kendi verin (callable döner; yoksa fallback olarak user data)
+        if (page.me != null)
+        {
+            MyUsername = string.IsNullOrWhiteSpace(page.me.username) ? "Guest" : page.me.username;
+            MyScore    = page.me.score;
+        }
+        else
+        {
+            var me = await userDB.LoadUserData();
+            MyUsername = string.IsNullOrWhiteSpace(me?.username) ? "Guest" : me.username;
+            MyScore    = (int)(me?.maxScore ?? 0);
+        }
+
+        // 3) Listeyi sırala (server zaten score desc gönderiyor; yine de garantile)
+        var ordered = (page.items ?? new List<UserDatabaseManager.LBEntry>())
+            .Where(e => !string.IsNullOrWhiteSpace(e.username) && !string.Equals(e.username, "Guest", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(e => e.score)
+            .ThenBy(e => e.username)
+            .ToList();
+
+        TopCached = ordered;
+
+        // 4) Local rank (global rank yazmıyoruz; listede bulunuyorsa index+1)
         var myUid = userDB.currentLoggedUserID;
         if (!string.IsNullOrEmpty(myUid))
         {
             int idx = TopCached.FindIndex(e => e.uid == myUid);
-            if (idx >= 0) MyRankText = (idx + 1).ToString(); // 1-based
+            MyRankText = (idx >= 0) ? (idx + 1).ToString() : "-";
+        }
+        else
+        {
+            MyRankText = "-";
         }
 
         OnCacheUpdated?.Invoke();

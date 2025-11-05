@@ -9,6 +9,13 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
     public AudioClip sfxOnUse;
     public string requiredTag = "Player"; // istersen boş bırak
 
+    [Header("Tracking / Marker")]
+    [Tooltip("If true, this collectable will be counted as a Power-Up for analytics/achievements.")]
+    public bool countsAsPowerUp = true;
+
+    [Tooltip("Optional kind/category for debugging/telemetry (e.g., Magnet, Shield, ScoreBoost)")]
+    public string powerUpKind = "generic";
+
     protected bool _used;
     protected virtual void PlayFx()
     {
@@ -37,6 +44,20 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
         _used = true;
         Apply(player);
         PlayFx();
+
+        // Notify gameplay logic for Power-Up tracking (achievement: Power-Up Explorer)
+        if (countsAsPowerUp)
+        {
+            var logic = FindObjectOfType<GameplayLogicApplier>();
+            if (logic != null)
+            {
+                logic.RegisterPowerUpPickup();
+#if UNITY_EDITOR
+                if (!string.IsNullOrEmpty(powerUpKind))
+                    Debug.Log($"[BoosterBase] Power-Up collected: {powerUpKind}");
+#endif
+            }
+        }
 
         if (destroyOnUse)
         {

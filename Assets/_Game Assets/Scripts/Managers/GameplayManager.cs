@@ -241,6 +241,7 @@ public class GameplayManager : MonoBehaviour
         var earnedCurrency = _sessionCurrencyTotal;
         SubmitSessionToServer(earnedCurrency, earnedScore);
 
+
         // Let player stats cleanup (if any)
         var statEnd = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
         statEnd?.OnRunEnd();
@@ -377,6 +378,14 @@ public class GameplayManager : MonoBehaviour
         }
         try
         {
+            // Collect extended session metrics for visibility (LogicApplier also sends these to server)
+            if (logicApplier != null)
+            {
+                double maxComboInSession = logicApplier.GetMaxComboInSession();
+                int playtimeSec = logicApplier.GetPlaytimeSec();
+                int powerUpsCollectedInSession = logicApplier.GetPowerUpsCollectedInSession();
+                Debug.Log($"[GameplayManager] Submit extras: combo={maxComboInSession:F2} playtimeSec={playtimeSec} powerUps={powerUpsCollectedInSession}");
+            }
             await logicApplier.SubmitSessionResultAsync(_currentSessionId, earnedCurrency, earnedScore);
         }
         catch (Exception ex)

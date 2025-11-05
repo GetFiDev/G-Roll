@@ -39,5 +39,17 @@ namespace NetworkingData
         [FirestoreProperty] public string referredByUid { get; set; }
         [FirestoreProperty] public string referredByKey { get; set; }
         [FirestoreProperty] public Timestamp referralAppliedAt { get; set; }
+
+        [FirestoreProperty] public double totalPlaytimeMinutesFloat { get; set; }
+        [FirestoreProperty] public string lastLoginLocalDate { get; set; }
+        [FirestoreProperty] public int sessionsPlayed { get; set; }
+        [FirestoreProperty] public double cumulativeCurrencyEarned { get; set; }
+        [FirestoreProperty] public double maxCombo { get; set; }
+        [FirestoreProperty] public int bestStreak { get; set; }
+        [FirestoreProperty] public int powerUpsCollected { get; set; }
+        [FirestoreProperty] public int itemsPurchasedCount { get; set; }
+        [FirestoreProperty] public int totalPlaytimeMinutes { get; set; }
+        [FirestoreProperty] public double totalPlaytimeSec { get; set; }
+        [FirestoreProperty] public int tzOffsetMinutes { get; set; }
     }
 }

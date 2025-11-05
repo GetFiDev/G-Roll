@@ -175,6 +175,8 @@ MonoBehaviour:
     type: 3}
   sfxOnUse: {fileID: 0}
   requiredTag: Player
+  countsAsPowerUp: 1
+  powerUpKind: camspeedreducer
   additiveSpeed: -0.25
 --- !u!135 &5630491195367057002
 SphereCollider:

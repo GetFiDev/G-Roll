@@ -53,6 +53,8 @@ MonoBehaviour:
     type: 3}
   sfxOnUse: {fileID: 0}
   requiredTag: Player
+  countsAsPowerUp: 1
+  powerUpKind: instantfill
 --- !u!135 &2035459677021616363
 SphereCollider:
   m_ObjectHideFlags: 0

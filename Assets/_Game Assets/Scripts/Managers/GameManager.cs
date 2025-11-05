@@ -47,6 +47,7 @@ public class GameManager : MonoBehaviour
     private void OnRequestReturnToMeta()
     {
         SetPhase(GamePhase.Meta);
+        UITopPanel.Instance.Initialize();
     }
 
     private void SetPhase(GamePhase next)

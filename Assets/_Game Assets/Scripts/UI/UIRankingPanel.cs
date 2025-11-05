@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using NetworkingData; // LBEntry için
 
 public class UIRankingPanel : MonoBehaviour
 {
@@ -30,6 +29,7 @@ public class UIRankingPanel : MonoBehaviour
 
         if (topNOverride > 0)
             leaderboard.topN = topNOverride;
+        if (topNOverride > 0) leaderboard.fetchAll = false;
 
         ShowLoading(true);
         leaderboard.ManualRefresh(); // Fetch + Cache tetikle
@@ -61,7 +61,7 @@ public class UIRankingPanel : MonoBehaviour
         ShowLoading(false);
     }
 
-    private void RebuildList(List<LBEntry> entries)
+    private void RebuildList(List<UserDatabaseManager.LBEntry> entries)
     {
         ClearList();
 
@@ -80,7 +80,8 @@ public class UIRankingPanel : MonoBehaviour
             var row = Instantiate(rowPrefab, listRoot);
             _rows.Add(row);
 
-            string rankText = (i + 1).ToString(); // 1-based rank
+            int rk = e.rank;
+            string rankText = rk > 0 ? rk.ToString() : (i + 1).ToString();
             string username = string.IsNullOrWhiteSpace(e.username) ? "Guest" : e.username;
             row.SetData(rankText, username, e.score);
         }

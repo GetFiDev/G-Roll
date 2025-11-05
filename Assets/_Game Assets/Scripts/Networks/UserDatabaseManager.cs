@@ -7,6 +7,10 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using NetworkingData;
+using System.Linq;
+using System.Collections.Generic;
+using System.Collections;
+
 
 public class UserDatabaseManager : MonoBehaviour
 {
@@ -18,6 +22,9 @@ public class UserDatabaseManager : MonoBehaviour
     public event Action OnLoginSucceeded;
     public event Action<string> OnLoginFailed;
     public event Action<UserData> OnUserDataSaved;
+
+    // Capability flag for leaderboard all-rows fetch
+    public bool HasMethod_FetchLeaderboardAll => true;
 
 
     // Main-thread güvenli dispatch için
@@ -96,6 +103,48 @@ public class UserDatabaseManager : MonoBehaviour
         });
     }
 
+    /// <summary>
+    /// Computes local timezone offset in minutes (e.g., Istanbul +180) for daily streak calculation.
+    /// </summary>
+    private static int GetLocalTzOffsetMinutes()
+    {
+        var offset = TimeZoneInfo.Local.GetUtcOffset(DateTime.UtcNow);
+        return (int)Math.Round(offset.TotalMinutes);
+    }
+
+    /// <summary>
+    /// Calls the `updateDailyStreak` callable on the server. Safe to call multiple times per day (no-op if already updated).
+    /// </summary>
+    private async Task<bool> UpdateDailyStreakAsync()
+    {
+        if (_funcs == null)
+        {
+            EmitLog("⚠️ updateDailyStreak: Functions not initialized");
+            return false;
+        }
+        if (currentUser == null)
+        {
+            EmitLog("⚠️ updateDailyStreak: No Login");
+            return false;
+        }
+        try
+        {
+            var callable = _funcs.GetHttpsCallable("updateDailyStreak");
+            var payload = new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "tzOffsetMinutes", GetLocalTzOffsetMinutes() }
+            };
+            var resp = await callable.CallAsync(payload);
+            EmitLog("✅ updateDailyStreak ok");
+            return true;
+        }
+        catch (Exception e)
+        {
+            EmitLog("⚠️ updateDailyStreak error: " + e.Message);
+            return false;
+        }
+    }
+
     // --- REGISTER ---
     public async void Register(string email, string password, string referralCode)
     {
@@ -110,6 +159,8 @@ public class UserDatabaseManager : MonoBehaviour
 
             // Sunucuda profil oluşturulduğundan (Auth trigger) emin olmak için callable:
             await EnsureUserProfileAsync(referralCode);
+            // Daily streak: update once on sign-up/login
+            await UpdateDailyStreakAsync();
 
             // Taze veriyi çek ve UI’a yayınla
             var data = await LoadUserData();
@@ -142,6 +193,8 @@ public class UserDatabaseManager : MonoBehaviour
 
             // Profil var/yok normalize et (lastLogin güncellemesini artık server yapıyor)
             await EnsureUserProfileAsync();
+            // Daily streak: update once on sign-in
+            await UpdateDailyStreakAsync();
 
             // En güncel user data
             var data = await LoadUserData();
@@ -200,8 +253,8 @@ public class UserDatabaseManager : MonoBehaviour
                 { "username",  data.username ?? string.Empty },
                 { "currency",  data.currency },
                 { "streak",    data.streak },
-                { "referrals", data.referrals },
-                { "rank",      data.rank }
+                { "referrals", data.referrals }
+                // Do NOT write rank from client
             };
 
             // Güvenlik: yanlışlıkla server-only key girilirse ayıkla
@@ -349,6 +402,108 @@ public class UserDatabaseManager : MonoBehaviour
 
         return result;
     }
+
+    // ===== Leaderboard DTOs for callable response =====
+    [Serializable]
+    public class LBEntry
+    {
+        public string uid;
+        public string username;
+        public int score;
+        public int rank; // server returns no rank; UI will use index+1
+    }
+
+    [Serializable]
+    public class LeaderboardPage
+    {
+        public List<LBEntry> items = new();
+        public bool hasMore;
+        public double? nextStartAfterScore;
+        public LBEntry me; // includeSelf=true ise dolar
+    }
+
+    /// <summary>
+    /// Calls getLeaderboardsSnapshot callable and maps the result.
+    /// Prefer this over direct Firestore queries.
+    /// </summary>
+    public async Task<LeaderboardPage> GetLeaderboardsSnapshotAsync(int limit = 100, double? startAfterScore = null, bool includeSelf = true)
+    {
+        var page = new LeaderboardPage();
+
+        if (_funcs == null)
+        {
+            EmitLog("❌ Functions not initialized");
+            return page;
+        }
+
+        try
+        {
+            var fn = _funcs.GetHttpsCallable("getLeaderboardsSnapshot");
+            var payload = new Dictionary<string, object>
+            {
+                { "limit", Mathf.Clamp(limit, 1, 500) },
+                { "includeSelf", includeSelf }
+            };
+            if (startAfterScore.HasValue) payload["startAfterScore"] = startAfterScore.Value;
+
+            var res = await fn.CallAsync(payload);
+            if (res?.Data is IDictionary root)
+            {
+                // items
+                if (root["items"] is IList arr)
+                {
+                    foreach (var it in arr)
+                    {
+                        if (it is IDictionary m)
+                        {
+                            var e = new LBEntry
+                            {
+                                uid = m.TryGetString("uid"),
+                                username = string.IsNullOrWhiteSpace(m.TryGetString("username")) ? "Guest" : m.TryGetString("username"),
+                                score = m.TryGetInt("score"),
+                                rank = 0
+                            };
+                            page.items.Add(e);
+                        }
+                    }
+                }
+
+                // hasMore
+                page.hasMore = root.TryGetBool("hasMore");
+
+                // next.startAfterScore
+                if (root["next"] is IDictionary nextD)
+                {
+                    if (nextD.Contains("startAfterScore"))
+                    {
+                        var sas = nextD["startAfterScore"];
+                        try { page.nextStartAfterScore = Convert.ToDouble(sas); } catch { page.nextStartAfterScore = null; }
+                    }
+                }
+
+                // me
+                if (includeSelf && root["me"] is IDictionary meD)
+                {
+                    page.me = new LBEntry
+                    {
+                        uid = meD.TryGetString("uid"),
+                        username = string.IsNullOrWhiteSpace(meD.TryGetString("username")) ? "You" : meD.TryGetString("username"),
+                        score = meD.TryGetInt("score"),
+                        rank = 0
+                    };
+                }
+            }
+
+            EmitLog($"✅ getLeaderboardsSnapshot: {page.items.Count} items");
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ getLeaderboardsSnapshot error: " + e.Message);
+        }
+
+        return page;
+    }
+
     // --- Helpers ---
     private DocumentReference UserDoc()
     {
@@ -422,8 +577,16 @@ public class UserDatabaseManager : MonoBehaviour
                         var scoreObj = d.TryGetValue("score", out var _sc) ? _sc : 0;
                         int score = System.Convert.ToInt32(scoreObj);
 
+                        int rank = 0;
+                        if (d.TryGetValue("rank", out var _rk))
+                        {
+                            if (_rk is int ir) rank = ir;
+                            else if (_rk is long lr) rank = (int)lr;
+                            else if (_rk is double dr) rank = (int)dr;
+                        }
+
                         if (!string.IsNullOrEmpty(uid))
-                            list.Add(new LBEntry { uid = uid, username = username ?? "Guest", score = score });
+                            list.Add(new LBEntry { uid = uid, username = username ?? "Guest", score = score, rank = rank });
                     }
                 }
             }
@@ -433,6 +596,89 @@ public class UserDatabaseManager : MonoBehaviour
             EmitLog("❌ FetchLeaderboardTopAsync error: " + e.Message);
         }
         return list;
+    }
+
+    /// <summary>
+    /// Fetches the entire leaderboard by scanning users ordered by rank asc.
+    /// Requires server to maintain users/{uid}.rank for all players.
+    /// Skips users without a valid (>=1) rank.
+    /// </summary>
+    public async Task<List<LBEntry>> FetchLeaderboardAllAsync(int pageSize = 500, int hardLimit = 100000)
+    {
+        var result = new List<LBEntry>();
+        try
+        {
+            int fetched = 0;
+            int? lastRank = null;
+            while (fetched < hardLimit)
+            {
+                Query q = db.Collection("users").OrderBy("rank").Limit(pageSize);
+                if (lastRank.HasValue)
+                {
+                    q = q.StartAfter(lastRank.Value);
+                }
+
+                var snap = await q.GetSnapshotAsync();
+                if (snap == null || snap.Count == 0) break;
+
+                foreach (var doc in snap.Documents)
+                {
+                    // read rank first; skip missing/invalid
+                    int rank = 0;
+                    if (doc.TryGetValue("rank", out object rObj))
+                    {
+                        if (rObj is int ri) rank = ri;
+                        else if (rObj is long rl) rank = (int)rl;
+                        else if (rObj is double rd) rank = (int)rd;
+                    }
+                    if (rank <= 0) continue; // only ranked users
+
+                    string uid = doc.Id;
+                    string username = "Guest";
+                    if (doc.TryGetValue("username", out string un) && !string.IsNullOrWhiteSpace(un))
+                        username = un;
+                    else if (doc.TryGetValue("username", out object unAny) && unAny is string un2 && !string.IsNullOrWhiteSpace(un2))
+                        username = un2;
+
+                    // prefer maxScore; fall back to score
+                    int score = 0;
+                    if (doc.TryGetValue("maxScore", out object sc))
+                    {
+                        if (sc is int i) score = i;
+                        else if (sc is long l) score = (int)l;
+                        else if (sc is double d) score = (int)d;
+                    }
+                    else if (doc.TryGetValue("score", out object sc2))
+                    {
+                        if (sc2 is int i2) score = i2;
+                        else if (sc2 is long l2) score = (int)l2;
+                        else if (sc2 is double d2) score = (int)d2;
+                    }
+
+                    result.Add(new LBEntry
+                    {
+                        uid = uid,
+                        username = string.IsNullOrWhiteSpace(username) ? "Guest" : username,
+                        score = score,
+                        rank = rank
+                    });
+
+                    lastRank = rank; // pagination anchor
+                    fetched++;
+                    if (fetched >= hardLimit) break;
+                }
+
+                if (snap.Count < pageSize) break; // reached end
+            }
+
+            EmitLog($"✅ FetchLeaderboardAllAsync: {result.Count} items");
+        }
+        catch (System.Exception e)
+        {
+            EmitLog("❌ FetchLeaderboardAllAsync error: " + e.Message);
+        }
+
+        return result;
     }
 
     private async Task EnsureUserProfileAsync(string referralCode = null)
@@ -570,6 +816,38 @@ public class UserDatabaseManager : MonoBehaviour
             EmitLog("❌ GetReferralCountAsync error: " + e.Message);
         }
         return 0;
+    }
+}
+
+// ===== Helpers to read IDictionary safely (top-level extension class) =====
+public static class DictReadHelpers
+{
+    public static string TryGetString(this IDictionary d, string key, string def = "")
+    {
+        if (d != null && d.Contains(key) && d[key] != null) return d[key].ToString();
+        return def;
+    }
+    public static int TryGetInt(this IDictionary d, string key, int def = 0)
+    {
+        if (d != null && d.Contains(key) && d[key] != null)
+        {
+            var v = d[key];
+            if (v is int i) return i;
+            if (v is long l) return (int)l;
+            if (v is double db) return (int)db;
+            if (int.TryParse(v.ToString(), out var p)) return p;
+        }
+        return def;
+    }
+    public static bool TryGetBool(this IDictionary d, string key, bool def = false)
+    {
+        if (d != null && d.Contains(key) && d[key] != null)
+        {
+            var v = d[key];
+            if (v is bool b) return b;
+            if (bool.TryParse(v.ToString(), out var p)) return p;
+        }
+        return def;
     }
 }
 

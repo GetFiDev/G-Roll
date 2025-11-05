@@ -5,12 +5,16 @@ public class UITopPanel : MonoBehaviour
 {
     public UIBottomPanel bottomPanel;
     [SerializeField] private UserStatsDisplayer statsDisplayer;
+    public static UITopPanel Instance;
 
     void Awake()
     {
         statsDisplayer = GetComponent<UserStatsDisplayer>();
+        if(Instance==null) Instance=this;
+        else{
+            Destroy(this.gameObject);
+        }
     }
-
 
     public void Initialize()
     {

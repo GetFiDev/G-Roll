@@ -53,6 +53,8 @@ MonoBehaviour:
     type: 3}
   sfxOnUse: {fileID: 0}
   requiredTag: Player
+  countsAsPowerUp: 1
+  powerUpKind: playerspeedbooster
   speedBoost: 0.2
 --- !u!135 &3561426009509326417
 SphereCollider:

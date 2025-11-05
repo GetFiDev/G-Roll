@@ -190,4 +190,6 @@ MonoBehaviour:
     type: 3}
   sfxOnUse: {fileID: 0}
   requiredTag: Player
+  countsAsPowerUp: 1
+  powerUpKind: camspeedbooster
   additiveSpeed: 0.25
