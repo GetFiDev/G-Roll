@@ -22,6 +22,28 @@ public class FirebaseLoginHandler : MonoBehaviour
     public TMP_InputField loginEmailInput;
     public TMP_InputField loginPasswordInput;
 
+    [Header("Password Visibility")]
+    public UnityEngine.UI.Button registerPasswordToggleButton;
+    public UnityEngine.UI.Button registerSecondPasswordToggleButton;
+    public UnityEngine.UI.Button loginPasswordToggleButton;
+
+    public Sprite visibleIcon;
+    public Sprite invisibleIcon;
+
+    private bool _registerPasswordVisible = false;
+    private bool _registerSecondPasswordVisible = false;
+    private bool _loginPasswordVisible = false;
+
+    [Header("Action Buttons")]
+    public UnityEngine.UI.Button registerActionButton;
+    public UnityEngine.UI.Button loginActionButton;
+
+    [Header("Action Button Sprites")]
+    public Sprite loginEnabledSprite;
+    public Sprite loginDisabledSprite;
+    public Sprite registerEnabledSprite;
+    public Sprite registerDisabledSprite;
+
     public TMP_Text logText;
 
     [Header("Loading")]
@@ -69,6 +91,20 @@ public class FirebaseLoginHandler : MonoBehaviour
         LoadCredentialsToInputs();
         // ÖNEMLİ: Burada artık isim kontrolü YAPMIYORUZ.
         // Panel yalnızca login/register başarıdan sonra kontrol edilecek.
+
+        if (registerPasswordInput != null)
+            SetInputAsPassword(registerPasswordInput, false);
+        if (registerSecondPasswordInput != null)
+            SetInputAsPassword(registerSecondPasswordInput, false);
+        if (loginPasswordInput != null)
+            SetInputAsPassword(loginPasswordInput, false);
+
+        UpdateToggleButtonIcon(registerPasswordToggleButton, false);
+        UpdateToggleButtonIcon(registerSecondPasswordToggleButton, false);
+        UpdateToggleButtonIcon(loginPasswordToggleButton, false);
+
+        UpdateLoginButtonState();
+        UpdateRegisterButtonState();
     }
 
     private void OnEnable()
@@ -85,6 +121,53 @@ public class FirebaseLoginHandler : MonoBehaviour
             setNamePanel.doneButton.onClick.RemoveListener(OnSetNameDone);
             setNamePanel.doneButton.onClick.AddListener(OnSetNameDone);
         }
+
+        if (registerPasswordToggleButton != null)
+        {
+            registerPasswordToggleButton.onClick.RemoveListener(ToggleRegisterPassword);
+            registerPasswordToggleButton.onClick.AddListener(ToggleRegisterPassword);
+        }
+
+        if (registerSecondPasswordToggleButton != null)
+        {
+            registerSecondPasswordToggleButton.onClick.RemoveListener(ToggleRegisterSecondPassword);
+            registerSecondPasswordToggleButton.onClick.AddListener(ToggleRegisterSecondPassword);
+        }
+
+        if (loginPasswordToggleButton != null)
+        {
+            loginPasswordToggleButton.onClick.RemoveListener(ToggleLoginPassword);
+            loginPasswordToggleButton.onClick.AddListener(ToggleLoginPassword);
+        }
+
+        // Live enable/disable for Login button
+        if (loginEmailInput != null)
+        {
+            loginEmailInput.onValueChanged.RemoveListener(_ => UpdateLoginButtonState());
+            loginEmailInput.onValueChanged.AddListener(_ => UpdateLoginButtonState());
+        }
+        if (loginPasswordInput != null)
+        {
+            loginPasswordInput.onValueChanged.RemoveListener(_ => UpdateLoginButtonState());
+            loginPasswordInput.onValueChanged.AddListener(_ => UpdateLoginButtonState());
+        }
+
+        // Live enable/disable for Register button
+        if (registerEmailInput != null)
+        {
+            registerEmailInput.onValueChanged.RemoveListener(_ => UpdateRegisterButtonState());
+            registerEmailInput.onValueChanged.AddListener(_ => UpdateRegisterButtonState());
+        }
+        if (registerPasswordInput != null)
+        {
+            registerPasswordInput.onValueChanged.RemoveListener(_ => UpdateRegisterButtonState());
+            registerPasswordInput.onValueChanged.AddListener(_ => UpdateRegisterButtonState());
+        }
+        if (registerSecondPasswordInput != null)
+        {
+            registerSecondPasswordInput.onValueChanged.RemoveListener(_ => UpdateRegisterButtonState());
+            registerSecondPasswordInput.onValueChanged.AddListener(_ => UpdateRegisterButtonState());
+        }
     }
 
     private void OnDisable()
@@ -97,6 +180,28 @@ public class FirebaseLoginHandler : MonoBehaviour
 
         if (setNamePanel != null && setNamePanel.doneButton != null)
             setNamePanel.doneButton.onClick.RemoveListener(OnSetNameDone);
+
+        if (registerPasswordToggleButton != null)
+            registerPasswordToggleButton.onClick.RemoveListener(ToggleRegisterPassword);
+
+        if (registerSecondPasswordToggleButton != null)
+            registerSecondPasswordToggleButton.onClick.RemoveListener(ToggleRegisterSecondPassword);
+
+        if (loginPasswordToggleButton != null)
+            loginPasswordToggleButton.onClick.RemoveListener(ToggleLoginPassword);
+
+        // Remove live listeners
+        if (loginEmailInput != null)
+            loginEmailInput.onValueChanged.RemoveListener(_ => UpdateLoginButtonState());
+        if (loginPasswordInput != null)
+            loginPasswordInput.onValueChanged.RemoveListener(_ => UpdateLoginButtonState());
+
+        if (registerEmailInput != null)
+            registerEmailInput.onValueChanged.RemoveListener(_ => UpdateRegisterButtonState());
+        if (registerPasswordInput != null)
+            registerPasswordInput.onValueChanged.RemoveListener(_ => UpdateRegisterButtonState());
+        if (registerSecondPasswordInput != null)
+            registerSecondPasswordInput.onValueChanged.RemoveListener(_ => UpdateRegisterButtonState());
 
         SetLoading(false);
     }
@@ -148,7 +253,6 @@ public class FirebaseLoginHandler : MonoBehaviour
     // --- Event Handlers ---
     private async void HandleLoginSuccess()
     {
-        SetLoading(false);
         Log("Login success");
         _authReady = true;
 
@@ -169,6 +273,7 @@ public class FirebaseLoginHandler : MonoBehaviour
 
         // İsim gerekiyor mu?
         var needs = await NeedsUsernameAsync();
+
         mainMenu.ShowPanel(UIMainMenu.PanelType.Home);
         topPanel.Initialize();
 
@@ -183,6 +288,8 @@ public class FirebaseLoginHandler : MonoBehaviour
             // İsim varsa login panel kapanır, ana menüye geçersin
             if (loginPanel != null) loginPanel.CloseManualLoginPanel();
         }
+        SetLoading(false);
+
     }
 
     private void HandleLoginFail(string msg)
@@ -238,5 +345,70 @@ public class FirebaseLoginHandler : MonoBehaviour
             if (setNamePanel.doneButton != null)
                 setNamePanel.doneButton.interactable = true;
         }
+    }
+    private void SetInputAsPassword(TMP_InputField input, bool visible)
+    {
+        if (input == null) return;
+
+        input.contentType = visible 
+            ? TMP_InputField.ContentType.Standard 
+            : TMP_InputField.ContentType.Password;
+
+        input.ForceLabelUpdate();
+    }
+
+    private void UpdateToggleButtonIcon(UnityEngine.UI.Button button, bool visible)
+    {
+        if (button == null) return;
+        var img = button.GetComponent<UnityEngine.UI.Image>();
+        if (img == null) return;
+
+        img.sprite = visible ? visibleIcon : invisibleIcon;
+    }
+
+    private void ToggleRegisterPassword()
+    {
+        _registerPasswordVisible = !_registerPasswordVisible;
+        SetInputAsPassword(registerPasswordInput, _registerPasswordVisible);
+        UpdateToggleButtonIcon(registerPasswordToggleButton, _registerPasswordVisible);
+    }
+
+    private void ToggleRegisterSecondPassword()
+    {
+        _registerSecondPasswordVisible = !_registerSecondPasswordVisible;
+        SetInputAsPassword(registerSecondPasswordInput, _registerSecondPasswordVisible);
+        UpdateToggleButtonIcon(registerSecondPasswordToggleButton, _registerSecondPasswordVisible);
+    }
+
+    private void ToggleLoginPassword()
+    {
+        _loginPasswordVisible = !_loginPasswordVisible;
+        SetInputAsPassword(loginPasswordInput, _loginPasswordVisible);
+        UpdateToggleButtonIcon(loginPasswordToggleButton, _loginPasswordVisible);
+    }
+
+    private void SetButtonState(UnityEngine.UI.Button btn, bool interactable, Sprite enabledSprite, Sprite disabledSprite)
+    {
+        if (btn == null) return;
+        btn.interactable = interactable;
+        var img = btn.GetComponent<UnityEngine.UI.Image>();
+        if (img != null)
+            img.sprite = interactable ? enabledSprite : disabledSprite;
+    }
+
+    private void UpdateLoginButtonState()
+    {
+        bool ready = !string.IsNullOrEmpty(loginEmailInput ? loginEmailInput.text : null)
+                  && !string.IsNullOrEmpty(loginPasswordInput ? loginPasswordInput.text : null);
+        SetButtonState(loginActionButton, ready, loginEnabledSprite, loginDisabledSprite);
+    }
+
+    private void UpdateRegisterButtonState()
+    {
+        bool ready = !string.IsNullOrEmpty(registerEmailInput ? registerEmailInput.text : null)
+                  && !string.IsNullOrEmpty(registerPasswordInput ? registerPasswordInput.text : null)
+                  && !string.IsNullOrEmpty(registerSecondPasswordInput ? registerSecondPasswordInput.text : null)
+                  && (registerPasswordInput != null && registerSecondPasswordInput != null && registerPasswordInput.text == registerSecondPasswordInput.text);
+        SetButtonState(registerActionButton, ready, registerEnabledSprite, registerDisabledSprite);
     }
 }

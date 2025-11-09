@@ -5,6 +5,7 @@ using NetworkingData;
 using System.Globalization;
 using System;
 using System.Linq;
+using AssetKits.ParticleImage;
 
 public class UserStatsDisplayer : MonoBehaviour
 {
@@ -21,7 +22,43 @@ public class UserStatsDisplayer : MonoBehaviour
     public GameObject rankFetchingPanel;
     public GameObject streakFetchingPanel;
 
+    [Header("FX")] public ParticleImage currencyGainFx;
+
+    [Header("Persistence")]
+    public bool persistLastCurrency = true;
+    public string lastCurrencyPrefsKey = "UserStatsDisplayer.LastCurrency";
+
     [Header("Options")] public int leaderboardProbeLimit = 100; // callable snapshot limit
+
+    private double LoadLastCurrency()
+    {
+        if (!persistLastCurrency) return 0d;
+        if (PlayerPrefs.HasKey(lastCurrencyPrefsKey))
+        {
+            var s = PlayerPrefs.GetString(lastCurrencyPrefsKey, "0");
+            if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+                return v;
+        }
+        return 0d;
+    }
+
+    private void SaveLastCurrency(double value)
+    {
+        if (!persistLastCurrency) return;
+        PlayerPrefs.SetString(lastCurrencyPrefsKey, value.ToString("F4", CultureInfo.InvariantCulture));
+        PlayerPrefs.Save();
+    }
+
+    private void MaybePlayCurrencyFx(double previous, double current)
+    {
+        // tolerance to avoid float noise
+        const double EPS = 0.0001;
+        if (currencyGainFx == null) return;
+        if (current > previous + EPS)
+        {
+            try { currencyGainFx.Play(); } catch { }
+        }
+    }
 
     /// <summary>
     /// Tek giriş noktası: tüm statları yeniler. Başka yerden çağrı yok.
@@ -64,6 +101,12 @@ public class UserStatsDisplayer : MonoBehaviour
             }
             else
             {
+                // compare & fx
+                var prev = LoadLastCurrency();
+                var curr = (double)data.currency;
+                MaybePlayCurrencyFx(prev, curr);
+                SaveLastCurrency(curr);
+
                 if (currencyTMP) currencyTMP.text = data.currency.ToString("F2", CultureInfo.InvariantCulture);
                 if (streakTMP)   streakTMP.text   = data.streak.ToString();
             }

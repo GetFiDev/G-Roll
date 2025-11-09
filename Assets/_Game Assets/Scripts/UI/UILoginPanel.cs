@@ -32,6 +32,11 @@ public class UILoginPanel : MonoBehaviour
         loginGroup.SetActive(false);
         registerGroup.SetActive(false);
     }
+    public void TurnBackToAuthPanel()
+    {
+        loginGroup.SetActive(false);
+        registerGroup.SetActive(false);
+    }
 
     public void CloseManualLoginPanel()
     {
