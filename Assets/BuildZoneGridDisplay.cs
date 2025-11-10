@@ -8,11 +8,11 @@ public class BuildZoneGridDisplay : MonoBehaviour
     [Header("UI Refs")]
     [SerializeField] private Transform gridRoot;                  // GridLayoutGroup bu objede olmalı
     [SerializeField] private GameObject fetchingPanel;            // “Loading…” gibi
-    [SerializeField] private GameObject emptyStatePanel;          // (opsiyonel) hiç equipped yoksa
-    [SerializeField] private EquippedItemDisplay itemPrefab;      // Spawn edilecek kart
+    [SerializeField] private EquippedItemDisplay itemPrefab;  // Her slot bir EquippedItemDisplay (root'ta Button olmalı)
 
     [Header("Behavior")]
     [SerializeField] private float refreshDebounceSec = 0.1f;     // event fırtınasında tek refresh
+    [SerializeField] private int maxSlots = 6;                    // Oyunda maksimum 6 giyilebilir slot
 
     private Coroutine _refreshRoutine;
     private bool _pending;
@@ -58,7 +58,6 @@ public class BuildZoneGridDisplay : MonoBehaviour
     private IEnumerator RefreshCoroutine()
     {
         if (fetchingPanel) fetchingPanel.SetActive(true);
-        if (emptyStatePanel) emptyStatePanel.SetActive(false);
 
         // Ensure manager ready
         var inv = UserInventoryManager.Instance;
@@ -75,7 +74,7 @@ public class BuildZoneGridDisplay : MonoBehaviour
             while (!initTask.IsCompleted) yield return null;
         }
 
-        // Get equipped list
+        // Get equipped list (length 0..N). Biz 6 slota pad edeceğiz.
         List<string> equipped = inv.GetEquippedItemIds() ?? new List<string>();
 
         // Clear grid
@@ -88,22 +87,61 @@ public class BuildZoneGridDisplay : MonoBehaviour
             }
         }
 
-        // Spawn
-        if (equipped.Count == 0)
+        // Spawn exactly maxSlots buttons
+        for (int i = 0; i < maxSlots; i++)
         {
-            if (emptyStatePanel) emptyStatePanel.SetActive(true);
-        }
-        else
-        {
-            foreach (var id in equipped)
+            if (itemPrefab == null || gridRoot == null) break;
+
+            string itemId = (i < equipped.Count) ? equipped[i] : null;
+            bool hasItem = !string.IsNullOrEmpty(itemId);
+
+            var display = Instantiate(itemPrefab, gridRoot);
+            Button btn = display.GetComponent<Button>();
+            if (btn == null)
+                btn = display.GetComponentInChildren<Button>(true);
+            if (btn != null) btn.onClick.RemoveAllListeners();
+
+            // Visual ve ikon yönetimi EquippedItemDisplay içinde
+            // Not: itemId null/empty ise, EquippedItemDisplay boş frame göstermekten sorumlu olmalı.
+            if (hasItem)
             {
-                if (itemPrefab == null || gridRoot == null) break;
-                var go = Instantiate(itemPrefab, gridRoot);
-                go.Bind(id); // sadece gösterim, tıklama yok
+                display.Bind(itemId);
             }
+            else
+            {
+                // Boş slot; null/id'siz bind. EquippedItemDisplay boş görseli göstermeli.
+                display.Bind(null);
+            }
+
+            if (btn != null)
+            {
+                if (hasItem)
+                {
+                    btn.onClick.AddListener(() => OnEquippedSlotClicked(display));
+                }
+                else
+                {
+                    btn.onClick.AddListener(() => OnEmptySlotClicked(display));
+                }
+            }
+
+            display.gameObject.name = hasItem ? $"Slot_{i}_Item_{itemId}" : $"Slot_{i}_Empty";
         }
 
         if (fetchingPanel) fetchingPanel.SetActive(false);
         yield return null;
+    }
+
+    // --- Click handlers (İÇLERİNİ SEN DOLDURACAKSIN) ---
+
+    private void OnEmptySlotClicked(EquippedItemDisplay clickedEquippedItemDisplay)
+    {
+        Debug.Log("empty slot clicked");
+    }
+
+    private void OnEquippedSlotClicked(EquippedItemDisplay clickedEquippedItemDisplay)
+    {
+        clickedEquippedItemDisplay.TurnAround();
+        Debug.Log("full slot clicked");
     }
 }

@@ -11,16 +11,43 @@ public class EquippedItemDisplay : MonoBehaviour
     [Header("UI Refs")]
     [SerializeField] private TMP_Text nameLabel;
     [SerializeField] private Image iconImage;
+    [SerializeField] private Image frameImage; // Button'ın arka plan/frame Image'ı (Button component'ındaki Image olabilir)
+
+    [Header("Frame Sprites")]
+    [SerializeField] private Sprite emptyFrame;
+    [SerializeField] private Sprite equippedFrame;
 
     [Header("Fallbacks")]
     [SerializeField] private Sprite placeholderIcon;
 
+    [Header("Animation")]
+    [SerializeField] private AnimationCurve turnScaleCurve = null; // Inspector'dan ayarlanabilir
+    [SerializeField] private float turnDuration = 0.5f;             // Kartın dönüş süresi
+    [SerializeField] private float autoReturnDelay = 5f;            // 5 sn sonra geri dönsün
+    [SerializeField] private float peakScale = 1.2f;                // Dönüşte 1.2x büyüme
+
+    [Header("Faces (Optional)")]
+    [SerializeField] private RectTransform frontRoot;   // Ön yüz GameObject (ikon/isim burada)
+    [SerializeField] private RectTransform backRoot;    // Arka yüz GameObject (arka içerikler burada)
+    [SerializeField] private CanvasGroup frontCG;       // Raycast kontrolü için (opsiyonel)
+    [SerializeField] private CanvasGroup backCG;        // Raycast kontrolü için (opsiyonel)
+
+    private Coroutine _turnRoutine;
+
     private string _itemId;
     private static readonly Dictionary<string, Sprite> _iconCache = new();
+    private string _lastRequestedIconUrl = string.Empty;
 
     public void Bind(string itemId)
     {
         _itemId = IdUtil.NormalizeId(itemId);
+
+        // Boş slot ise doğrudan boş state göster
+        if (string.IsNullOrEmpty(_itemId))
+        {
+            ApplyEmptyState();
+            return;
+        }
 
         // Öncelik: Doğrudan ItemDatabaseManager (reflection yok)
         string displayName = _itemId;
@@ -43,6 +70,9 @@ public class EquippedItemDisplay : MonoBehaviour
             }
         }
 
+        // Dolu state: frame ve label
+        ApplyEquippedState(displayName);
+
         if (nameLabel != null) nameLabel.text = displayName;
 
         // 2) Icon yükle (önce Sprite, yoksa URL)
@@ -60,6 +90,7 @@ public class EquippedItemDisplay : MonoBehaviour
                 }
                 else
                 {
+                    _lastRequestedIconUrl = iconUrl;
                     StartCoroutine(LoadIcon(iconUrl));
                 }
             }
@@ -68,6 +99,31 @@ public class EquippedItemDisplay : MonoBehaviour
                 iconImage.sprite = placeholderIcon;
             }
         }
+    }
+
+    /// <summary>UI'yı boş slota göre ayarlar: boş frame, ikon gizli, isim temiz.</summary>
+    public void ApplyEmptyState()
+    {
+        if (frameImage) frameImage.sprite = emptyFrame;
+        if (iconImage)
+        {
+            iconImage.sprite = null;
+            iconImage.gameObject.SetActive(false);
+        }
+        if (nameLabel) nameLabel.text = string.Empty;
+    }
+
+    /// <summary>UI'yı dolu slota göre ayarlar: equipped frame, ikon alanı görünür (ikon sonradan gelebilir), isim set edilir.</summary>
+    public void ApplyEquippedState(string displayNameForLabel = null)
+    {
+        if (frameImage) frameImage.sprite = equippedFrame;
+        if (iconImage)
+        {
+            // İkon hemen yoksa bile yer tutucu/placeholder gösterebilirsin; burada aktif edelim
+            iconImage.gameObject.SetActive(true);
+            // iconImage.sprite'i Bind içinde sprite/URL yüklemesi ile atanacak
+        }
+        if (nameLabel) nameLabel.text = string.IsNullOrWhiteSpace(displayNameForLabel) ? nameLabel.text : displayNameForLabel;
     }
 
     // Shop tarafındaki veri modeli: ItemDatabaseManager.ReadableItemData
@@ -265,6 +321,10 @@ public class EquippedItemDisplay : MonoBehaviour
         using var req = UnityWebRequestTexture.GetTexture(url);
         yield return req.SendWebRequest();
 
+        // Eğer bu arada başka bir ikon istendiyse, bu sonucu yok say
+        if (!string.Equals(url, _lastRequestedIconUrl))
+            yield break;
+
 #if UNITY_2020_2_OR_NEWER
         if (req.result != UnityWebRequest.Result.Success)
 #else
@@ -293,6 +353,176 @@ public class EquippedItemDisplay : MonoBehaviour
         // cache
         _iconCache[url] = sprite;
 
+        if (string.IsNullOrEmpty(_itemId))
+            yield break; // Slot boş duruma dönmüşse ikon basma
+
         if (iconImage) iconImage.sprite = sprite;
     }
+
+    private void OnValidate()
+    {
+        if (frameImage == null)
+        {
+            // Aynı GameObject'te Image ara (genelde Button'ın Image'ı)
+            frameImage = GetComponent<Image>();
+            if (frameImage == null)
+            {
+                // Çocuklarda ilk Image'ı bul (ikon değilse daha iyi olur ama en azından boş kalmasın)
+                var images = GetComponentsInChildren<Image>(true);
+                foreach (var img in images)
+                {
+                    if (img != iconImage)
+                    {
+                        frameImage = img;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // İkonun aspect'ini koru
+        if (iconImage != null)
+            iconImage.preserveAspect = true;
+
+        // Face auto-wire
+        if (frontRoot == null)
+        {
+            var t = transform.Find("Front");
+            if (t) frontRoot = t as RectTransform;
+        }
+        if (backRoot == null)
+        {
+            var t = transform.Find("Back");
+            if (t) backRoot = t as RectTransform;
+        }
+        // CanvasGroups auto-wire
+        if (frontRoot != null && frontCG == null) frontCG = frontRoot.GetComponent<CanvasGroup>();
+        if (backRoot != null && backCG == null) backCG = backRoot.GetComponent<CanvasGroup>();
+
+        // Back yüzeyi parent 180° döndüğünde düz görünmesi için local Y 180° ver
+        if (backRoot != null)
+        {
+            var lr = backRoot.localRotation.eulerAngles;
+            // Sadece Y'yi 180'e sabitle
+            backRoot.localRotation = Quaternion.Euler(lr.x, 180f, lr.z);
+        }
+    }
+    /// <summary>
+    /// UI elementini Y ekseninde 180° döndürür (turnDuration sürede),
+    /// dönüş sırasında 1.2x büyüyüp geri iner. 5 saniye sonra otomatik eski haline döner.
+    /// </summary>
+    public void TurnAround()
+    {
+        if (_turnRoutine != null)
+        {
+            StopCoroutine(_turnRoutine);
+            _turnRoutine = null;
+        }
+        _turnRoutine = StartCoroutine(TurnAroundRoutine());
+    }
+
+    private void SetFaceVisibility(bool showFront)
+    {
+        if (frontRoot) frontRoot.gameObject.SetActive(showFront);
+        if (backRoot) backRoot.gameObject.SetActive(!showFront);
+
+        // Raycast/Interactable yönetimi (CanvasGroup varsa)
+        if (frontCG)
+        {
+            frontCG.alpha = showFront ? 1f : 1f; // görünürlük görsel olarak aktif GameObject'e bağlı; alpha'yı değiştirmiyoruz
+            frontCG.interactable = showFront;
+            frontCG.blocksRaycasts = showFront;
+        }
+        if (backCG)
+        {
+            backCG.alpha = !showFront ? 1f : 1f;
+            backCG.interactable = !showFront;
+            backCG.blocksRaycasts = !showFront;
+        }
+    }
+
+    private bool HasFaces() => frontRoot != null && backRoot != null;
+
+    private IEnumerator TurnAroundRoutine()
+    {
+        if (turnScaleCurve == null)
+            turnScaleCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
+        Transform target = transform;
+        Quaternion startRot = target.localRotation;
+        Quaternion midRot = startRot * Quaternion.Euler(0f, 180f, 0f);
+        Vector3 startScale = target.localScale;
+        Vector3 maxScale = Vector3.one * peakScale;
+
+        float dur = Mathf.Max(0.0001f, turnDuration);
+        float t = 0f;
+
+        bool swapped = false;
+        // Başlangıçta ön yüz gözüksün
+        if (HasFaces()) SetFaceVisibility(true);
+
+        // 0.5 sn içinde 180 derece döndür + büyüt
+        while (t < dur)
+        {
+            t += Time.deltaTime;
+            float n = Mathf.Clamp01(t / dur);
+            // 90 derecede yüzleri değiştir (tam o anda ekran "ince" olduğundan kesintisiz görünür)
+            if (!swapped && n >= 0.5f && HasFaces())
+            {
+                SetFaceVisibility(false); // arka yüzü aktif et
+                swapped = true;
+            }
+            // Tek eğri ile büyüme -> küçülme: 0..0.5 arası yukarı, 0.5..1 arası aşağı
+            float half = (n <= 0.5f) ? (n / 0.5f) : ((1f - n) / 0.5f); // 0..1..0
+            float c = Mathf.Clamp01(turnScaleCurve.Evaluate(half));
+
+            target.localRotation = Quaternion.Slerp(startRot, midRot, n);
+            target.localScale = Vector3.Lerp(startScale, maxScale, c);
+            yield return null;
+        }
+
+        // Ortadaki son durum
+        target.localRotation = midRot;
+
+        // 5 sn bekle
+        yield return new WaitForSeconds(autoReturnDelay);
+
+        // 0.5 sn içinde geri döndür
+        t = 0f;
+        swapped = false;
+        if (HasFaces()) SetFaceVisibility(false); // geri dönüş başlangıcında arka yüz görünüyor
+        while (t < dur)
+        {
+            t += Time.deltaTime;
+            float n = Mathf.Clamp01(t / dur);
+            if (!swapped && n >= 0.5f && HasFaces())
+            {
+                SetFaceVisibility(true); // 90 derecede tekrar ön yüze geç
+                swapped = true;
+            }
+            float half = (n <= 0.5f) ? (n / 0.5f) : ((1f - n) / 0.5f); // 0..1..0
+            float c = Mathf.Clamp01(turnScaleCurve.Evaluate(half));
+
+            target.localRotation = Quaternion.Slerp(midRot, startRot, n);
+            target.localScale = Vector3.Lerp(startScale, maxScale, c);
+            yield return null;
+        }
+
+        // Eski haline dön
+        target.localRotation = startRot;
+        target.localScale = startScale;
+        _turnRoutine = null;
+    }
+    private void Awake()
+    {
+        // İlk oluşturulduğunda yalnızca FRONT görünsün
+        if (HasFaces()) SetFaceVisibility(true);
+    }
+
+    private void OnEnable()
+    {
+        // Pool'dan geri geldiğinde de garanti altına al
+        if (HasFaces()) SetFaceVisibility(true);
+    }
+    
 }

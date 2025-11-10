@@ -31,7 +31,7 @@ TextureImporter:
   streamingMipmaps: 0
   streamingMipmapsPriority: 0
   vTOnly: 0
-  ignoreMipmapLimit: 0
+  ignoreMipmapLimit: 1
   grayScaleToAlpha: 0
   generateCubemap: 6
   cubemapConvolution: 0
@@ -198,7 +198,9 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      PictoIcon_Invisible_0: -3995205950553501360
+      PictoIcon_Invisible_1: 1858127053113636832
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
