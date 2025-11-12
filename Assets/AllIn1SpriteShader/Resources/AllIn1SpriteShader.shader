@@ -241,6 +241,14 @@
 		[HideInInspector] _MinYUV("_MinYUV", Range(0, 1)) = 0.0
 		[HideInInspector] _MaxYUV("_MaxYUV", Range(0, 1)) = 1.0
 		[HideInInspector] _RandomSeed("_MaxYUV", Range(0, 10000)) = 0.0
+        // --- UI Mask/Stencil Properties (match UI/Default naming) ---
+        _Stencil ("Stencil ID", Float) = 0
+        _StencilOp ("Stencil Op", Float) = 0
+        _StencilComp ("Stencil Comp", Float) = 8
+        _StencilReadMask ("Stencil Read Mask", Float) = 255
+        _StencilWriteMask ("Stencil Write Mask", Float) = 255
+        _ColorMask ("Color Mask", Float) = 15
+        _UseUIAlphaClip ("Use UI Alpha Clip", Float) = 0
     	_EditorDrawers("Editor Drawers", Int) = 6
     }
 
@@ -254,6 +262,15 @@
 
         Pass
         {
+            Stencil
+            {
+                Ref [_Stencil]
+                Comp [_StencilComp]
+                Pass [_StencilOp]
+                ReadMask [_StencilReadMask]
+                WriteMask [_StencilWriteMask]
+            }
+            ColorMask [_ColorMask]
             CGPROGRAM
             #pragma multi_compile_instancing
             #pragma vertex vert
@@ -334,6 +351,11 @@
             #include "UnityCG.cginc"
 			#include "AllIn1OneShaderFunctions.cginc"
 
+            // UI Mask / RectMask2D support
+            #pragma multi_compile __ UNITY_UI_CLIP_RECT
+            #pragma multi_compile __ UNITY_UI_ALPHACLIP
+            #include "UnityUI.cginc"
+
 			#if FOG_ON
 			#pragma multi_compile_fog
 			#endif
@@ -363,6 +385,7 @@
 				#if FOG_ON
 				UNITY_FOG_COORDS(4)
 				#endif
+                float4 worldPosition : TEXCOORD5; // for UI RectMask2D clipping
             	UNITY_VERTEX_INPUT_INSTANCE_ID
             	UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -661,6 +684,11 @@
 				#if FOG_ON
 				UNITY_TRANSFER_FOG(o,o.vertex);
 				#endif
+
+                #if defined(UNITY_UI_CLIP_RECT) || defined(UNITY_UI_ALPHACLIP)
+                // Using object space is fine for Canvas-rendered UI
+                o.worldPosition = v.vertex;
+                #endif
 
                 return o;
             }
@@ -1225,6 +1253,13 @@
 				UNITY_APPLY_FOG(i.fogCoord, col);
 				#endif
 
+                #if UNITY_UI_CLIP_RECT
+                col.a *= UnityGet2DClipping(i.worldPosition.xy, _ClipRect);
+                #endif
+
+                #if UNITY_UI_ALPHACLIP
+                if (_UseUIAlphaClip > 0.5) clip(col.a - 0.001);
+                #endif
                 return col;
             }
             ENDCG

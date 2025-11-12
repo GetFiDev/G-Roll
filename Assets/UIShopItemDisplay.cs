@@ -22,8 +22,11 @@ public class UIShopItemDisplay : MonoBehaviour
     [SerializeField] private TMP_Text nameText;
     [SerializeField] private TMP_Text descriptionText;
     [SerializeField] private TMP_Text priceText;
-    [SerializeField] private TMP_Text referralProgressText;
-    [SerializeField] private Button buyButton;
+
+    [Header("Action Button (New)")]
+    [SerializeField] private Button actionButton;           // İç buton
+    [SerializeField] private TMP_Text actionLabel;          // Buton üzerindeki metin
+    [SerializeField] private Image actionIcon;              // Buton üzerindeki ikon
 
     [Header("Stat Chips")]
     [SerializeField] private Transform statChipsRoot;
@@ -37,6 +40,16 @@ public class UIShopItemDisplay : MonoBehaviour
     [SerializeField] private Sprite iconAcceleration;
     [SerializeField] private Sprite iconPlayerSizePercent;
     [SerializeField] private Sprite iconPlayerSpeed;
+
+    [Header("Action Icons")]
+    [SerializeField] private Sprite iconCurrency;  // GET para ikonu
+    [SerializeField] private Sprite iconEquip;     // Equip ikonu
+    [SerializeField] private Sprite iconUnequip;   // Unequip ikonu
+    [SerializeField] private Sprite iconReferral;  // Referral ikonu
+    [SerializeField] private Sprite iconAd;        // Reklam ikonu
+
+    [Header("Fetching Overlay")]
+    [SerializeField] private GameObject fetchingPanel; // İşlem sırasında butonun üstünü kapatan panel
 
     [SerializeField] private bool setNativeSizeOnLoad = false;
 
@@ -55,6 +68,7 @@ public class UIShopItemDisplay : MonoBehaviour
     private int _cachedReferralCount = 0;
     private bool _buyInProgress = false;
     private bool _pendingRefresh; // if true, run refresh on OnEnable
+    private Material _iconMaterialInstance;
 
     [Header("Status Feedback")]
     [SerializeField] private TMP_Text statusLabel;    // (opsiyonel) buton yakınında küçük metin
@@ -65,6 +79,18 @@ public class UIShopItemDisplay : MonoBehaviour
     {
         if (UserInventoryManager.Instance != null)
             UserInventoryManager.Instance.OnInventoryChanged += HandleInventoryChanged;
+
+        // Yeni iç butonun click'ini Shop mantığına bağla
+        if (actionButton != null)
+        {
+            actionButton.onClick.RemoveAllListeners();
+            actionButton.onClick.AddListener(OnClickBuy);
+        }
+        // Overlay ilk açılışta kapalı olsun
+        if (fetchingPanel != null) fetchingPanel.SetActive(false);
+
+        // Ensure material instance if icon exists
+        EnsureIconMaterialInstance();
 
         // If this card was inactive when a refresh was requested, do it now safely
         if (_pendingRefresh)
@@ -77,6 +103,8 @@ public class UIShopItemDisplay : MonoBehaviour
 
     private void OnDisable()
     {
+        if (actionButton != null)
+            actionButton.onClick.RemoveAllListeners();
         if (UserInventoryManager.Instance != null)
             UserInventoryManager.Instance.OnInventoryChanged -= HandleInventoryChanged;
     }
@@ -149,7 +177,7 @@ public class UIShopItemDisplay : MonoBehaviour
         }
 
         // ---- Price / Category Badge ----
-        priceText.text = BuildPriceLabel(data, category);
+        // priceText.text = BuildPriceLabel(data, category); // Price is now shown on the action button
 
         // ---- Stat Chips ----
         Clear(statChipsRoot);
@@ -221,61 +249,154 @@ public class UIShopItemDisplay : MonoBehaviour
     {
         if (backgroundImage == null) return;
 
-        if (referralProgressText != null) referralProgressText.gameObject.SetActive(false);
+        // Eski priceText artık ayrı gösterilmeyecek; metin buton üzerine yazılacak
+        if (priceText != null) priceText.gameObject.SetActive(false);
+        // Yeni action buton aktif
+        if (actionButton != null) actionButton.gameObject.SetActive(true);
+
         if (iconImage != null) iconImage.enabled = true;
-        if (buyButton != null) buyButton.interactable = true;
 
         switch (state)
         {
             case ShopVisualState.Normal_NotOwned:
                 backgroundImage.sprite = bgNormalNotOwned;
-                priceText.gameObject.SetActive(true);
-                buyButton?.gameObject.SetActive(true);
-                if (buyButton != null) buyButton.interactable = true;
                 break;
             case ShopVisualState.Normal_Owned:
                 backgroundImage.sprite = bgNormalOwned;
-                priceText.gameObject.SetActive(false);
-                buyButton?.gameObject.SetActive(true);
-                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Normal_Equipped:
                 backgroundImage.sprite = bgNormalEquipped;
-                priceText.gameObject.SetActive(false);
-                buyButton?.gameObject.SetActive(true);
-                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Premium_NotOwned:
                 backgroundImage.sprite = bgPremiumNotOwned;
-                priceText.gameObject.SetActive(true);
-                buyButton?.gameObject.SetActive(true);
-                if (buyButton != null) buyButton.interactable = true;
                 break;
             case ShopVisualState.Premium_Owned:
                 backgroundImage.sprite = bgPremiumOwned;
-                priceText.gameObject.SetActive(false);
-                buyButton?.gameObject.SetActive(true);
-                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Premium_Equipped:
                 backgroundImage.sprite = bgPremiumEquipped;
-                priceText.gameObject.SetActive(false);
-                buyButton?.gameObject.SetActive(true);
-                if (buyButton != null) buyButton.interactable = false;
                 break;
             case ShopVisualState.Referral_Locked:
                 backgroundImage.sprite = bgReferralLocked;
-                priceText.gameObject.SetActive(false);
-                buyButton?.gameObject.SetActive(true);
-                if (buyButton != null) buyButton.interactable = false;
-                if (iconImage != null) iconImage.enabled = false;
                 if (nameText != null) nameText.text = "Locked";
-                if (referralProgressText != null && Data != null)
+                break;
+        }
+
+        if (iconImage != null)
+        {
+            iconImage.enabled = true; // Referral_Locked dahil artık ikon görünür
+
+            bool owned = false;
+            bool equipped = false;
+            var d = Data;
+
+            if (UserInventoryManager.Instance != null && d != null)
+            {
+                var nid = IdUtil.NormalizeId(d.id);
+                owned = UserInventoryManager.Instance.IsOwned(nid);
+                equipped = UserInventoryManager.Instance.IsEquipped(nid);
+            }
+
+            int referralCount = _cachedReferralCount;
+            bool referralUnlocked = (Category == ShopCategory.Referral) && d != null && referralCount >= d.referralThreshold;
+
+            float saturation = (owned || referralUnlocked) ? 1f : 0f;
+            SetIconSaturation(saturation);
+        }
+
+        UpdateActionButton(state);
+        if (fetchingPanel != null && !_buyInProgress)
+            fetchingPanel.SetActive(false);
+    }
+
+    private void UpdateActionButton(ShopVisualState state)
+    {
+        if (actionButton == null) return;
+
+        // Varsayılan etkileşim açık; özel durumlarda kapatacağız
+        actionButton.interactable = true;
+
+        // Mevcut sahiplik/equip durumu
+        bool owned = false;
+        bool equipped = false;
+        var d = Data;
+        if (UserInventoryManager.Instance != null && d != null)
+        {
+            var nid = IdUtil.NormalizeId(d.id);
+            owned = UserInventoryManager.Instance.IsOwned(nid);
+            equipped = UserInventoryManager.Instance.IsEquipped(nid);
+        }
+
+        string label = string.Empty;
+        Sprite icon = null;
+
+        // Referral sayısı
+        int referralCount = _cachedReferralCount;
+
+        // BullMarket + Ad kontrolünü d.id üzerinden yapıyoruz (Data null ise zaten aşağıdaki case'ler çalışmayacak)
+        bool isAdConsumable = (Category == ShopCategory.BullMarket && d != null && d.isRewardedAd);
+
+        switch (state)
+        {
+            case ShopVisualState.Referral_Locked:
+                // 2/3 gibi
+                int target = d != null ? d.referralThreshold : 0;
+                label = $"{referralCount}/{target}";
+                icon = iconReferral;
+                // Kilitli halde butona basılmasını engelleyebiliriz
+                actionButton.interactable = false;
+                break;
+
+            case ShopVisualState.Normal_NotOwned:
+            case ShopVisualState.Premium_NotOwned:
+                if (isAdConsumable)
                 {
-                    referralProgressText.text = $"{_cachedReferralCount}/{Data.referralThreshold}";
-                    referralProgressText.gameObject.SetActive(true);
+                    label = "Watch Ad";
+                    icon = iconAd;
+                }
+                else if (Category == ShopCategory.Premium || (Category == ShopCategory.BullMarket && d != null && d.dollarPrice > 0))
+                {
+                    // $ fiyat
+                    if (d != null) label = "$" + d.dollarPrice.ToString("F2");
+                    icon = null; // dolar için ikon göstermiyoruz
+                }
+                else
+                {
+                    // GET fiyat
+                    if (d != null) label = d.getPrice.ToString("F2");
+                    icon = iconCurrency;
                 }
                 break;
+
+            case ShopVisualState.Normal_Owned:
+            case ShopVisualState.Premium_Owned:
+                label = "Equip";
+                icon = iconEquip;
+                break;
+
+            case ShopVisualState.Normal_Equipped:
+            case ShopVisualState.Premium_Equipped:
+                label = "Unequip";
+                icon = iconUnequip;
+                break;
+        }
+
+        // Force-enable the label GameObject
+        if (actionLabel != null) actionLabel.gameObject.SetActive(true);
+
+        // UI'ya uygula
+        if (actionLabel != null) actionLabel.text = label ?? string.Empty;
+        if (actionIcon != null)
+        {
+            if (icon != null)
+            {
+                actionIcon.sprite = icon;
+                actionIcon.gameObject.SetActive(true);
+            }
+            else
+            {
+                actionIcon.gameObject.SetActive(false);
+            }
         }
     }
 
@@ -403,9 +524,11 @@ public class UIShopItemDisplay : MonoBehaviour
     public void OnClickBuy()
     {
         if (_buyInProgress) return;
+        if (fetchingPanel != null) fetchingPanel.SetActive(true);
         if (Data == null)
         {
             Debug.LogWarning("[UIShopItemDisplay] OnClickBuy but Data is null.");
+            if (fetchingPanel != null) fetchingPanel.SetActive(false);
             return;
         }
 
@@ -413,12 +536,17 @@ public class UIShopItemDisplay : MonoBehaviour
         if (Category == ShopCategory.Referral)
         {
             Debug.Log("[UIShopItemDisplay] Referral item cannot be purchased from shop. Unlock via referrals.");
+            if (fetchingPanel != null) fetchingPanel.SetActive(false);
             return;
         }
 
         var nid = IdUtil.NormalizeId(Data.id);
         var inv = UserInventoryManager.Instance;
-        if (inv == null) return;
+        if (inv == null)
+        {
+            if (fetchingPanel != null) fetchingPanel.SetActive(false);
+            return;
+        }
 
         bool owned = inv.IsOwned(nid);
         bool equipped = inv.IsEquipped(nid);
@@ -437,7 +565,8 @@ public class UIShopItemDisplay : MonoBehaviour
     private IEnumerator ToggleEquipRoutine(UserInventoryManager inv, string itemId, bool currentlyEquipped)
     {
         _buyInProgress = true;
-        if (buyButton != null) buyButton.interactable = false;
+        if (fetchingPanel != null) fetchingPanel.SetActive(true);
+        if (actionButton != null) actionButton.interactable = false;
 
         ShowStatus(currentlyEquipped ? "Unequipping..." : "Equipping...");
 
@@ -449,7 +578,8 @@ public class UIShopItemDisplay : MonoBehaviour
         {
             Debug.LogWarning($"[UIShopItemDisplay] Toggle equip EX: {task.Exception.Message}");
             ShowStatus("Action failed!");
-            if (buyButton != null) buyButton.interactable = true;
+            if (fetchingPanel != null) fetchingPanel.SetActive(false);
+            if (actionButton != null) actionButton.interactable = true;
             _buyInProgress = false;
             yield break;
         }
@@ -458,6 +588,7 @@ public class UIShopItemDisplay : MonoBehaviour
         if (!ok)
         {
             ShowStatus("Action failed!");
+            if (fetchingPanel != null) fetchingPanel.SetActive(false);
         }
         else
         {
@@ -468,14 +599,16 @@ public class UIShopItemDisplay : MonoBehaviour
         yield return null;
         RequestRefresh();
 
+        if (fetchingPanel != null) fetchingPanel.SetActive(false);
         _buyInProgress = false;
-        if (buyButton != null) buyButton.interactable = true;
+        if (actionButton != null) actionButton.interactable = true;
     }
 
     private IEnumerator BuyRoutine()
     {
         _buyInProgress = true;
-        if (buyButton != null) buyButton.interactable = false;
+        if (fetchingPanel != null) fetchingPanel.SetActive(true);
+        if (actionButton != null) actionButton.interactable = false;
 
         // Satın alma yöntemi seçimi
         UserInventoryManager.PurchaseMethod method;
@@ -496,7 +629,8 @@ public class UIShopItemDisplay : MonoBehaviour
         {
             Debug.LogWarning($"[UIShopItemDisplay] Purchase EX for {Data.id}: {task.Exception.Message}");
             ShowStatus("Purchase failed!");
-            if (buyButton != null) buyButton.interactable = true;
+            if (fetchingPanel != null) fetchingPanel.SetActive(false);
+            if (actionButton != null) actionButton.interactable = true;
             _buyInProgress = false;
             yield break;
         }
@@ -519,7 +653,8 @@ public class UIShopItemDisplay : MonoBehaviour
         {
             Debug.LogWarning($"[UIShopItemDisplay] Purchase failed for {Data.id}: {result.error}");
             ShowStatus("Purchase failed!");
-            if (buyButton != null) buyButton.interactable = true;
+            if (fetchingPanel != null) fetchingPanel.SetActive(false);
+            if (actionButton != null) actionButton.interactable = true;
             _buyInProgress = false;
             yield break;
         }
@@ -530,8 +665,9 @@ public class UIShopItemDisplay : MonoBehaviour
         // Başarılı → görsel durumu tazele (owned/equipped/price)
         yield return RefreshVisualStateCoroutine();
 
+        if (fetchingPanel != null) fetchingPanel.SetActive(false);
         _buyInProgress = false;
-        if (buyButton != null) buyButton.interactable = true;
+        if (actionButton != null) actionButton.interactable = true;
         UITopPanel.Instance.Initialize();
     }
 
@@ -597,5 +733,35 @@ public class UIShopItemDisplay : MonoBehaviour
         statusLabel.gameObject.SetActive(true);
         yield return new WaitForSeconds(statusDuration);
         statusLabel.gameObject.SetActive(false);
+    }
+    private Material EnsureIconMaterialInstance()
+    {
+        if (iconImage == null) return null;
+        var current = iconImage.material;
+        if (_iconMaterialInstance == null && current != null)
+        {
+            _iconMaterialInstance = new Material(current);
+            iconImage.material = _iconMaterialInstance;
+        }
+        return _iconMaterialInstance;
+    }
+
+    private void SetIconSaturation(float value)
+    {
+        if (iconImage == null) return;
+        var mat = EnsureIconMaterialInstance();
+        if (mat != null && mat.HasProperty("_HsvSaturation"))
+        {
+            mat.SetFloat("_HsvSaturation", value);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (_iconMaterialInstance != null)
+        {
+            Destroy(_iconMaterialInstance);
+            _iconMaterialInstance = null;
+        }
     }
 }
