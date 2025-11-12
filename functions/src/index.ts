@@ -302,6 +302,57 @@ function extractItemStats(raw: Record<string, any>): Record<string, number> {
   }
   return out;
 }
+// ---- Consumables lazy cleanup helper ----
+async function cleanupExpiredConsumablesInTx(
+  tx: FirebaseFirestore.Transaction,
+  userRef: FirebaseFirestore.DocumentReference,
+  now: Timestamp
+) {
+  const activeCol = userRef.collection("activeConsumables");
+
+  // READS first: all reads before writes
+  const expiredSnap = await tx.get(
+    activeCol.where("expiresAt", "<=", now)
+  );
+  if (expiredSnap.empty) return;
+
+  let totalDelta: Record<string, number> = {};
+  const itemRefs: FirebaseFirestore.DocumentReference[] = [];
+  const toDelete: FirebaseFirestore.DocumentReference[] = [];
+
+  expiredSnap.docs.forEach((d) => {
+    const itemId = d.id;
+    const itemRef = db
+      .collection("appdata")
+      .doc("items")
+      .collection(itemId)
+      .doc("itemdata");
+    itemRefs.push(itemRef);
+    toDelete.push(d.ref);
+  });
+
+  // READ: item defs (stats)
+  const itemSnaps = await Promise.all(itemRefs.map((r) => tx.get(r)));
+  itemSnaps.forEach((s) => {
+    if (!s.exists) return;
+    const stats = extractItemStats(s.data() || {});
+    totalDelta = mergeStats(totalDelta, stats, -1); // subtract
+  });
+
+  // WRITE: apply merged subtraction to user's stats
+  if (Object.keys(totalDelta).length > 0) {
+    const uSnap = await tx.get(userRef);
+    const baseStats = parseStatsJson(uSnap.get("statsJson"));
+    const merged = mergeStats(baseStats, totalDelta, 1); // totalDelta already negative
+    tx.update(userRef, {
+      statsJson: JSON.stringify(merged),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  // WRITE: delete expired docs
+  toDelete.forEach((ref) => tx.delete(ref));
+}
 
 // ---------------- Leaderboard Sync ----------------
 export const syncLeaderboard = onDocumentWritten(
@@ -943,6 +994,10 @@ export const getEnergySnapshot = onCall(async (req) => {
 
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
+    // Pre-clean expired consumables in a separate transaction
+  await db.runTransaction(async (tx) => {
+    await cleanupExpiredConsumablesInTx(tx, userRef, now);
+  });
 
   const st = await db.runTransaction(async (tx) => {
     return await lazyRegenInTx(tx, userRef, now);
@@ -970,6 +1025,10 @@ export const getEnergyStatus = onCall(async (req) => {
 
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
+    // Pre-clean expired consumables in a separate transaction
+  await db.runTransaction(async (tx) => {
+    await cleanupExpiredConsumablesInTx(tx, userRef, now);
+  });
   const st = await db.runTransaction(async (tx) => {
     return await lazyRegenInTx(tx, userRef, now);
   });
@@ -992,6 +1051,10 @@ export const spendEnergy = onCall(async (req) => {
   const sessionId = String(req.data?.sessionId || "").trim();
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
+    // Pre-clean expired consumables in a separate transaction
+  await db.runTransaction(async (tx) => {
+    await cleanupExpiredConsumablesInTx(tx, userRef, now);
+  });
 
   const res = await db.runTransaction(async (tx) => {
     // idempotency (optional but cheap)
@@ -1458,6 +1521,10 @@ export const requestSession = onCall(async (req) => {
 
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
+    // Pre-clean expired consumables in a separate transaction
+  await db.runTransaction(async (tx) => {
+    await cleanupExpiredConsumablesInTx(tx, userRef, now);
+  });
 
   const out = await db.runTransaction(async (tx) => {
     // 1) lazy regen inside tx
@@ -1679,7 +1746,11 @@ export const purchaseItem = onCall(async (req) => {
   // method: "GET" | "IAP" | "AD"
   const {
     itemId: rawItemId,
-    method
+    method,
+    platform,
+    receipt,
+    orderId,
+    adToken,
   } = (req.data || {}) as {
     itemId?: string;
     method?: string;
@@ -1698,12 +1769,12 @@ export const purchaseItem = onCall(async (req) => {
 
   const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
   const userRef = db.collection("users").doc(uid);
+  const invRef  = userRef.collection("inventory").doc(itemId);
+  const acRef   = userRef.collection("activeConsumables").doc(itemId);
   const now = Timestamp.now();
 
-  // helpers (local to this scope)
+  // ---- Pre-verify tokens outside transaction to avoid granting on failed verification ----
   const verifyIapReceipt = async (platform?: string, receipt?: string, orderId?: string) => {
-    // TODO: Integrate with App Store / Play Billing server-side validation.
-    // For now, accept non-empty payload and prevent replay by orderId locking.
     if (!platform || !receipt || !orderId) {
       throw new HttpsError("invalid-argument", "platform, receipt and orderId are required for IAP.");
     }
@@ -1712,11 +1783,8 @@ export const purchaseItem = onCall(async (req) => {
     if (existing.exists) {
       throw new HttpsError("already-exists", "This purchase receipt was already processed.");
     }
-    // Mark as consumed (will be committed in outer transaction as well if needed)
     await lockRef.set({usedAt: now, platform, previewHash: String(receipt).slice(0, 32)}, {merge: true});
-    return true;
   };
-
   const verifyAdGrant = async (adToken?: string) => {
     if (!adToken) throw new HttpsError("invalid-argument", "adToken required for AD method.");
     const grantRef = userRef.collection("adGrants").doc(adToken);
@@ -1724,14 +1792,22 @@ export const purchaseItem = onCall(async (req) => {
     if (g.exists) {
       throw new HttpsError("already-exists", "This ad grant token was already used.");
     }
-    await grantRef.set({usedAt: now});
-    return true;
+    await grantRef.set({usedAt: now}, {merge: true});
   };
 
-  return await db.runTransaction(async (tx) => {
-    const [itemSnap, userSnap] = await Promise.all([
+  if (m === "IAP") {
+    await verifyIapReceipt(platform, receipt, orderId);
+  } else if (m === "AD") {
+    await verifyAdGrant(adToken);
+  }
+
+  const res = await db.runTransaction(async (tx) => {
+    // ---- READS FIRST (all of them) ----
+    const [itemSnap, userSnap, invSnap, acSnap] = await Promise.all([
       tx.get(itemRef),
       tx.get(userRef),
+      tx.get(invRef),
+      tx.get(acRef),
     ]);
 
     if (!itemSnap.exists) throw new HttpsError("not-found", "Item not found.");
@@ -1759,42 +1835,81 @@ export const purchaseItem = onCall(async (req) => {
     }
 
     // Ownership check (non-consumables cannot be purchased twice)
-    const invRef = userRef.collection("inventory").doc(itemId);
-    const invSnap = await tx.get(invRef);
     const alreadyOwned = invSnap.exists && !!invSnap.get("owned");
     if (alreadyOwned && !isConsumable) {
       throw new HttpsError("failed-precondition", "Already owned.");
     }
 
-    // Charge / verify depending on method
-    let newBalance = Number(userSnap.get("currency") ?? 0) || 0;
+    // ---- WRITES AFTER READS ----
+    // Charge / touch user depending on method
     if (m === "GET") {
-      if (newBalance < priceGet) {
+      const curBalance = Number(userSnap.get("currency") ?? 0) || 0;
+      if (curBalance < priceGet) {
         throw new HttpsError("failed-precondition", "Not enough currency.");
       }
-      newBalance -= priceGet;
-      tx.update(userRef, {currency: newBalance, updatedAt: FieldValue.serverTimestamp()});
-    } else if (m === "IAP") {
-      // Run verification outside of transaction (network calls)
-      tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
-    } else if (m === "AD") {
-      // Mark ad token usage to prevent replay; will also exist outside txn
+      tx.update(userRef, {currency: curBalance - priceGet, updatedAt: FieldValue.serverTimestamp()});
+    } else {
+      // touch the user doc for bookkeeping
       tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
     }
 
-    // Upsert inventory
-    const nextQty = isConsumable ? (Number(invSnap.get("quantity") ?? 0) + 1) : 0;
-    const invData: any = {
-      owned: true,
-      equipped: invSnap.get("equipped") === true, // preserve equip
-      quantity: nextQty,
-      itemIsConsumable: isConsumable,
-      lastChangedAt: FieldValue.serverTimestamp(),
-      acquiredAt: invSnap.exists ? invSnap.get("acquiredAt") ?? now : now,
-    };
-    tx.set(invRef, invData, {merge: true});
+    // Prepare audit expiry holder
+    let newExpiry: Timestamp | null = null;
 
-    // Audit trail
+    // Upsert inventory / Activate consumable
+        // Upsert inventory / Activate consumable
+    if (isConsumable) {
+      // Determine previous active state from existing activeConsumables doc
+      const prevExpiry: Timestamp | null = acSnap.exists
+        ? (acSnap.get("expiresAt") as Timestamp | null)
+        : null;
+
+      const wasActive = !!prevExpiry && prevExpiry.toMillis() > now.toMillis();
+      const baseMillis = (wasActive && prevExpiry) ? prevExpiry.toMillis() : now.toMillis();
+      const durationMs = 24 * 60 * 60 * 1000; // 24h per purchase
+      newExpiry = Timestamp.fromMillis(baseMillis + durationMs);
+
+      // Persist/extend active window (no inventory write for consumables)
+      tx.set(
+        acRef,
+        {
+          itemId,
+          active: true,
+          expiresAt: newExpiry,
+          lastActivatedAt: now,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true}
+      );
+
+      // On first activation only, add stats to user
+      if (!wasActive) {
+        const itemStats = extractItemStats(item);
+        if (Object.keys(itemStats).length > 0) {
+          const baseStats = parseStatsJson(userSnap.get("statsJson"));
+          const merged = mergeStats(baseStats, itemStats, 1);
+          tx.update(userRef, {
+            statsJson: JSON.stringify(merged),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // (No inventory doc creation for consumables)
+    } else {
+      // Non-consumables: mark owned as before
+      const invData: any = {
+        owned: true,
+        equipped: invSnap.get("equipped") === true, // preserve equip
+        quantity: 0,
+        itemIsConsumable: false,
+        lastChangedAt: FieldValue.serverTimestamp(),
+        acquiredAt: invSnap.exists ? invSnap.get("acquiredAt") ?? now : now,
+      };
+      tx.set(invRef, invData, {merge: true});
+    }
+
+    // Audit trail (use exact newExpiry when consumable)
     const logRef = userRef.collection("purchases").doc();
     tx.set(logRef, {
       itemId,
@@ -1802,31 +1917,69 @@ export const purchaseItem = onCall(async (req) => {
       priceGet: m === "GET" ? priceGet : 0,
       priceUsd: m === "IAP" ? priceUsd : 0,
       isConsumable,
+      expiresAt: newExpiry, // precise expiry if consumable
       at: now,
     });
 
-    // Increment purchased items counter (counts all purchases including consumables)
-    const curCount = Number(userSnap.get("itemsPurchasedCount") ?? 0) || 0;
-    tx.set(userRef, {itemsPurchasedCount: curCount + 1, updatedAt: FieldValue.serverTimestamp()}, {merge:true});
+    // Increment purchased items counter atomically
+    tx.set(userRef, {itemsPurchasedCount: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp()}, {merge:true});
 
-    return {ok: true, itemId, owned: true, currencyLeft: newBalance};
-  }).then(async (res) => {
-    // Post-transaction external checks (IAP/AD anti-replay) — outside tx to avoid network in txn
-    if (String(method || "").toUpperCase() === "IAP") {
-      const {platform, receipt, orderId} = (req.data || {}) as any;
-      await verifyIapReceipt(platform, receipt, orderId);
-    } else if (String(method || "").toUpperCase() === "AD") {
-      const {adToken} = (req.data || {}) as any;
-      await verifyAdGrant(adToken);
-    }
+    // Build response snapshot
+    const currencyLeft = m === "GET"
+      ? Math.max(0, (Number(userSnap.get("currency") ?? 0) || 0) - priceGet)
+      : Number(userSnap.get("currency") ?? 0) || 0;
 
-    try {
-      const u = await db.collection("users").doc(uid).get();
-      await upsertUserAch(uid, ACH_TYPES.MARKET_WHISPER, Number(u.get("itemsPurchasedCount") ?? 0) || 0);
-    } catch (e) { console.warn("[ach] purchase evaluate failed", e); }
-
-    return res;
+    return {
+      ok: true,
+      itemId,
+      owned: !isConsumable,
+      isConsumable,
+      currencyLeft,
+      expiresAt: newExpiry ? newExpiry.toDate().toISOString() : null,
+      expiresAtMillis: newExpiry ? newExpiry.toMillis() : null,
+    };
   });
+
+  // Post-achievement update (outside txn)
+  try {
+    const u = await db.collection("users").doc(uid).get();
+    await upsertUserAch(uid, ACH_TYPES.MARKET_WHISPER, Number(u.get("itemsPurchasedCount") ?? 0) || 0);
+  } catch (e) { console.warn("[ach] purchase evaluate failed", e); }
+
+  return res;
+});
+
+// ---------------- getActiveConsumables (callable) ----------------
+// Returns active consumables with future expiry; expired ones are omitted on read.
+export const getActiveConsumables = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+    // Pre-clean expired consumables in a separate transaction
+  await db.runTransaction(async (tx) => {
+    await cleanupExpiredConsumablesInTx(tx, userRef, now);
+  });
+
+  const snap = await userRef
+    .collection("activeConsumables")
+    .where("expiresAt", ">", now)
+    .get();
+
+  const items = snap.docs.map((d) => {
+    const data = d.data() || {};
+    const exp = (data.expiresAt as Timestamp | undefined) || null;
+    return {
+      itemId: d.id,
+      active: true,
+      expiresAt: exp ? exp.toDate().toISOString() : null,
+      expiresAtMillis: exp ? exp.toMillis() : null,
+    };
+  });
+
+  return {ok: true, serverNowMillis: now.toMillis(), items};
 });
 
 // ---------------- equipItem ----------------

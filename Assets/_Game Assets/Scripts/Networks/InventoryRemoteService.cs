@@ -51,6 +51,104 @@ public static class InventoryRemoteService
         public string error;
     }
 
+    [Serializable]
+    public class ActiveConsumable
+    {
+        public string itemId;
+        public long activatedAtMillis;
+        public long expiresAtMillis;
+    }
+
+    [Serializable]
+    public class ActiveConsumablesResponse
+    {
+        public bool ok;
+        public long serverNowMillis;
+        public List<ActiveConsumable> items = new();
+        public string error;
+    }
+    public static async Task<ActiveConsumablesResponse> GetActiveConsumablesAsync()
+    {
+        var result = new ActiveConsumablesResponse { ok = false, serverNowMillis = 0, items = new List<ActiveConsumable>(), error = null };
+        try
+        {
+            var callable = Fn.GetHttpsCallable("getActiveConsumables");
+            var resp = await callable.CallAsync(null);
+
+            var root = AsStringObjectDict(resp?.Data);
+            if (root == null)
+            {
+                result.error = "Bad response (null/invalid)";
+                return result;
+            }
+
+            result.ok = GetBool(root, "ok", false);
+            result.serverNowMillis = GetLong(root, "serverNowMillis", 0L);
+
+            // items: array of objects
+            if (root.TryGetValue("items", out var itemsRaw) && itemsRaw != null)
+            {
+                var seq = AsObjectEnumerable(itemsRaw);
+                if (seq != null)
+                {
+                    foreach (var o in seq)
+                    {
+                        var d = AsStringObjectDict(o);
+                        if (d == null) continue;
+
+                        var id = d.TryGetValue("itemId", out var idRaw) ? IdUtil.NormalizeId(idRaw?.ToString()) : null;
+                        if (string.IsNullOrEmpty(id)) continue;
+
+                        var ac = new ActiveConsumable
+                        {
+                            itemId = id,
+                            // Some backends may not return activatedAtMillis; keep 0 if missing
+                            activatedAtMillis = GetLong(d, "activatedAtMillis", 0L),
+                            expiresAtMillis = GetLong(d, "expiresAtMillis", 0L),
+                        };
+                        result.items.Add(ac);
+                    }
+                }
+            }
+
+            return result;
+        }
+        catch (FunctionsException ex)
+        {
+            Debug.LogWarning($"[InventoryRemoteService] GetActiveConsumablesAsync FAILED: {ex.Message}");
+            result.error = ex.Message;
+            return result;
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[InventoryRemoteService] GetActiveConsumablesAsync FAILED: {e.Message}");
+            result.error = e.Message;
+            return result;
+        }
+    }
+
+    // --- small helpers for consistent numeric parsing to long ---
+    private static long GetLong(IDictionary<string, object> src, string key, long def = 0L)
+    {
+        if (src == null) return def;
+        if (!src.TryGetValue(key, out var v) || v == null) return def;
+
+        switch (v)
+        {
+            case long l: return l;
+            case int i: return i;
+            case double d: return (long)d;
+            case float f: return (long)f;
+            case string s when long.TryParse(s, out var parsed): return parsed;
+            default:
+                try
+                {
+                    return Convert.ToInt64(v);
+                }
+                catch { return def; }
+        }
+    }
+
     private static FirebaseFunctions Fn => FirebaseFunctions.GetInstance("us-central1");
 
     // -------- Robust dictionary & list converters (Firebase callable variations) --------

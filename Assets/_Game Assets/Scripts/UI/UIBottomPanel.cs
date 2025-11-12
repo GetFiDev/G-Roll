@@ -20,6 +20,15 @@ public class UIBottomPanel : MonoBehaviour
     [SerializeField] private VoidEventChannelSO requestStartGameplay;
 
     public UITopPanel topPanel;
+    public static UIBottomPanel Instance;
+    public void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else
+        {
+            Destroy(this);
+        }
+    }
 
 
     public void OnClickHomeButton()

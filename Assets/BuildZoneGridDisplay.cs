@@ -136,6 +136,7 @@ public class BuildZoneGridDisplay : MonoBehaviour
 
     private void OnEmptySlotClicked(EquippedItemDisplay clickedEquippedItemDisplay)
     {
+        UIBottomPanel.Instance.OnClickShopButton();
         Debug.Log("empty slot clicked");
     }
 

@@ -69,6 +69,8 @@ public class UIShopItemDisplay : MonoBehaviour
     private bool _buyInProgress = false;
     private bool _pendingRefresh; // if true, run refresh on OnEnable
     private Material _iconMaterialInstance;
+    private Coroutine _countdownCo;
+    private bool _isConsumable; // BullMarket kartları consumable olarak kabul ediliyor
 
     [Header("Status Feedback")]
     [SerializeField] private TMP_Text statusLabel;    // (opsiyonel) buton yakınında küçük metin
@@ -79,6 +81,13 @@ public class UIShopItemDisplay : MonoBehaviour
     {
         if (UserInventoryManager.Instance != null)
             UserInventoryManager.Instance.OnInventoryChanged += HandleInventoryChanged;
+
+        // Active consumable event
+        if (UserInventoryManager.Instance != null)
+        {
+            UserInventoryManager.Instance.OnActiveConsumablesChanged -= HandleActiveConsumablesChanged;
+            UserInventoryManager.Instance.OnActiveConsumablesChanged += HandleActiveConsumablesChanged;
+        }
 
         // Yeni iç butonun click'ini Shop mantığına bağla
         if (actionButton != null)
@@ -92,6 +101,9 @@ public class UIShopItemDisplay : MonoBehaviour
         // Ensure material instance if icon exists
         EnsureIconMaterialInstance();
 
+        // If already active at enable, ensure countdown starts
+        TryStartCountdown();
+
         // If this card was inactive when a refresh was requested, do it now safely
         if (_pendingRefresh)
         {
@@ -103,6 +115,11 @@ public class UIShopItemDisplay : MonoBehaviour
 
     private void OnDisable()
     {
+        if (UserInventoryManager.Instance != null)
+        {
+            UserInventoryManager.Instance.OnActiveConsumablesChanged -= HandleActiveConsumablesChanged;
+        }
+        StopCountdown();
         if (actionButton != null)
             actionButton.onClick.RemoveAllListeners();
         if (UserInventoryManager.Instance != null)
@@ -151,6 +168,7 @@ public class UIShopItemDisplay : MonoBehaviour
 
         Data = data;
         Category = category;
+        _isConsumable = (Category == ShopCategory.BullMarket);
 
         if (_blinkCoroutine != null)
         {
@@ -284,27 +302,31 @@ public class UIShopItemDisplay : MonoBehaviour
 
         if (iconImage != null)
         {
-            iconImage.enabled = true; // Referral_Locked dahil artık ikon görünür
+            iconImage.enabled = true; // Always visible
 
-            bool owned = false;
-            bool equipped = false;
             var d = Data;
+            int referralCount = _cachedReferralCount;
 
-            if (UserInventoryManager.Instance != null && d != null)
+            bool isReferralLocked = (Category == ShopCategory.Referral)
+                                     && d != null
+                                     && referralCount < d.referralThreshold;
+
+            bool isConsumableAndInactive = false;
+            if (_isConsumable && d != null && UserInventoryManager.Instance != null)
             {
                 var nid = IdUtil.NormalizeId(d.id);
-                owned = UserInventoryManager.Instance.IsOwned(nid);
-                equipped = UserInventoryManager.Instance.IsEquipped(nid);
+                isConsumableAndInactive = !UserInventoryManager.Instance.IsConsumableActive(nid);
             }
 
-            int referralCount = _cachedReferralCount;
-            bool referralUnlocked = (Category == ShopCategory.Referral) && d != null && referralCount >= d.referralThreshold;
-
-            float saturation = (owned || referralUnlocked) ? 1f : 0f;
+            // Default 1. Only two cases go 0: inactive consumable OR referral locked
+            float saturation = (isReferralLocked || isConsumableAndInactive) ? 0f : 1f;
             SetIconSaturation(saturation);
         }
 
         UpdateActionButton(state);
+        // Maintain countdown lifecycle depending on active state
+        if (TryStartCountdown() == false)
+            StopCountdown();
         if (fetchingPanel != null && !_buyInProgress)
             fetchingPanel.SetActive(false);
     }
@@ -312,6 +334,10 @@ public class UIShopItemDisplay : MonoBehaviour
     private void UpdateActionButton(ShopVisualState state)
     {
         if (actionButton == null) return;
+
+        string nidForActive = (Data != null) ? IdUtil.NormalizeId(Data.id) : null;
+        bool isActiveConsumable = _isConsumable && nidForActive != null && UserInventoryManager.Instance != null
+                                  && UserInventoryManager.Instance.IsConsumableActive(nidForActive);
 
         // Varsayılan etkileşim açık; özel durumlarda kapatacağız
         actionButton.interactable = true;
@@ -325,6 +351,24 @@ public class UIShopItemDisplay : MonoBehaviour
             var nid = IdUtil.NormalizeId(d.id);
             owned = UserInventoryManager.Instance.IsOwned(nid);
             equipped = UserInventoryManager.Instance.IsEquipped(nid);
+        }
+
+        // If this is a consumable and currently active, force the button into 'Active • countdown' mode
+        if (isActiveConsumable)
+        {
+            if (actionButton != null)
+            {
+                actionButton.gameObject.SetActive(true);
+                actionButton.interactable = false;
+            }
+            if (actionIcon != null) actionIcon.gameObject.SetActive(false); // no icon for active state
+            if (actionLabel != null)
+            {
+                var remain = UserInventoryManager.Instance.GetConsumableRemaining(nidForActive);
+                actionLabel.gameObject.SetActive(true);
+                actionLabel.text = FormatRemain(remain);
+            }
+            return;
         }
 
         string label = string.Empty;
@@ -763,5 +807,58 @@ public class UIShopItemDisplay : MonoBehaviour
             Destroy(_iconMaterialInstance);
             _iconMaterialInstance = null;
         }
+    }
+    private void HandleActiveConsumablesChanged()
+    {
+        // When server pushes changes, simply refresh visuals
+        RequestRefresh();
+    }
+
+    private bool TryStartCountdown()
+    {
+        if (!_isConsumable || Data == null || UserInventoryManager.Instance == null) return false;
+        var nid = IdUtil.NormalizeId(Data.id);
+        if (!UserInventoryManager.Instance.IsConsumableActive(nid)) return false;
+
+        if (_countdownCo == null)
+            _countdownCo = StartCoroutine(CountdownRoutine());
+        if (actionButton != null)
+        {
+            actionButton.gameObject.SetActive(true);
+            actionButton.interactable = false;
+        }
+        return true;
+    }
+
+    private void StopCountdown()
+    {
+        if (_countdownCo != null)
+        {
+            StopCoroutine(_countdownCo);
+            _countdownCo = null;
+        }
+    }
+
+    private IEnumerator CountdownRoutine()
+    {
+        // Update label once per second while active; when expired, trigger refresh
+        var nid = IdUtil.NormalizeId(Data.id);
+        while (isActiveAndEnabled && UserInventoryManager.Instance != null &&
+               UserInventoryManager.Instance.IsConsumableActive(nid))
+        {
+            var remain = UserInventoryManager.Instance.GetConsumableRemaining(nid);
+            if (actionLabel != null)
+                actionLabel.text = FormatRemain(remain);
+            yield return new WaitForSecondsRealtime(1f);
+        }
+        // One last refresh to flip UI back to purchase mode
+        RequestRefresh();
+        _countdownCo = null;
+    }
+
+    private static string FormatRemain(System.TimeSpan t)
+    {
+        int hours = (int)t.TotalHours;
+        return $"{hours:D2}:{t.Minutes:D2}:{t.Seconds:D2}";
     }
 }

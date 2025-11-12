@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using System.Linq;
+using System.Collections.ObjectModel;
 
 /// <summary>
 /// Centralized cache and controller for player's inventory.
@@ -14,6 +15,16 @@ public class UserInventoryManager : MonoBehaviour
     public static UserInventoryManager Instance { get; private set; }
 
     public event Action OnInventoryChanged;
+
+    public event Action OnActiveConsumablesChanged;
+
+    // Active consumables (server-authoritative). Key = normalized itemId
+    private readonly Dictionary<string, InventoryRemoteService.ActiveConsumable> _activeConsumables
+        = new Dictionary<string, InventoryRemoteService.ActiveConsumable>(StringComparer.OrdinalIgnoreCase);
+
+    // Server time anchoring to compute stable countdowns client-side
+    private long _serverNowAnchorMillis = 0;
+    private DateTime _localAnchorUtc;
 
     private Dictionary<string, InventoryRemoteService.InventoryEntry> _inventory =
         new Dictionary<string, InventoryRemoteService.InventoryEntry>(StringComparer.OrdinalIgnoreCase);
@@ -56,6 +67,40 @@ public class UserInventoryManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
+    private void AnchorServerNow(long serverNowMillis)
+    {
+        if (serverNowMillis <= 0) return;
+        _serverNowAnchorMillis = serverNowMillis;
+        _localAnchorUtc = DateTime.UtcNow;
+    }
+
+    private long GetApproxServerNowMillis()
+    {
+        if (_serverNowAnchorMillis <= 0) return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var delta = (long)(DateTime.UtcNow - _localAnchorUtc).TotalMilliseconds;
+        return _serverNowAnchorMillis + Math.Max(0, delta);
+    }
+
+    public bool IsConsumableActive(string itemId)
+    {
+        var id = IdUtil.NormalizeId(itemId);
+        if (!_activeConsumables.TryGetValue(id, out var ac) || ac == null) return false;
+        var nowMs = GetApproxServerNowMillis();
+        return ac.expiresAtMillis > nowMs;
+    }
+
+    public TimeSpan GetConsumableRemaining(string itemId)
+    {
+        var id = IdUtil.NormalizeId(itemId);
+        if (!_activeConsumables.TryGetValue(id, out var ac) || ac == null) return TimeSpan.Zero;
+        var nowMs = GetApproxServerNowMillis();
+        var remain = Math.Max(0, ac.expiresAtMillis - nowMs);
+        return TimeSpan.FromMilliseconds(remain);
+    }
+
+    public IReadOnlyDictionary<string, InventoryRemoteService.ActiveConsumable> GetActiveConsumablesSnapshot()
+        => new ReadOnlyDictionary<string, InventoryRemoteService.ActiveConsumable>(_activeConsumables);
+
     /// <summary>
     /// Fetch inventory snapshot from server and cache locally.
     /// </summary>
@@ -73,6 +118,8 @@ public class UserInventoryManager : MonoBehaviour
         }
 
         ReplaceInventory(snapshot.inventory, snapshot.equippedItemIds);
+        // Also pull active consumables so shop/UI can render countdowns immediately
+        await RefreshActiveConsumablesAsync();
         IsInitialized = true;
         OnInventoryChanged?.Invoke();
         Debug.Log($"[UserInventoryManager] Initialized. Items={_inventory.Count} Equipped={_equipped.Count}");
@@ -88,6 +135,8 @@ public class UserInventoryManager : MonoBehaviour
         if (snapshot == null || !snapshot.ok) return;
 
         ReplaceInventory(snapshot.inventory, snapshot.equippedItemIds);
+        // Keep active consumables in sync as well (in case purchases happened)
+        await RefreshActiveConsumablesAsync();
         OnInventoryChanged?.Invoke();
     }
 
@@ -250,4 +299,57 @@ public class UserInventoryManager : MonoBehaviour
     /// </summary>
     public List<string> GetEquippedItemIds() => new(_equipped);
     
+    /// <summary>
+    /// Fetch active consumables from server and update local cache.
+    /// Fires OnActiveConsumablesChanged when changed.
+    /// </summary>
+    public async Task RefreshActiveConsumablesAsync()
+    {
+        try
+        {
+            var res = await InventoryRemoteService.GetActiveConsumablesAsync();
+            if (res == null || !res.ok)
+            {
+                if (res != null && !string.IsNullOrEmpty(res.error))
+                    Debug.LogWarning($"[UserInventoryManager] RefreshActiveConsumablesAsync error: {res.error}");
+                return;
+            }
+
+            AnchorServerNow(res.serverNowMillis);
+
+            bool changed = false;
+            // Build new map
+            var newMap = new Dictionary<string, InventoryRemoteService.ActiveConsumable>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ac in res.items ?? Enumerable.Empty<InventoryRemoteService.ActiveConsumable>())
+            {
+                if (string.IsNullOrEmpty(ac?.itemId)) continue;
+                var nid = IdUtil.NormalizeId(ac.itemId);
+                newMap[nid] = ac;
+            }
+
+            // Detect changes quickly by count or any differing expiry
+            if (newMap.Count != _activeConsumables.Count) changed = true;
+            else
+            {
+                foreach (var kv in newMap)
+                {
+                    if (!_activeConsumables.TryGetValue(kv.Key, out var old) || old.expiresAtMillis != kv.Value.expiresAtMillis)
+                    {
+                        changed = true; break;
+                    }
+                }
+            }
+
+            if (changed)
+            {
+                _activeConsumables.Clear();
+                foreach (var kv in newMap) _activeConsumables[kv.Key] = kv.Value;
+                OnActiveConsumablesChanged?.Invoke();
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[UserInventoryManager] RefreshActiveConsumablesAsync EX: {e.Message}");
+        }
+    }
 }

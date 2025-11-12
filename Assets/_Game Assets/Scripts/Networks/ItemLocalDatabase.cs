@@ -22,6 +22,41 @@ public static class ItemLocalDatabase
         public List<RemoteItemService.ItemData> values = new();
     }
 
+    /// <summary>
+    /// Returns the in-memory dictionary (lazy-loaded). Keys are normalized (case-insensitive).
+    /// </summary>
+    private static Dictionary<string, RemoteItemService.ItemData> Db => Load();
+
+    /// <summary>
+    /// Try get item definition by id (any case). Returns false if not found.
+    /// </summary>
+    public static bool TryGet(string itemId, out RemoteItemService.ItemData data)
+    {
+        data = null;
+        if (string.IsNullOrEmpty(itemId)) return false;
+        var nid = IdUtil.NormalizeId(itemId);
+        return Db.TryGetValue(nid, out data);
+    }
+
+    /// <summary>
+    /// Get item definition or null if missing.
+    /// </summary>
+    public static RemoteItemService.ItemData GetOrNull(string itemId)
+    {
+        return TryGet(itemId, out var d) ? d : null;
+    }
+
+    /// <summary>
+    /// Enumerate all cached items (read-only snapshot semantics for callers).
+    /// </summary>
+    public static IEnumerable<KeyValuePair<string, RemoteItemService.ItemData>> All()
+    {
+        // Ensure loaded and return a shallow copy to protect internal state
+        var dict = Db;
+        foreach (var kv in dict)
+            yield return kv;
+    }
+
     public static Dictionary<string, RemoteItemService.ItemData> Load()
     {
         if (_cache != null) return _cache;
@@ -132,5 +167,13 @@ public static class ItemLocalDatabase
     private static Sprite CreateSprite(Texture2D tex)
     {
         return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    /// <summary>
+    /// Clears only the in-memory cache. Next Load() will re-read from disk.
+    /// </summary>
+    public static void ClearMemoryCache()
+    {
+        _cache = null;
     }
 }

@@ -22,7 +22,22 @@ public class ShopItemManager : MonoBehaviour
 
     private async void OnEnable()
     {
+        // Subscribe to active-consumable updates to live-refresh countdown/labels
+        if (UserInventoryManager.Instance != null)
+        {
+            UserInventoryManager.Instance.OnActiveConsumablesChanged -= HandleActiveConsumablesChanged;
+            UserInventoryManager.Instance.OnActiveConsumablesChanged += HandleActiveConsumablesChanged;
+        }
+
         await RefreshShopAsync();
+    }
+
+    private void OnDisable()
+    {
+        if (UserInventoryManager.Instance != null)
+        {
+            UserInventoryManager.Instance.OnActiveConsumablesChanged -= HandleActiveConsumablesChanged;
+        }
     }
 
     public async Task RefreshShopAsync()
@@ -104,12 +119,31 @@ public class ShopItemManager : MonoBehaviour
             }
 
             Debug.Log($"[ShopItemManager] Spawned: {_spawned.Count}");
+
+            // In case active consumables were already available, one more UI nudge
+            HandleActiveConsumablesChanged();
         }
         finally
         {
             // Overlay OFF
             if (loadingOverlay != null) loadingOverlay.SetActive(false);
             _isRefreshing = false;
+        }
+    }
+
+    /// <summary>
+    /// Called when UserInventoryManager reports active consumables changed.
+    /// We avoid a full respawn; instead, ask existing cards to refresh their visual state.
+    /// </summary>
+    private void HandleActiveConsumablesChanged()
+    {
+        if (_spawned == null || _spawned.Count == 0) return;
+        for (int i = 0; i < _spawned.Count; i++)
+        {
+            var card = _spawned[i];
+            if (card == null) continue;
+            // Safe: UIShopItemDisplay implements RequestRefresh() (defers if inactive)
+            card.RequestRefresh();
         }
     }
 
