@@ -53,7 +53,7 @@ public class UIBottomPanel : MonoBehaviour
     {
         ChangeAllColorToDefault();
 
-        shopIcon.color = selectedColor;
+        referralIcon.color = selectedColor;
 
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Referral);
     }
@@ -71,7 +71,7 @@ public class UIBottomPanel : MonoBehaviour
     {
         ChangeAllColorToDefault();
         
-        referralIcon.color = selectedColor;
+        rankingIcon.color = selectedColor;
         
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Ranking);
     }
@@ -81,5 +81,7 @@ public class UIBottomPanel : MonoBehaviour
         homeIcon.color = defaultColor;
         shopIcon.color = defaultColor;
         referralIcon.color = defaultColor;
+        rankingIcon.color = defaultColor;
+        achievementsIcon.color = defaultColor;
     }
 }

@@ -14,18 +14,35 @@ public class UIPlayerStatsHandler : MonoBehaviour
     private const string KEY_PLAYER_ACCELERATION      = "playerAcceleration";             // float
     private const string KEY_PLAYER_SPEED_ADD         = "playerSpeed";                    // float (additive)
     private const string KEY_PLAYER_SIZE_PERCENT      = "playerSizePercent";              // int %
-    private const string KEY_MAGNET_POWER_PERCENT     = "magnetPowerPercent";             // int % (new)
+    private const string KEY_MAGNET_POWER_PERCENT = "magnetPowerPercent";             // int % (new)
+
+    public static UIPlayerStatsHandler Instance;
 
     [System.Serializable]
     private class StatsDTO
     {
-        public int   comboPower = 0;                          // JSON: delta, UI'da integer göster
-        public int   coinMultiplierPercent = 0;               // %
-        public int   gameplaySpeedMultiplierPercent = 0;      // %
+        public int comboPower = 0;                          // JSON: delta, UI'da integer göster
+        public int coinMultiplierPercent = 0;               // %
+        public int gameplaySpeedMultiplierPercent = 0;      // %
         public float playerAcceleration = 0.1f;               // dakikada
         public float playerSpeed = 0f;                        // additive
-        public int   playerSizePercent = 0;                   // %
-        public int   magnetPowerPercent = 0;                  // % (new)
+        public int playerSizePercent = 0;                   // %
+        public int magnetPowerPercent = 0;                  // % (new)
+    }
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else
+        {
+            Destroy(this);
+        }
+    }
+    public void Refresh()
+    {
+        var found = GetComponentsInChildren<UIPlayerStatDisplay>(true);
+        displays = new List<UIPlayerStatDisplay>(found);
+        StartCoroutine(ShowAllRoutine());
     }
 
     public void OnEnable()

@@ -33567,7 +33567,7 @@ MonoBehaviour:
   referralIcon: {fileID: 1294214533}
   rankingIcon: {fileID: 864499916109285928}
   achievementsIcon: {fileID: 1345451114}
-  defaultColor: {r: 1, g: 1, b: 1, a: 0.5019608}
+  defaultColor: {r: 1, g: 1, b: 1, a: 0.29803923}
   selectedColor: {r: 1, g: 1, b: 1, a: 1}
   requestStartGameplay: {fileID: 11400000, guid: 0520f195d005945e19fb9af74e72ca0d,
     type: 2}
