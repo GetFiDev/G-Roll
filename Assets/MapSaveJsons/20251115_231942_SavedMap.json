@@ -1,0 +1,99 @@
+{
+    "savedAtIso": "2025-11-15T23:19:42.4906030+03:00",
+    "mapName": "asdasd_15/11/25 - 23:19:42",
+    "mapDisplayName": "asdasd",
+    "difficultyTag": 2,
+    "backgroundMaterialId": 2,
+    "items": [
+        {
+            "displayName": "RedWall",
+            "gridX": 7,
+            "gridY": 27,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 8,
+            "gridY": 26,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 5,
+            "gridY": 43,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 25,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Portal",
+            "gridX": 3,
+            "gridY": 35,
+            "linkedPortalId": 1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 26,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 24,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 6,
+            "gridY": 24,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "Fan",
+            "gridX": 7,
+            "gridY": 30,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 6,
+            "gridY": 27,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 8,
+            "gridY": 27,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 7,
+            "gridY": 24,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 8,
+            "gridY": 25,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 5,
+            "gridY": 27,
+            "linkedPortalId": -1
+        },
+        {
+            "displayName": "RedWall",
+            "gridX": 8,
+            "gridY": 24,
+            "linkedPortalId": -1
+        }
+    ]
+}

@@ -1,37 +1,76 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System.Collections.Generic;
 
 public class UILeaderboardDisplay : MonoBehaviour
 {
     [Header("Texts")]
-    public TextMeshProUGUI rankTMP;
-    public TextMeshProUGUI usernameTMP;
-    public TextMeshProUGUI scoreTMP;
+    [SerializeField] private TextMeshProUGUI rankTMP;
+    [SerializeField] private TextMeshProUGUI usernameTMP;
+    [SerializeField] private TextMeshProUGUI scoreTMP;
 
-    [Header("Rank Background")]
-    public Image backgroundImage;             // prefab’taki arka plan Image’ı
-    public List<Sprite> rankSprites = new();  // 1., 2., 3., ... için sıralı sprite listesi
-    public bool applyRankVisualOnlyOnce = true; // true: sadece ilk SetData’da uygula
+    [Header("Frame (row background)")]
+    [SerializeField] private Image backgroundImage; // sıra arka plan çerçevesi
+
+    [Header("Frame Sprites")]
+    [SerializeField] private Sprite spriteTop3Elite;
+    [SerializeField] private Sprite spriteTop3NonElite;
+    [SerializeField] private Sprite spriteElite;
+    [SerializeField] private Sprite spriteDefault;
+
+    [Header("Rank Plate (behind rank text)")]
+    [SerializeField] private Image rankPlateImage;
+    [SerializeField] private Sprite rankPlateElite;
+    [SerializeField] private Sprite rankPlateDefault;
 
     [Header("Options")]
-    public bool hideRankIfEmpty = true;       // rank boşsa gizle
+    [SerializeField] private bool hideRankIfEmpty = true; // rank boşsa gizle
+    [SerializeField] private bool lockFrameSprite = false; // self header için: arka plan çerçevesi değişmez
 
-    private bool _rankVisualApplied = false;
+    /// <summary>Self header gibi özel yerlerde arka plan çerçevesini sabitle.</summary>
+    public void SetLockFrame(bool on) => lockFrameSprite = on;
 
-    public void SetData(string rankText, string username, int score)
+    /// <summary>
+    /// Self header'ın Inspector'ında rank plate sprite'ları boş bırakıldıysa,
+    /// row prefab'ından gelen sprite'ları buraya enjekte edebilmek için.
+    /// </summary>
+    public void EnsureRankPlateSprites(Sprite defaultPlate, Sprite elitePlate)
+    {
+        if (rankPlateDefault == null) rankPlateDefault = defaultPlate;
+        if (rankPlateElite   == null) rankPlateElite   = elitePlate;
+    }
+
+    /// <summary>Row prefab’ındaki plate sprite’larına dışarıdan erişim (panel runtime inject için).</summary>
+    public Sprite GetRankPlateDefault() => rankPlateDefault;
+    public Sprite GetRankPlateElite()   => rankPlateElite;
+
+    /// <summary>
+    /// Bütün görsel bağlama burada.
+    /// Frame seçimi (backgroundImage):
+    ///   - isTop3 && hasElite     -> spriteTop3Elite
+    ///   - isTop3 && !hasElite    -> spriteTop3NonElite
+    ///   - !isTop3 && hasElite    -> spriteElite
+    ///   - !isTop3 && !hasElite   -> spriteDefault
+    ///
+    /// Rank plate (rankPlateImage) her zaman hasElite’e göre:
+    ///   - hasElite -> rankPlateElite
+    ///   - else     -> rankPlateDefault
+    /// </summary>
+    public void SetData(string rankText, string username, int score, bool isTop3, bool hasElite)
     {
         // Metinler
-        if (usernameTMP) usernameTMP.text = string.IsNullOrWhiteSpace(username) ? "Guest" : username;
-        if (scoreTMP)    scoreTMP.text    = score.ToString();
+        if (usernameTMP)
+            usernameTMP.text = string.IsNullOrWhiteSpace(username) ? "Guest" : username;
+
+        if (scoreTMP)
+            scoreTMP.text = score.ToString();
 
         if (rankTMP)
         {
             if (string.IsNullOrEmpty(rankText) && hideRankIfEmpty)
             {
-                rankTMP.text = "";
                 rankTMP.gameObject.SetActive(false);
+                rankTMP.text = string.Empty;
             }
             else
             {
@@ -40,33 +79,31 @@ public class UILeaderboardDisplay : MonoBehaviour
             }
         }
 
-        // Rank’a göre arka plan (1-based)
-        TryApplyRankBackground(rankText);
+        ApplyFrame(isTop3, hasElite);
+        ApplyRankPlate(hasElite);
     }
 
-    private void TryApplyRankBackground(string rankText)
+    private void ApplyFrame(bool isTop3, bool hasElite)
     {
-        if (applyRankVisualOnlyOnce && _rankVisualApplied) return;
         if (backgroundImage == null) return;
-        if (rankSprites == null || rankSprites.Count == 0) return;
+        if (lockFrameSprite) return; // self header: arka plan sabit
 
-        // Self kartta "—" gibi placeholder gelebilir; parse edilemezse dokunma
-        if (!int.TryParse(rankText, out var oneBasedRank)) return;
-        if (oneBasedRank <= 0) return;
+        Sprite frame = null;
+        if (isTop3)
+            frame = hasElite ? spriteTop3Elite : spriteTop3NonElite;
+        else
+            frame = hasElite ? spriteElite : spriteDefault;
 
-        // Index: 1 → 0, 2 → 1, ... fazla ise son sprite
-        int idx = Mathf.Clamp(oneBasedRank - 1, 0, rankSprites.Count - 1);
-        var spr = rankSprites[idx];
-
-        backgroundImage.sprite = spr;
-        backgroundImage.enabled = spr != null;
-
-        _rankVisualApplied = true;
+        backgroundImage.sprite = frame;
+        backgroundImage.enabled = frame != null;
     }
 
-    // Objeyi yeniden kullanıyorsan (pool vb.), bunu çağırıp sıfırlayabilirsin.
-    public void ResetRankVisual()
+    private void ApplyRankPlate(bool hasElite)
     {
-        _rankVisualApplied = false;
+        if (rankPlateImage == null) return;
+
+        var plate = hasElite ? rankPlateElite : rankPlateDefault;
+        rankPlateImage.sprite = plate;
+        rankPlateImage.enabled = (plate != null);
     }
 }

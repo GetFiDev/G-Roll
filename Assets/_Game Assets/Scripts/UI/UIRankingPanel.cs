@@ -1,119 +1,193 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
+/// <summary>
+/// Ranking panel: açılırken LeaderboardService'ten veriyi çeker,
+/// listeyi kurar ve self header'ı AYNI KAYNAKTAN besler.
+///
+/// Kurallar:
+/// - Row arka plan çerçevesi sıraya/elite'e göre değişir.
+/// - Self header'da arka plan çerçevesi DEĞİŞMEZ (lockFrame=true),
+///   ama rank plate ELITE durumuna göre değişir.
+/// - Self header, plate sprite referansları boşsa row prefab'tan inject edilir.
+/// </summary>
 public class UIRankingPanel : MonoBehaviour
 {
-    [Header("Refs")]
-    public LeaderboardManager leaderboard;     // sahnedeki LeaderboardManager
-    public UILeaderboardDisplay selfDisplay;   // EKRANIN ÜSTÜNDEKİ sabit kart (her zaman var)
-    public GameObject loadingPanel;            // "Loading..." overlay
-    public Transform listRoot;                 // ScrollView -> Content (VerticalLayoutGroup)
-    public UILeaderboardDisplay rowPrefab;     // Top50 satır prefab'ı
+    [Header("UI Refs")]
+    [SerializeField] private UILeaderboardDisplay rowPrefab;
+    [SerializeField] private Transform rowsRoot;
+    [SerializeField] private UILeaderboardDisplay selfDisplay; // üstteki kendini gösteren satır
+    [SerializeField] private GameObject fetchingPanel;         // opsiyonel: yükleniyor overlay
 
     [Header("Options")]
-    [Tooltip(">0 ise LeaderboardManager.topN bununla override edilir")]
-    public int topNOverride = 50;
+    [SerializeField] private int maxRows = 100;
 
-    // İç: üretilen satırların cache’i
-    private readonly List<UILeaderboardDisplay> _rows = new();
+    private CancellationTokenSource _cts;
 
     private void OnEnable()
     {
-        if (leaderboard == null)
-        {
-            Debug.LogWarning("[UIRankingPanel] LeaderboardManager ref missing.");
-            return;
-        }
-
-        leaderboard.OnCacheUpdated += HandleCacheUpdated;
-
-        if (topNOverride > 0)
-            leaderboard.topN = topNOverride;
-        if (topNOverride > 0) leaderboard.fetchAll = false;
-
-        ShowLoading(true);
-        leaderboard.ManualRefresh(); // Fetch + Cache tetikle
+        _cts = new CancellationTokenSource();
+        _ = LoadAsync(_cts.Token); // fire-and-forget
     }
 
     private void OnDisable()
     {
-        if (leaderboard != null)
-            leaderboard.OnCacheUpdated -= HandleCacheUpdated;
-
-        ClearList(); // panel kapanınca listeyi temizle (isteğe bağlı)
-    }
-
-    // Cache hazır olduğunda tetiklenir
-    private void HandleCacheUpdated()
-    {
-        // 1) KENDİ KARTINI güncelle (her zaman görünür)
-        if (selfDisplay != null)
+        if (_cts != null)
         {
-            // İlk 50’de değilse rank boş geliyordu; placeholder olarak "—" kullanalım
-            string rank = string.IsNullOrEmpty(leaderboard.MyRankText) ? "—" : leaderboard.MyRankText;
-            selfDisplay.SetData(rank, leaderboard.MyUsername, leaderboard.MyScore);
-        }
-
-        // 2) TOP LISTESİNİ yeniden kur (Top50’yi—kendin varsa listede yine görünmeye devam)
-        RebuildList(leaderboard.TopCached);
-
-        // 3) Loading'i kapat
-        ShowLoading(false);
-    }
-
-    private void RebuildList(List<UserDatabaseManager.LBEntry> entries)
-    {
-        ClearList();
-
-        if (entries == null || entries.Count == 0)
-            return;
-
-        if (rowPrefab == null || listRoot == null)
-        {
-            Debug.LogWarning("[UIRankingPanel] rowPrefab veya listRoot eksik.");
-            return;
-        }
-
-        for (int i = 0; i < entries.Count; i++)
-        {
-            var e = entries[i];
-            var row = Instantiate(rowPrefab, listRoot);
-            _rows.Add(row);
-
-            int rk = e.rank;
-            string rankText = rk > 0 ? rk.ToString() : (i + 1).ToString();
-            string username = string.IsNullOrWhiteSpace(e.username) ? "Guest" : e.username;
-            row.SetData(rankText, username, e.score);
+            _cts.Cancel();
+            _cts.Dispose();
+            _cts = null;
         }
     }
 
-    private void ClearList()
+    private async Task LoadAsync(CancellationToken ct)
     {
-        // Önce izlediğimiz satırları yok et
-        for (int i = 0; i < _rows.Count; i++)
+        try
         {
-            if (_rows[i]) Destroy(_rows[i].gameObject);
-        }
-        _rows.Clear();
+            if (fetchingPanel) fetchingPanel.SetActive(true);
 
-        // Güvence için: Content altında kalmış çocukları da temizle
-        if (listRoot != null)
+            // 1) Veriyi tek kapıdan çek
+            var result = await LeaderboardService.FetchAsync(ct: ct); // Result: items (List<Item>), self (nullable / optional)
+
+            // 2) Listeyi kur
+            RebuildRows(result);
+
+            // 3) Self header’ı AYNI veriden besle
+            BindSelfDisplay(result);
+        }
+        catch (System.OperationCanceledException)
         {
-            for (int i = listRoot.childCount - 1; i >= 0; i--)
-                Destroy(listRoot.GetChild(i).gameObject);
+            // panel kapanmış olabilir; yok say
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[UIRankingPanel] LoadAsync EX: {ex.Message}");
+        }
+        finally
+        {
+            if (fetchingPanel) fetchingPanel.SetActive(false);
         }
     }
 
-    private void ShowLoading(bool on)
+    private void RebuildRows(LeaderboardService.Result result)
     {
-        if (loadingPanel != null) loadingPanel.SetActive(on);
+        if (!rowsRoot || rowPrefab == null) return;
+
+        // Temizle
+        for (int i = rowsRoot.childCount - 1; i >= 0; i--)
+            Destroy(rowsRoot.GetChild(i).gameObject);
+
+        var items = result.Items;
+        if (items == null) return;
+
+        long nowMillis = result.ServerNowMillis;
+
+        int count = Mathf.Min(maxRows, items.Count);
+        int rankOffset = result.RankOffset; // service verdi
+        for (int i = 0; i < count; i++)
+        {
+            var it = items[i];
+            var go = Instantiate(rowPrefab, rowsRoot);
+            var ui = go.GetComponent<UILeaderboardDisplay>();
+
+            int rankNumber = rankOffset + i + 1;
+            bool isTop3 = rankNumber >= 1 && rankNumber <= 3;
+            bool hasElite = it.HasElite(nowMillis);
+
+            ui.SetLockFrame(false);
+            ui.SetData(
+                rankText: rankNumber.ToString(),
+                username: SafeUserName(it.Username),
+                score: it.Score,
+                isTop3: isTop3,
+                hasElite: hasElite
+            );
+        }
     }
 
-    // İstersen UI butonundan çağırabileceğin manuel yenileme
-    public void RefreshNow()
+    private void BindSelfDisplay(LeaderboardService.Result result)
     {
-        if (leaderboard == null) return;
-        ShowLoading(true);
-        leaderboard.ManualRefresh();
+        if (selfDisplay == null) return;
+        LeaderboardService.Item? me = null;
+        if (result.Me.HasValue)
+        {
+            me = result.Me.Value;
+        }
+
+        // 2) Self header’ın frame’i SABİT (değişmeyecek)
+        selfDisplay.SetLockFrame(true);
+
+        // 3) Rank Plate sprite güvence:
+        //    Inspector’da self header’ın plate sprite’ları boş olabilir.
+        //    Row prefab’taki plate sprite’ları burada enjekte ederek garanti ediyoruz.
+        if (rowPrefab != null)
+        {
+            selfDisplay.EnsureRankPlateSprites(
+                rowPrefab.GetRankPlateDefault(),
+                rowPrefab.GetRankPlateElite()
+            );
+        }
+
+        string rankText = "";
+        string username = "You";
+        int score = 0;
+        bool isTop3 = false;
+        bool hasElite = false;
+
+        if (me.HasValue)
+        {
+            var m = me.Value;
+            username = SafeUserName(m.Username);
+            score = m.Score;
+            hasElite = m.HasElite(result.ServerNowMillis);
+            Debug.Log($"[UIRankingPanel] Self baseline hasElite from Me: {hasElite}");
+
+            // Eğer kendi satırı listede görünüyorsa, sırayı hesapla
+            int indexInPage = -1;
+            if (result.Items != null)
+            {
+                for (int i = 0; i < result.Items.Count; i++)
+                {
+                    if (result.Items[i].Uid == m.Uid)
+                    {
+                        indexInPage = i;
+                        break;
+                    }
+                }
+            }
+            if (indexInPage >= 0)
+            {
+                // Self satırı listedeyse, elite durumunu listeden de çek (bazı backendlerde Me eksik/gecikmeli olabilir)
+                var pageSelf = result.Items[indexInPage];
+                bool hasEliteFromPage = pageSelf.HasElite(result.ServerNowMillis);
+                if (hasElite != hasEliteFromPage)
+                {
+                    Debug.LogWarning($"[UIRankingPanel] Me.HasElite({result.ServerNowMillis})={hasElite} but Items[{indexInPage}].HasElite={hasEliteFromPage}. Preferring page value.");
+                }
+                hasElite = hasEliteFromPage;
+
+                int rankNumber = result.RankOffset + indexInPage + 1;
+                rankText = rankNumber.ToString();
+                isTop3 = rankNumber >= 1 && rankNumber <= 3;
+            }
+            else
+            {
+                // Sayfada yoksa, rank bilinmiyor; boş bırak.
+                rankText = "";
+                isTop3 = false;
+            }
+        }
+
+        // Plate, hasElite’e göre kesin değişir; frame sabit kalır.
+        selfDisplay.SetData(rankText, username, score, isTop3, hasElite);
+    }
+
+    private string SafeUserName(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "Player";
+        return s.Length > 20 ? s.Substring(0, 20) : s;
     }
 }

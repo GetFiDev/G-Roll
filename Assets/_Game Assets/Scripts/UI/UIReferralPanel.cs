@@ -1,6 +1,10 @@
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
+using System;
+using System.Collections.Generic;
+using Sych;
+using Sych.ShareAssets.Runtime;
 
 public class UIReferralPanel : MonoBehaviour
 {
@@ -106,5 +110,72 @@ public class UIReferralPanel : MonoBehaviour
 
         // Close loader at the end of THIS refresh
         ShowLoading(false);
+    }
+    // ================== Share Button ==================
+    /// <summary>
+    /// Copies given text and opens native share sheet on mobile.
+    /// Call this from your UI Button.
+    /// </summary>
+    public void OnShareButtonClick()
+    {
+        ShareReferralText("Hello World");
+    }
+    public async void ShareReferralText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        // Copy to clipboard for convenience
+        GUIUtility.systemCopyBuffer = text;
+        Debug.Log("[UIReferralPanel] Copied to clipboard: " + text);
+
+#if UNITY_ANDROID || UNITY_IOS
+        try
+        {
+            var payload = new List<string> { text };
+
+            // Prefer new API: ShareAsync(string)
+            var shareType = typeof(Share);
+            var shareAsync = shareType.GetMethod("ShareAsync", new Type[] { typeof(string) });
+            if (shareAsync != null)
+            {
+                var task = shareAsync.Invoke(null, new object[] { text }) as System.Threading.Tasks.Task;
+                if (task != null) await task;
+                else Debug.LogWarning("[UIReferralPanel] ShareAsync returned null Task; assuming opened.");
+                return;
+            }
+
+            // Fallback 1: ItemsAsync(List<string>)
+            var itemsAsync = shareType.GetMethod("ItemsAsync", new Type[] { typeof(List<string>) });
+            if (itemsAsync != null)
+            {
+                var t = itemsAsync.Invoke(null, new object[] { payload }) as System.Threading.Tasks.Task;
+                if (t != null) await t;
+                else Debug.LogWarning("[UIReferralPanel] ItemsAsync returned null Task; assuming opened.");
+                return;
+            }
+
+            // Fallback 2 (legacy/obsolete): Items(List<string>, Action<bool>)
+            var items = shareType.GetMethod("Items", new Type[] { typeof(List<string>), typeof(Action<bool>) });
+            if (items != null)
+            {
+                Action<bool> cb = success =>
+                {
+                    if (success) Debug.Log("[UIReferralPanel] Share window opened and returned.");
+                    else Debug.LogWarning("[UIReferralPanel] Failed to open share window.");
+                };
+                items.Invoke(null, new object[] { payload, cb });
+                return;
+            }
+
+            Debug.LogWarning("[UIReferralPanel] No compatible Share method found in plugin.");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("[UIReferralPanel] Share invoke error: " + ex.Message);
+        }
+#else
+        Debug.Log("Sharing is only supported on mobile devices.");
+#endif
     }
 }

@@ -91,15 +91,93 @@ async function recomputeAllRanks(): Promise<{count:number}> {
   }
 }
 
-// Local date helper (YYYY-MM-DD) using client-provided tz offset in minutes
-function localDateString(ts: Timestamp, offsetMinutes: number): string {
-  const ms = ts.toMillis() + (Number(offsetMinutes) | 0) * 60000;
-  const d = new Date(ms);
-  return d.toISOString().slice(0, 10);
+
+
+// UTC date helper (YYYY-MM-DD)
+function utcDateString(ts: Timestamp): string {
+  return new Date(ts.toMillis()).toISOString().slice(0, 10);
 }
 
 
 const db = new Firestore({databaseId:DB_ID});
+
+// ========================= Streak System (server-side only) =========================
+// Doc layout:
+// - Config: appdata/streakdata { reward:number }
+// - User state: users/{uid}/meta/streak {
+//     totalDays:number, unclaimedDays:number, lastLoginDate:string(YYYY-MM-DD UTC),
+//     lastClaimAt?:Timestamp, createdAt:Timestamp, updatedAt:serverTimestamp
+//   }
+
+const streakConfigRef = db.collection("appdata").doc("streakdata");
+const userStreakRef = (uid:string) => db.collection("users").doc(uid).collection("meta").doc("streak");
+
+// recordLogin: DEPRECATED. Kept as a thin wrapper to the new updateDailyStreak core.
+export const recordLogin = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const res = await applyDailyStreakIncrement(uid);
+  return {ok: true, ...res, deprecated: true};
+});
+
+// claimStreak: Grants accumulated unclaimedDays * reward to user currency and resets unclaimedDays.
+export const claimStreak = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const now = Timestamp.now();
+  const uRef = db.collection("users").doc(uid);
+  const sRef = userStreakRef(uid);
+
+  const res = await db.runTransaction(async (tx) => {
+    const [uSnap, sSnap, cfgSnap] = await Promise.all([tx.get(uRef), tx.get(sRef), tx.get(streakConfigRef)]);
+
+    if (!uSnap.exists) throw new HttpsError("failed-precondition", "User doc missing");
+    const unclaimed = sSnap.exists ? Number(snapNum(sSnap.get("unclaimedDays"))) : 0;
+    if (unclaimed <= 0) {
+      const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
+      const rewardPerDay = cfgSnap.exists ? Number(cfgSnap.get("reward") ?? 0) || 0 : 0;
+      return {granted: 0, rewardPerDay: Math.max(0, rewardPerDay), unclaimedDays: 0, newCurrency: curCurrency};
+    }
+
+    const rewardPerDay = cfgSnap.exists ? Number(cfgSnap.get("reward") ?? 0) || 0 : 0;
+    const grant = Math.max(0, rewardPerDay) * unclaimed;
+
+    const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
+    const newCurrency = curCurrency + grant;
+
+    tx.set(uRef, {currency: newCurrency, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(sRef, {unclaimedDays: 0, lastClaimAt: now, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+
+    // optional: audit log
+    const logRef = uRef.collection("streakClaims").doc();
+    tx.set(logRef, {
+      at: now,
+      daysClaimed: unclaimed,
+      rewardPerDay,
+      granted: grant,
+      currencyAfter: newCurrency,
+    });
+
+    return {granted: grant, rewardPerDay, unclaimedDays: 0, newCurrency};
+  });
+
+  return {ok: true, ...res};
+});
+
+// getStreakStatus: For UI — shows whether a claim is available and the next UTC midnight countdown.
+export const getStreakStatus = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const res = await applyDailyStreakIncrement(uid);
+  return {ok: true, ...res};
+});
+
+// small numeric helper for safe casting
+function snapNum(v:any): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 // ========================= Achievements =========================
 // Types: map to server-side progress sources on users/{uid}
@@ -356,7 +434,7 @@ async function cleanupExpiredConsumablesInTx(
 
 // ---------------- Leaderboard Sync ----------------
 export const syncLeaderboard = onDocumentWritten(
-  {document:"users/{uid}", database:DB_ID},
+  {document: "users/{uid}", database: DB_ID},
   async (event) => {
     const uid = event.params.uid;
     const after = event.data?.after?.data();
@@ -372,9 +450,15 @@ export const syncLeaderboard = onDocumentWritten(
     const seasonRef = db.collection("leaderboards").doc(SEASON);
 
     // 1) public entry
+    const elitePassExpiresAt = (after.elitePassExpiresAt as Timestamp | null) || null;
     await seasonRef.collection("entries").doc(uid).set(
-      {username, score, updatedAt:FieldValue.serverTimestamp()},
-      {merge:true}
+      {
+        username,
+        score,
+        elitePassExpiresAt, // carry expiry to leaderboard entry for client-side active check
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true}
     );
     // NOTE: Removed materialization of topN and background rank recomputation.
   }
@@ -386,6 +470,7 @@ export const syncLeaderboard = onDocumentWritten(
 export const getLeaderboardsSnapshot = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const now = Timestamp.now();
 
   // params
   const limitIn = Number(req.data?.limit ?? 100);
@@ -404,11 +489,13 @@ export const getLeaderboardsSnapshot = onCall(async (req) => {
   const snap = await q.get();
 
   const items = snap.docs.map((d) => {
-    const data = d.data() || {} as any;
+    const data = (d.data() || {}) as any;
     const username = (typeof data.username === "string" ? data.username : "").trim() || "Guest";
     const score = typeof data.score === "number" ? data.score : 0;
     const updatedAt = (data.updatedAt as Timestamp | undefined)?.toDate()?.toISOString() ?? null;
-    return {uid: d.id, username, score, updatedAt};
+    const eliteTs = (data.elitePassExpiresAt as Timestamp | undefined) || undefined;
+    const elitePassExpiresAtMillis = eliteTs ? eliteTs.toMillis() : null;
+    return {uid: d.id, username, score, updatedAt, elitePassExpiresAtMillis};
   });
 
   const hasMore = snap.size >= limit;
@@ -440,7 +527,7 @@ export const getLeaderboardsSnapshot = onCall(async (req) => {
     }
   }
 
-  return {ok: true, season: SEASON, count: items.length, hasMore, next, items, me};
+  return {ok: true, season: SEASON, serverNowMillis: now.toMillis(), count: items.length, hasMore, next, items, me};
 });
 
 // ---------------- Elite Pass ----------------
@@ -686,6 +773,20 @@ export const createUserProfile = functionsV1
         powerUpsCollected: 0,
         maxCombo: 0,
       });
+      // Eagerly create the streak subdoc in the same transaction
+      const sRef = userStreakRef(uid);
+      const nowTs = Timestamp.now();
+      tx.set(
+        sRef,
+        {
+          totalDays: 0,
+          unclaimedDays: 0,
+          lastLoginDate: "",
+          createdAt: nowTs,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true}
+      );
     });
 
     await ensureReferralKeyFor(uid);
@@ -743,6 +844,20 @@ export const ensureUserProfile = onCall(async (req) => {
         powerUpsCollected: 0,
         maxCombo: 0,
       });
+      // Eagerly create the streak subdoc in the same transaction
+      const sRef = userStreakRef(uid);
+      const nowTs = Timestamp.now();
+      tx.set(
+        sRef,
+        {
+          totalDays: 0,
+          unclaimedDays: 0,
+          lastLoginDate: "",
+          createdAt: nowTs,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true}
+      );
     } else {
       const needInit = !snap.get("elitePassExpiresAt");
       const patch:any = {
@@ -770,6 +885,29 @@ export const ensureUserProfile = onCall(async (req) => {
       ]) {
         if (snap.get(k) === undefined) patch[k] = 0;
       }
+      // Ensure streak subdoc exists without clobbering existing values
+      const sRef = userStreakRef(uid);
+      const sSnap2 = await tx.get(sRef);
+      if (!sSnap2.exists) {
+        tx.set(
+          sRef,
+          {
+            totalDays: 0,
+            unclaimedDays: 0,
+            lastLoginDate: "",
+            createdAt: Timestamp.now(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          {merge: true}
+        );
+      } else {
+        // just touch updatedAt to keep a heartbeat; don't reset counters
+        tx.set(
+          sRef,
+          {updatedAt: FieldValue.serverTimestamp()},
+          {merge: true}
+        );
+      }
       tx.set(userRef, patch, {merge:true});
     }
   });
@@ -785,59 +923,91 @@ export const ensureUserProfile = onCall(async (req) => {
   };
 });
 
-// -------- updateDailyStreak (callable) --------
-export const updateDailyStreak = onCall(async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
-
-  const userRef = db.collection("users").doc(uid);
+// Shared core for streak increment logic. Idempotent per UTC day.
+async function applyDailyStreakIncrement(uid: string): Promise<{
+  serverNowMillis: number;
+  nextUtcMidnightMillis: number;
+  totalDays: number;
+  unclaimedDays: number;
+  rewardPerDay: number;
+  pendingTotalReward: number;
+  claimAvailable: boolean;
+  todayCounted: boolean;
+}> {
   const now = Timestamp.now();
-  const inputOffset = Number(req.data?.tzOffsetMinutes ?? 0);
-  const offset = Number.isFinite(inputOffset) ? Math.round(inputOffset) : 0;
-  const today = localDateString(now, offset);
+  const today = utcDateString(now); // YYYY-MM-DD in UTC
+  const userRef = db.collection("users").doc(uid);
+  const sRef = userStreakRef(uid);
 
-  let out = {streak: 0, bestStreak: 0, today};
+  const {totalDays, unclaimedDays, rewardPerDay, todayCounted} = await db.runTransaction(async (tx) => {
+    const [uSnap, sSnap, cfgSnap] = await Promise.all([
+      tx.get(userRef),
+      tx.get(sRef),
+      tx.get(streakConfigRef),
+    ]);
 
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
-    if (!snap.exists) {
+    if (!uSnap.exists) {
       throw new HttpsError("failed-precondition", "User doc missing");
     }
 
-    const prevStreak = Number(snap.get("streak") ?? 0) || 0;
-    const prevBest = Number(snap.get("bestStreak") ?? 0) || 0;
-    const last = (snap.get("lastLoginLocalDate") as string) || "";
+    const rewardPerDay = cfgSnap.exists ? Number(cfgSnap.get("reward") ?? 0) || 0 : 0;
 
-    let nextStreak = prevStreak;
-    if (last !== today) {
-      const yesterday = localDateString(Timestamp.fromMillis(now.toMillis() - 24 * 60 * 60 * 1000), offset);
-      if (last === yesterday) nextStreak = prevStreak + 1; else nextStreak = 1; // skip days → reset to 1
+    const lastDate: string = sSnap.exists ? (sSnap.get("lastLoginDate") as string) || "" : "";
+    const prevTotal = sSnap.exists ? Number(snapNum(sSnap.get("totalDays"))) : 0;
+    const prevUnclaimed = sSnap.exists ? Number(snapNum(sSnap.get("unclaimedDays"))) : 0;
+
+    let totalDays = prevTotal;
+    let unclaimedDays = prevUnclaimed;
+    let todayCounted = false;
+
+    if (lastDate !== today) {
+      totalDays = prevTotal + 1;
+      unclaimedDays = prevUnclaimed + 1;
+      todayCounted = true;
     }
 
-    const nextBest = Math.max(prevBest, nextStreak);
-
     tx.set(
-      userRef,
+      sRef,
       {
-        streak: nextStreak,
-        bestStreak: nextBest,
-        lastLoginLocalDate: today,
-        tzOffsetMinutes: offset,
+        totalDays,
+        unclaimedDays,
+        lastLoginDate: today,
+        createdAt: sSnap.exists ? (sSnap.get("createdAt") as Timestamp) ?? now : now,
         updatedAt: FieldValue.serverTimestamp(),
       },
       {merge: true}
     );
 
-    out = {streak: nextStreak, bestStreak: nextBest, today};
+    tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+
+    return {totalDays, unclaimedDays, rewardPerDay, todayCounted};
   });
 
-  try {
-    await upsertUserAch(uid, ACH_TYPES.HABIT_MAKER, out.streak);
-  } catch (e) {
-    console.warn("[ach] habit_maker evaluate failed", e);
-  }
+  const d = new Date(now.toMillis());
+  d.setUTCHours(24, 0, 0, 0);
+  const nextUtcMidnightMillis = d.getTime();
 
-  return {ok: true, ...out};
+  const safeRewardPerDay = Math.max(0, Number(rewardPerDay) || 0);
+  const safeUnclaimed = Math.max(0, Number(unclaimedDays) || 0);
+  const pending = safeRewardPerDay * safeUnclaimed;
+
+  return {
+    serverNowMillis: now.toMillis(),
+    nextUtcMidnightMillis,
+    totalDays: Number(totalDays) || 0,
+    unclaimedDays: safeUnclaimed,
+    rewardPerDay: safeRewardPerDay,
+    pendingTotalReward: pending,
+    claimAvailable: pending > 0,
+    todayCounted: !!todayCounted,
+  };
+}
+
+export const updateDailyStreak = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const res = await applyDailyStreakIncrement(uid);
+  return {ok: true, ...res};
 });
 
 // -------- apply referral later (optional) --------
@@ -1096,6 +1266,311 @@ export const spendEnergy = onCall(async (req) => {
     nextEnergyAt: (res as any).nextAt ? (res as any).nextAt.toDate()
       .toISOString() : null,
   };
+});
+
+// ========================= Autopilot (AFK) =========================
+// Global config at appdata/autopilotconfig:
+//  - normalUserEarningPerHour:number
+//  - eliteUserEarningPerHour:number
+//  - normalUserMaxAutopilotDurationInHours:number
+// User state at users/{uid}/autopilot:
+//  - autopilotWallet:number
+//  - isAutopilotOn:boolean
+//  - autopilotActivationDate:number|null (ms)
+//  - autopilotLastClaimedAt:number (ms)
+//  - totalEarnedViaAutopilot:number
+//  - updatedAt:serverTimestamp
+
+const autopilotConfigRef = db.collection("appdata").doc("autopilotconfig");
+const userAutopilotRef = (uid:string) => db.collection("users").doc(uid).collection("autopilot").doc("state");
+
+function clampNum(n:any, def=0): number {
+  const v = Number(n);
+  return Number.isFinite(v) ? v : def;
+}
+
+
+function eliteActive(userSnap: FirebaseFirestore.DocumentSnapshot, nowMs:number): boolean {
+  const ts = userSnap.get("elitePassExpiresAt") as Timestamp | null;
+  return !!ts && ts.toMillis() > nowMs;
+}
+
+/**
+ * Lazy settlement for Autopilot.
+ * - Works for both Normal and Elite (both accrue into autopilotWallet)
+ * - Normal is capped by maxHours; Elite has no cap
+ * - Uses windowStart = max(autopilotLastClaimedAt, autopilotActivationDate) when ON
+ */
+async function settleAutopilotInTx(
+  tx: FirebaseFirestore.Transaction,
+  uid: string,
+  now: Timestamp
+): Promise<{
+  userRef: FirebaseFirestore.DocumentReference,
+  autoRef: FirebaseFirestore.DocumentReference,
+  userData: Record<string, any>,
+  auto: Record<string, any>,
+  config: {normalRate:number; eliteRate:number; maxHours:number},
+  isElite: boolean,
+}> {
+  const userRef = db.collection("users").doc(uid);
+  const autoRef = userAutopilotRef(uid);
+  const [cfgSnap, userSnap, autoSnap] = await Promise.all([
+    tx.get(autopilotConfigRef),
+    tx.get(userRef),
+    tx.get(autoRef),
+  ]);
+
+  if (!userSnap.exists) throw new HttpsError("failed-precondition", "User doc missing");
+  if (!cfgSnap.exists) throw new HttpsError("failed-precondition", "autopilotconfig missing");
+
+  const config = {
+    normalRate: clampNum(cfgSnap.get("normalUserEarningPerHour"), 0),
+    eliteRate: clampNum(cfgSnap.get("eliteUserEarningPerHour"), 0),
+    maxHours: Math.max(0, clampNum(cfgSnap.get("normalUserMaxAutopilotDurationInHours"), 12)),
+  };
+
+  const nowMs = now.toMillis();
+  const isElite = eliteActive(userSnap, nowMs);
+
+  const userData = userSnap.data() || {};
+  const curCurrency = clampNum(userData.currency, 0);
+
+  let auto: Record<string, any> = autoSnap.exists ? (autoSnap.data() || {}) : {};
+  if (!autoSnap.exists) {
+    auto = {
+      autopilotWallet: 0,
+      isAutopilotOn: false,
+      autopilotActivationDate: null,
+      autopilotLastClaimedAt: nowMs,
+      totalEarnedViaAutopilot: 0,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    tx.set(autoRef, auto, {merge:true});
+  }
+
+  let gained = 0;
+  if (isElite || auto.isAutopilotOn === true) {
+    const lastClaim = clampNum(auto.autopilotLastClaimedAt, nowMs);
+    let activation = null;
+    if (isElite && auto.autopilotActivationDate === null) {
+      activation = lastClaim;
+    } else {
+      activation = auto.autopilotActivationDate === null ? lastClaim : clampNum(auto.autopilotActivationDate,
+         lastClaim);
+    }
+    const windowStart = Math.max(lastClaim, activation);
+    const elapsedMs = Math.max(0, nowMs - windowStart);
+
+    const ratePerHour = isElite ? config.eliteRate : config.normalRate;
+    const potentialRaw = ratePerHour * (elapsedMs / 3600000);
+    const potential = Math.floor(potentialRaw * 100) / 100; // accrue with 2-decimal precision
+
+    if (potential > 0) {
+      if (isElite) {
+        // No cap for elite
+        auto.autopilotWallet = clampNum(auto.autopilotWallet, 0) + potential;
+        gained = potential;
+      } else {
+        // Cap for normal
+        const capGainRaw = Math.max(0, config.normalRate * config.maxHours);
+        const capGain = Math.floor(capGainRaw * 100) / 100; // cap with 2-decimal precision
+        const current = clampNum(auto.autopilotWallet, 0);
+        const newWallet = Math.min(current + potential, capGain);
+        gained = Math.max(0, newWallet - current);
+        auto.autopilotWallet = newWallet;
+      }
+      auto.totalEarnedViaAutopilot = clampNum(auto.totalEarnedViaAutopilot, 0) + gained;
+      auto.updatedAt = FieldValue.serverTimestamp();
+      // We do NOT advance autopilotLastClaimedAt here; it only moves on claim.
+      tx.set(autoRef, auto, {merge:true});
+    }
+  }
+
+  return {userRef, autoRef, userData: {...userData, currency: curCurrency}, auto, config, isElite};
+}
+
+// -------- getAutopilotStatus (callable) --------
+export const getAutopilotStatus = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const now = Timestamp.now();
+  // Run settlement in a tx to keep reads/writes ordered
+  const out = await db.runTransaction(async (tx) => {
+    const s = await settleAutopilotInTx(tx, uid, now);
+    // Compute helpers for payload
+    const wallet = clampNum(s.auto.autopilotWallet, 0);
+
+    const capSec = Math.floor(s.config.normalRate > 0 ? s.config.maxHours * 3600 : 0);
+
+    const lastClaimMs = clampNum(s.auto.autopilotLastClaimedAt, now.toMillis());
+    const activationMs = typeof s.auto.autopilotActivationDate === 'number' ? s.auto.autopilotActivationDate : null;
+    const windowStartMs = activationMs !== null ? Math.max(lastClaimMs, activationMs) : lastClaimMs;
+
+    let timeToCapSeconds: number | null = null;
+    let isClaimReady = false;
+
+    if (s.isElite) {
+      timeToCapSeconds = null;     // Elite has no time cap
+      isClaimReady = true;         // Elite can claim anytime
+    } else {
+      const elapsedSec = Math.max(0, Math.floor((now.toMillis() - windowStartMs) / 1000));
+      timeToCapSeconds = capSec > 0 ? Math.max(0, capSec - elapsedSec) : 0;
+      isClaimReady = capSec > 0 ? (elapsedSec >= capSec) : false;
+    }
+
+    return {
+      isElite: s.isElite,
+      isAutopilotOn: !!s.auto.isAutopilotOn,
+      autopilotWallet: wallet,
+      currency: clampNum(s.userData.currency, 0),
+      normalUserEarningPerHour: s.config.normalRate,
+      eliteUserEarningPerHour: s.config.eliteRate,
+      normalUserMaxAutopilotDurationInHours: s.config.maxHours,
+      autopilotActivationDateMillis: typeof s.auto.autopilotActivationDate === 'number' ? s.auto.autopilotActivationDate : null,
+      autopilotLastClaimedAtMillis: clampNum(s.auto.autopilotLastClaimedAt, 0),
+      timeToCapSeconds,
+      isClaimReady,
+    };
+  });
+
+  return {ok:true, serverNowMillis: now.toMillis(), ...out};
+});
+
+// -------- toggleAutopilot (callable) --------
+export const toggleAutopilot = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+  const on = !!req.data?.on;
+
+  const now = Timestamp.now();
+  const userRef = db.collection("users").doc(uid);
+  const autoRef = userAutopilotRef(uid);
+
+  await db.runTransaction(async (tx) => {
+    // First settle current window so we don't lose any elapsed time
+    await settleAutopilotInTx(tx, uid, now);
+
+    if (on) {
+      tx.set(autoRef, {
+        isAutopilotOn: true,
+        autopilotActivationDate: now.toMillis(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge:true});
+    } else {
+      // Turning OFF: close the window by simply disabling and clearing activation
+      tx.set(autoRef, {
+        isAutopilotOn: false,
+        autopilotActivationDate: null,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge:true});
+    }
+
+    // Touch user updatedAt for visibility
+    tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge:true});
+  });
+
+  return {ok:true, isAutopilotOn: on};
+});
+
+// -------- claimAutopilot (callable) --------
+export const claimAutopilot = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const now = Timestamp.now();
+  const userRef = db.collection("users").doc(uid);
+  const autoRef = userAutopilotRef(uid);
+
+  // PHASE 1: run settlement in its own transaction (reads -> writes, then exit)
+  await db.runTransaction(async (tx) => {
+    await settleAutopilotInTx(tx, uid, now);
+  });
+
+  // PHASE 2: do the claim in a clean transaction, with all reads first, then writes
+  const res = await db.runTransaction(async (tx) => {
+    // === READS (all of them, first) ===
+    const [uSnap, aSnap, configSnap] = await Promise.all([
+      tx.get(userRef),
+      tx.get(autoRef),
+      tx.get(autopilotConfigRef),
+    ]);
+
+    if (!uSnap.exists || !aSnap.exists) {
+      throw new HttpsError("failed-precondition", "Missing user/autopilot state");
+    }
+
+    const curCurrency = clampNum(uSnap.get("currency"), 0);
+    const wallet = clampNum(aSnap.get("autopilotWallet"), 0);
+
+    const nowMs = now.toMillis();
+    const isElite = eliteActive(uSnap, nowMs);
+
+    if (!isElite) {
+      if (!configSnap.exists) {
+        throw new HttpsError("failed-precondition", "autopilotconfig missing");
+      }
+      const normalRate = clampNum(configSnap.get("normalUserEarningPerHour"), 0);
+      const maxHours = Math.max(
+        0,
+        clampNum(configSnap.get("normalUserMaxAutopilotDurationInHours"), 12)
+      );
+
+      // time-based readiness check for normal users
+      const capSec = Math.floor((normalRate > 0 ? maxHours : 0) * 3600);
+      const lastClaimMs = clampNum(aSnap.get("autopilotLastClaimedAt"), now.toMillis());
+      const activationMs =
+        typeof aSnap.get("autopilotActivationDate") === "number"
+          ? (aSnap.get("autopilotActivationDate") as number)
+          : null;
+      const windowStartMs =
+        activationMs !== null ? Math.max(lastClaimMs, activationMs) : lastClaimMs;
+      const elapsedSec = Math.max(0, Math.floor((now.toMillis() - windowStartMs) / 1000));
+
+      if (capSec > 0 && elapsedSec < capSec) {
+        throw new HttpsError("failed-precondition", "Not ready to claim");
+      }
+    }
+
+    // === WRITES (after reads) ===
+    if (wallet > 0) {
+      tx.set(
+        userRef,
+        {currency: curCurrency + wallet, updatedAt: FieldValue.serverTimestamp()},
+        {merge: true}
+      );
+
+      const baseUpdate: any = {
+        autopilotWallet: 0,
+        autopilotLastClaimedAt: now.toMillis(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (!isElite) {
+        baseUpdate.isAutopilotOn = false;
+        baseUpdate.autopilotActivationDate = null;
+      }
+
+      tx.set(autoRef, baseUpdate, {merge: true});
+    } else {
+      const baseUpdate: any = {
+        autopilotLastClaimedAt: now.toMillis(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (!isElite) {
+        baseUpdate.isAutopilotOn = false;
+        baseUpdate.autopilotActivationDate = null;
+      }
+
+      tx.set(autoRef, baseUpdate, {merge: true});
+    }
+
+    return {claimed: wallet, currencyAfter: curCurrency + wallet};
+  });
+
+  return {ok: true, claimed: res.claimed, currencyAfter: res.currencyAfter};
 });
 
 export const listReferredUsers = onCall(async (req) => {

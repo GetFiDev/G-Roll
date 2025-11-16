@@ -3,12 +3,22 @@ using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using NetworkingData;
+using UnityEngine.UI;
 
 public class AchievementsPanelController : MonoBehaviour
 {
     [Header("Top UI")]
     public TMP_Text streakTMP;
     public GameObject fetchingPanel;
+
+    [Header("Streak UI")]
+    [SerializeField] private Button streakActionButton;
+    [SerializeField] private Image streakActionButtonImage;
+    [SerializeField] private TMP_Text streakActionLabel;
+    [SerializeField] private Sprite streakClaimableSprite;   // Active look
+    [SerializeField] private Sprite streakWaitingSprite;     // Inactive look
+    [SerializeField] private GameObject streakCounterFetchingPanel;   // covers streakTMP while fetching
+    [SerializeField] private GameObject streakClaimButtonFetchingPanel; // covers button while fetching
 
     [Header("Grid")]
     public Transform gridRoot;
@@ -21,10 +31,20 @@ public class AchievementsPanelController : MonoBehaviour
     private bool _refreshing = false;
     private string _openedTypeId = null;
 
+    private Coroutine _countdownCo;
+    private long _nextUtcMidnightMillis;
+    private long _serverNowAtFetchMillis;
+
     void OnEnable()
     {
         var udm = UserDatabaseManager.Instance;
         if (udm != null) udm.OnUserDataSaved += HandleUserDataSaved;
+
+        if (streakActionButton != null)
+        {
+            streakActionButton.onClick.RemoveAllListeners();
+            streakActionButton.onClick.AddListener(() => _ = OnClickStreakClaimAsync());
+        }
 
         _ = RefreshUIAsync();
     }
@@ -33,6 +53,8 @@ public class AchievementsPanelController : MonoBehaviour
     {
         var udm = UserDatabaseManager.Instance;
         if (udm != null) udm.OnUserDataSaved -= HandleUserDataSaved;
+
+        if (_countdownCo != null) { StopCoroutine(_countdownCo); _countdownCo = null; }
     }
 
     void HandleUserDataSaved(UserData u)
@@ -46,6 +68,8 @@ public class AchievementsPanelController : MonoBehaviour
         _refreshing = true;
 
         if (fetchingPanel) fetchingPanel.SetActive(true);
+        if (streakCounterFetchingPanel) streakCounterFetchingPanel.SetActive(true);
+        if (streakClaimButtonFetchingPanel) streakClaimButtonFetchingPanel.SetActive(true);
         try
         {
             var udm = UserDatabaseManager.Instance;
@@ -53,6 +77,17 @@ public class AchievementsPanelController : MonoBehaviour
             {
                 var data = await udm.LoadUserData();
                 if (data != null && streakTMP) streakTMP.text = $"{data.streak}";
+            }
+
+            // Fetch streak status from server (idempotent: counts today if needed)
+            var streakSnap = await StreakService.FetchAsync();
+            if (streakSnap.ok)
+            {
+                UpdateStreakUI(streakSnap);
+            }
+            else
+            {
+                Debug.LogWarning("[AchievementsPanel] Streak fetch failed or empty");
             }
 
             _snapshot = await AchievementService.GetSnapshotAsync();
@@ -89,7 +124,88 @@ public class AchievementsPanelController : MonoBehaviour
         finally
         {
             if (fetchingPanel) fetchingPanel.SetActive(false);
+            if (streakCounterFetchingPanel) streakCounterFetchingPanel.SetActive(false);
+            if (streakClaimButtonFetchingPanel) streakClaimButtonFetchingPanel.SetActive(false);
             _refreshing = false;
+        }
+    }
+
+    private void UpdateStreakUI(StreakService.StreakSnapshot s)
+    {
+        // Update counter
+        if (streakTMP) streakTMP.text = s.totalDays.ToString();
+
+        // Reset any running countdown
+        if (_countdownCo != null) { StopCoroutine(_countdownCo); _countdownCo = null; }
+
+        // Cache timing for countdown
+        _nextUtcMidnightMillis = s.nextUtcMidnightMillis;
+        _serverNowAtFetchMillis = s.serverNowMillis;
+
+        bool claimable = s.claimAvailable && s.unclaimedDays > 0 && s.pendingTotalReward > 0;
+        if (claimable)
+        {
+            // Button shows Claim {amount}
+            if (streakActionLabel) streakActionLabel.text = $"Claim {s.pendingTotalReward:0.##}";
+            if (streakActionButtonImage && streakClaimableSprite) streakActionButtonImage.sprite = streakClaimableSprite;
+            if (streakActionButton) streakActionButton.interactable = true;
+        }
+        else
+        {
+            // Waiting mode: show countdown HH:MM:SS to nextUtcMidnight
+            if (streakActionButtonImage && streakWaitingSprite) streakActionButtonImage.sprite = streakWaitingSprite;
+            if (streakActionButton) streakActionButton.interactable = false;
+            _countdownCo = StartCoroutine(CountdownCo());
+        }
+    }
+
+    private System.Collections.IEnumerator CountdownCo()
+    {
+        // Estimate server offset at fetch time
+        long localNow = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        long serverOffset = _serverNowAtFetchMillis - localNow; // can be negative/positive
+
+        while (true)
+        {
+            long nowMs = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + serverOffset;
+            long remainMs = _nextUtcMidnightMillis - nowMs;
+            if (remainMs < 0) remainMs = 0;
+
+            var t = System.TimeSpan.FromMilliseconds(remainMs);
+            string label = string.Format("{0:D2}:{1:D2}:{2:D2}", (int)t.TotalHours, t.Minutes, t.Seconds);
+            if (streakActionLabel) streakActionLabel.text = label;
+
+            if (remainMs == 0) yield break; // stop; next refresh will restart
+            yield return new WaitForSeconds(1f);
+        }
+    }
+
+    private async Task OnClickStreakClaimAsync()
+    {
+        if (streakActionButton) streakActionButton.interactable = false;
+        if (streakClaimButtonFetchingPanel) streakClaimButtonFetchingPanel.SetActive(true);
+        try
+        {
+            var result = await StreakService.ClaimAsync();
+            if (!result.ok)
+            {
+                Debug.LogWarning($"[AchievementsPanel] Claim failed: {result.error}");
+                return;
+            }
+
+            // Currency/top panel refresh
+            if (UITopPanel.Instance != null)
+                UITopPanel.Instance.Initialize();
+
+            // Re-fetch streak and refresh button
+            var streakSnap = await StreakService.FetchAsync();
+            if (streakSnap.ok)
+                UpdateStreakUI(streakSnap);
+        }
+        finally
+        {
+            if (streakClaimButtonFetchingPanel) streakClaimButtonFetchingPanel.SetActive(false);
+            // Interactable state is set by UpdateStreakUI according to claimability
         }
     }
 
