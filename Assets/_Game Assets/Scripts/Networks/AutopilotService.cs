@@ -34,7 +34,7 @@ public static class AutopilotService
 
         public bool isElite;
         public bool isAutopilotOn;
-        public long autopilotWallet;
+        public double autopilotWallet;
         public long currency;
 
         public double normalUserEarningPerHour;
@@ -61,7 +61,7 @@ public static class AutopilotService
 
                 isElite = GetBool(m, "isElite"),
                 isAutopilotOn = GetBool(m, "isAutopilotOn"),
-                autopilotWallet = GetLong(m, "autopilotWallet"),
+                autopilotWallet = GetDouble(m, "autopilotWallet"),
                 currency = GetLong(m, "currency"),
 
                 normalUserEarningPerHour = GetDouble(m, "normalUserEarningPerHour"),

@@ -1,3 +1,4 @@
+using TMPro;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -9,13 +10,22 @@ public class ShopItemManager : MonoBehaviour
     [SerializeField] private UIShopItemDisplay itemPrefab;
 
     [Header("Tab Roots (assign in Inspector)")]
+    [SerializeField] private Transform myItemsRoot;
     [SerializeField] private Transform referralRoot;
     [SerializeField] private Transform coreRoot;
     [SerializeField] private Transform premiumRoot;
     [SerializeField] private Transform bullMarketRoot;
 
+    [Header("Stats Labels")]
+    [SerializeField] private TextMeshProUGUI myBagCountText;         // "x items"
+    [SerializeField] private TextMeshProUGUI coreOwnedCountText;     // "owned/total" for Core
+    [SerializeField] private TextMeshProUGUI premiumOwnedCountText;  // "owned/total" for Premium
+    [SerializeField] private TextMeshProUGUI referralFrensText;      // "x Frens"
+
     [Header("Loading Overlay")]
     [SerializeField] private GameObject loadingOverlay;
+
+    private int _referralCount;
 
     private readonly List<UIShopItemDisplay> _spawned = new();
     private bool _isRefreshing;
@@ -109,6 +119,33 @@ public class ShopItemManager : MonoBehaviour
             var bullItemsOrdered = bullRewarded.Concat(bullInGame).Concat(bullDollar).ToList();
             SpawnList(bullItemsOrdered, ShopCategory.BullMarket);
 
+            // --- MY ITEMS --- sadece sahip olunan item'ları listele
+            SpawnMyItems(allItems);
+
+            // --- LABELS / COUNTS ---
+
+            // Owned counts rely on inventory; if inventory yoksa hepsi 0 kabul edilir.
+            int myBagOwned   = CountOwned(allItems);
+            int coreTotal    = coreItems.Count;
+            int coreOwned    = CountOwned(coreItems);
+            int premiumTotal = premiumItems.Count;
+            int premiumOwned = CountOwned(premiumItems);
+
+            // My Bag: "x items"
+            if (myBagCountText != null)
+                myBagCountText.text = $"{myBagOwned} items";
+
+            // Core: "owned/total"
+            if (coreOwnedCountText != null)
+                coreOwnedCountText.text = $"{coreOwned}/{coreTotal}";
+
+            // Premium: "owned/total"
+            if (premiumOwnedCountText != null)
+                premiumOwnedCountText.text = $"{premiumOwned}/{premiumTotal}";
+
+            // Referral: "x Frens" (value set via SetReferralCount)
+            UpdateReferralLabel();
+
             // Post-spawn nudge: once inventory is initialized, ask cards to re-evaluate their visual state.
             foreach (var card in _spawned)
             {
@@ -129,6 +166,32 @@ public class ShopItemManager : MonoBehaviour
             if (loadingOverlay != null) loadingOverlay.SetActive(false);
             _isRefreshing = false;
         }
+    }
+
+    /// <summary>
+    /// Verilen item listesinde, UserInventoryManager'a göre kaç tanesinin oyuncu tarafından sahiplenildiğini döner.
+    /// Inventory hazır değilse 0 döner.
+    /// </summary>
+    private int CountOwned(IEnumerable<ItemDatabaseManager.ReadableItemData> list)
+    {
+        if (UserInventoryManager.Instance == null || !UserInventoryManager.Instance.IsInitialized)
+            return 0;
+
+        int count = 0;
+        foreach (var item in list)
+        {
+            var nid = IdUtil.NormalizeId(item.id);
+            try
+            {
+                if (UserInventoryManager.Instance.IsOwned(nid))
+                    count++;
+            }
+            catch
+            {
+                // IsOwned tanımlı değilse veya hata verirse, güvenli tarafta kal
+            }
+        }
+        return count;
     }
 
     /// <summary>
@@ -218,5 +281,72 @@ public class ShopItemManager : MonoBehaviour
             StartCoroutine(inst.Setup(item, cat));
             _spawned.Add(inst);
         }
+    }
+    private void SpawnMyItems(List<ItemDatabaseManager.ReadableItemData> list)
+    {
+        if (myItemsRoot == null)
+        {
+            Debug.LogWarning("[ShopItemManager] myItemsRoot is null. Cannot spawn My Items cards.");
+            return;
+        }
+
+        // Sadece kullanıcıya ait (sahip olduğu) item'lar listelensin
+        IEnumerable<ItemDatabaseManager.ReadableItemData> source = list;
+
+        if (UserInventoryManager.Instance != null && UserInventoryManager.Instance.IsInitialized)
+        {
+            source = list.Where(item =>
+            {
+                var nid = IdUtil.NormalizeId(item.id);
+                // NOTE: Burada UserInventoryManager içinde IsOwned(string normalizedId) benzeri
+                // bir API olduğu varsayılıyor. Eğer farklı isimdeyse kendi metoduna uyarlayabilirsin.
+                try
+                {
+                    return UserInventoryManager.Instance.IsOwned(nid);
+                }
+                catch
+                {
+                    // IsOwned yoksa ya da hata verirse, güvenli tarafta kalıp false döndürelim.
+                    return false;
+                }
+            });
+        }
+        else
+        {
+            // Inventory hazır değilken My Items doldurmak mantıklı değil; hiç spawn etmeyelim.
+            Debug.LogWarning("[ShopItemManager] UserInventoryManager not initialized; My Items will be empty.");
+            return;
+        }
+
+        foreach (var item in source)
+        {
+            var inst = Instantiate(itemPrefab, myItemsRoot);
+            if (!inst.gameObject.activeSelf) inst.gameObject.SetActive(true);
+
+            var nid = IdUtil.NormalizeId(item.id);
+            inst.gameObject.name = $"MyItemCard_{nid}";
+            inst.SendMessage("SetItemId", nid, SendMessageOptions.DontRequireReceiver);
+
+            // My Items sekmesinde de item'in kendi kategorisine göre Setup çalışsın
+            var cat = DetermineCategory(item);
+            StartCoroutine(inst.Setup(item, cat));
+
+            _spawned.Add(inst);
+        }
+    }
+
+    /// <summary>
+    /// Dış bir sistem (ReferralService vb.) referral sayısını güncellediğinde çağrılır.
+    /// </summary>
+    public void SetReferralCount(int count)
+    {
+        _referralCount = Mathf.Max(0, count);
+        UpdateReferralLabel();
+    }
+
+    private void UpdateReferralLabel()
+    {
+        if (referralFrensText != null)
+            referralFrensText.text = $"{_referralCount} Frens";
     }
 }

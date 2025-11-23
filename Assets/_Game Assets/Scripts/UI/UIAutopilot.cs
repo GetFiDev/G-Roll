@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -19,10 +20,22 @@ public class UIAutoPilot : MonoBehaviour
     [SerializeField] private TextMeshProUGUI progressLabel;            // bar üstü text
     [SerializeField] private GameObject elitePassProcessBarAnimationObject; // elite çalışırken açık
 
+    [Header("Progress Background")]
+    [SerializeField] private Image currentProgressBackgroundImage;   // arka plan image
+    [SerializeField] private Sprite normalProgressBackgroundSprite;  // normal arka plan sprite
+    [SerializeField] private Sprite eliteProgressBackgroundSprite;   // elite arka plan sprite
+
     [Header("Action Button")]
     [SerializeField] private Button actionButton;                      // Start / Claim / Disabled
     [SerializeField] private TextMeshProUGUI actionButtonText;
     [SerializeField] private Image actionButtonImage;                  // sprite swap için
+
+    [Header("Claim UI")]
+    [SerializeField] private TextMeshProUGUI claimAmountText;        // Claim butonu üzerindeki birikmiş miktar
+    [SerializeField] private GameObject claimAmountIcon;             // Claim amount ikonu (UI sprite GO)
+
+    [Header("Main Menu Navigation")]
+    [SerializeField] private UIMainMenu mainMenu;                     // Claim sonrası ana menüye dönmek için
 
     [Header("Sprites")]
     [SerializeField] private Sprite normalProgressFillSprite;          // yeşil
@@ -123,12 +136,20 @@ public class UIAutoPilot : MonoBehaviour
     private void ApplyStatus(AutopilotService.Status s)
     {
         UpdateHeaderAndSubheader(s);
+
+        // Varsayılan: claim amount gizli (boş)
+        SetClaimAmountText(string.Empty);
+
         // Elite satın alma paneli
         if (eliteBuyPanel) eliteBuyPanel.SetActive(!s.isElite);
 
         // Progress fill sprite (elite/normal)
         if (progressFillImage)
             progressFillImage.sprite = s.isElite ? eliteProgressFillSprite : normalProgressFillSprite;
+
+        // Progress background sprite (elite/normal)
+        if (currentProgressBackgroundImage)
+            currentProgressBackgroundImage.sprite = s.isElite ? eliteProgressBackgroundSprite : normalProgressBackgroundSprite;
 
         // Elite anim objesi default kapalı
         if (elitePassProcessBarAnimationObject)
@@ -180,7 +201,8 @@ public class UIAutoPilot : MonoBehaviour
             case Mode.Normal_Ready:
                 SetProgress(1f);
                 SetProgressLabel("Ready to claim");
-                SetupButton(claimActiveSprite, true, $"Claim: {s.autopilotWallet}");
+                SetupButton(claimActiveSprite, true, "Claim");
+                SetClaimAmountWithIcon(s.autopilotWallet);
                 break;
 
             case Mode.Elite_NotStarted:
@@ -194,7 +216,8 @@ public class UIAutoPilot : MonoBehaviour
                 SetProgressLabel("Working...");
                 if (elitePassProcessBarAnimationObject)
                     elitePassProcessBarAnimationObject.SetActive(true);
-                SetupButton(claimActiveSprite, true, $"Claim: {s.autopilotWallet}");
+                SetupButton(claimActiveSprite, true, "Claim");
+                SetClaimAmountWithIcon(s.autopilotWallet);
                 break;
         }
         Debug.Log($"[UIAutoPilot] ApplyStatus => isElite={s.isElite}, isOn={s.isAutopilotOn}, ready={s.isClaimReady}, mode={_mode}");
@@ -238,6 +261,7 @@ public class UIAutoPilot : MonoBehaviour
             {
                 // Başlatılamadıysa kullanıcıya görsel geri bildirim ver ve mevcut durumu tazele
                 SetupButton(claimDisabledSprite, true, "Retry Start");
+                SetClaimAmountText(string.Empty);
                 Debug.LogWarning("[UIAutoPilot] Toggle ON returned ok=false; refreshing status.");
                 await RefreshAsync();
             }
@@ -257,11 +281,16 @@ public class UIAutoPilot : MonoBehaviour
             var token = _cts?.Token ?? CancellationToken.None;
             var res = await AutopilotService.ClaimAsync(token);
             // İstersen burada “+res.claimed” animasyonu tetikle
+
+            // Sunucudan güncel durumu çek (cüzdan, autopilot state vs.)
             await RefreshAsync();
+
+            // Claim başarıyla tamamlandıktan sonra ana menü akışını tetikle
+            NavigateBackToMainMenuAfterClaim();
         }
         catch (AutopilotService.NotReadyToClaimException)
         {
-            // Normal kullanıcı 12 saat dolmadan bastı → sadece yenile
+            // Normal kullanıcı 12 saat dolmadan bastı → sadece yenile, paneli kapatma
             await RefreshAsync();
         }
         catch (Exception e)
@@ -310,6 +339,35 @@ public class UIAutoPilot : MonoBehaviour
     }
 
     // ================== Helpers ==================
+    private void NavigateBackToMainMenuAfterClaim()
+    {
+        // Önce ana menüdeki autopilot info akışını tetikle (panel kapanır)
+        if (mainMenu != null)
+        {
+            try
+            {
+                mainMenu.OnAutoPilotInfoButtonClick();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[UIAutoPilot] Error calling mainMenu.OnAutoPilotInfoButtonClick: {e}");
+            }
+        }
+
+        // Ardından üst bar (currency vs.) için refresh çağır
+        try
+        {
+            if (UITopPanel.Instance != null)
+            {
+                UITopPanel.Instance.Initialize();
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[UIAutoPilot] Error refreshing UITopPanel: {e}");
+        }
+    }
+
     private void SetFetching(bool v)
     {
         if (fetchingPanel) fetchingPanel.SetActive(v);
@@ -335,7 +393,58 @@ public class UIAutoPilot : MonoBehaviour
     {
         if (actionButtonImage && sprite) actionButtonImage.sprite = sprite;
         if (actionButton) actionButton.interactable = interactable;
-        if (actionButtonText) actionButtonText.text = label ?? "";
+        if (actionButtonText)
+        {
+            actionButtonText.text = label ?? "";
+
+            // Claim edilebilir durumda text'i yukarı kaydır
+            float targetY = (interactable && label == "Claim") ? 21.468f : 1f;
+
+            var rt = actionButtonText.rectTransform;
+            Vector3 pos = rt.localPosition;
+            pos.y = targetY;
+            rt.localPosition = pos;
+        }
+    }
+
+    private void SetClaimAmountText(string text)
+    {
+        string safe = text ?? string.Empty;
+        if (claimAmountText)
+            claimAmountText.text = safe;
+
+        // Icon sadece görünür bir amount varken açık olsun
+        if (claimAmountIcon)
+            claimAmountIcon.SetActive(!string.IsNullOrEmpty(safe));
+    }
+
+    private void SetClaimAmountWithIcon(object amount)
+    {
+        // amount null ise tamamen gizle
+        if (amount == null)
+        {
+            SetClaimAmountText(string.Empty);
+            return;
+        }
+
+        // Her durumda (0.0, 0.3, 1.0, 12.5 vs.) tek ondalık gösterelim.
+        double value;
+        string raw = amount.ToString();
+
+        // Önce invariant kültür, sonra sistem kültürü ile parse etmeyi dene
+        if (!double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+        {
+            if (!double.TryParse(raw, NumberStyles.Any, CultureInfo.CurrentCulture, out value))
+            {
+                // Parse edemezsek fallback olarak raw string'i yaz
+                SetClaimAmountText(raw);
+                return;
+            }
+        }
+
+        // Tek ondalık format (0.0 şeklinde) — 0.0 da dahil hepsini göstereceğiz
+        string formatted = value.ToString("0.0", CultureInfo.InvariantCulture);
+        SetClaimAmountText(formatted);
     }
 
     private string FormatHms(int totalSeconds)

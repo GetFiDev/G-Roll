@@ -643,6 +643,7 @@ async function reserveUniqueReferralKey(uid:string): Promise<string> {
   throw new Error("Could not allocate unique referral key");
 }
 
+
 async function ensureReferralKeyFor(uid:string): Promise<string> {
   const userRef = db.collection("users").doc(uid);
   return await db.runTransaction(async (tx) => {
@@ -659,6 +660,100 @@ async function ensureReferralKeyFor(uid:string): Promise<string> {
       {merge:true}
     );
     return key;
+  });
+}
+
+// Grant referral reward items to ownerUid if their referrals reach new thresholds
+async function grantReferralThresholdItems(ownerUid: string, referrals: number): Promise<void> {
+  if (!ownerUid || !Number.isFinite(referrals) || referrals <= 0) return;
+  console.log("[referralItems] START", {ownerUid, referrals});
+
+  // Root for appdata/items/...
+  const itemsRoot = db.collection("appdata").doc("items");
+
+  // Collect candidate referral-only items whose threshold is <= current referrals
+  const subCols = await itemsRoot.listCollections();
+  console.log("[referralItems] COLS", subCols.map((c) => c.id));
+  type ReferralItemDef = { itemId: string; threshold: number; isConsumable: boolean };
+  const candidates: ReferralItemDef[] = [];
+
+  for (const subCol of subCols) {
+    const docSnap = await subCol.doc("itemdata").get();
+    if (!docSnap.exists) continue;
+    const data = (docSnap.data() || {}) as any;
+    console.log("[referralItems] ITEMDATA", {itemId: subCol.id, data});
+
+    const threshold = Number(data.itemReferralThreshold ?? 0) || 0;
+    if (threshold <= 0) continue;
+    if (referrals < threshold) continue; // not yet eligible
+    console.log("[referralItems] CANDIDATE", {itemId: subCol.id, threshold});
+
+    const isConsumable = !!data.itemIsConsumable;
+    const itemId = normId(subCol.id);
+    candidates.push({itemId, threshold, isConsumable});
+  }
+
+  console.log("[referralItems] CANDIDATES_FINAL", candidates);
+  if (candidates.length === 0) return;
+
+  const userRef = db.collection("users").doc(ownerUid);
+  const invCol = userRef.collection("inventory");
+  const now = Timestamp.now();
+
+  await db.runTransaction(async (tx) => {
+    // === READ PHASE: all tx.get calls first ===
+    const invRefs = candidates.map((c) => invCol.doc(c.itemId));
+    const invSnaps = await Promise.all(invRefs.map((r) => tx.get(r)));
+
+    // Precompute existing data so we don't read after writes
+    const invStates = invSnaps.map((snap) => {
+      const exists = snap.exists;
+      const data = exists ? (snap.data() || {}) : {};
+      return {exists, data: data as any};
+    });
+
+    // === WRITE PHASE: only tx.set calls, no more tx.get ===
+    candidates.forEach((c, index) => {
+      const invRef = invRefs[index];
+      const invState = invStates[index];
+      const invData = invState.data;
+
+      const prevThresh = Number(invData.referralGrantedThreshold ?? 0) || 0;
+      console.log("[referralItems] TX_CHECK", {
+        itemId: c.itemId,
+        prevThresh,
+        cThreshold: c.threshold,
+      });
+
+      // Prevent double-grant per item by tracking the highest referral threshold already granted
+      if (prevThresh >= c.threshold) {
+        return; // already granted for this (or a higher) threshold
+      }
+
+      const base: Record<string, any> = {
+        grantedByReferral: true,
+        referralGrantedThreshold: c.threshold,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (!invState.exists) {
+        base.createdAt = now;
+      }
+
+      const prevQty = Number(invData.quantity ?? 0) || 0;
+      base.owned = true;
+
+      if (c.isConsumable) {
+        // consumables should still count as owned for UI, and stack quantity
+        base.quantity = prevQty + 1;
+      } else {
+        // non-consumables: ensure at least 1
+        base.quantity = prevQty > 0 ? prevQty : 1;
+      }
+
+      console.log("[referralItems] TX_SET", {itemId: c.itemId, base});
+      tx.set(invRef, base, {merge: true});
+    });
   });
 }
 
@@ -714,9 +809,14 @@ async function applyReferralCodeToUser(
   });
 
   try {
-    const owner = await db.collection("users").doc(ownerUid).get();
-    await upsertUserAch(ownerUid, ACH_TYPES.SIGNAL_BOOST, Number(owner.get("referrals") ?? 0) || 0);
-  } catch (e) { console.warn("[ach] referral evaluate failed", e); }
+    const ownerSnap = await db.collection("users").doc(ownerUid).get();
+    const referralsCount = Number(ownerSnap.get("referrals") ?? 0) || 0;
+
+    await upsertUserAch(ownerUid, ACH_TYPES.SIGNAL_BOOST, referralsCount);
+    await grantReferralThresholdItems(ownerUid, referralsCount);
+  } catch (e) {
+    console.warn("[ach/referral] post-referral processing failed", e);
+  }
 
   return {applied:true, referredByUid:ownerUid};
 }

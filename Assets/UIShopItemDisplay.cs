@@ -68,9 +68,13 @@ public class UIShopItemDisplay : MonoBehaviour
     private int _cachedReferralCount = 0;
     private bool _buyInProgress = false;
     private bool _pendingRefresh; // if true, run refresh on OnEnable
-    private Material _iconMaterialInstance;
     private Coroutine _countdownCo;
     private bool _isConsumable; // BullMarket kartları consumable olarak kabul ediliyor
+
+    // Icon için: orijinal sprite'ı sakla ve grayscale versiyonlarını cache'le
+    private Sprite _originalIconSprite;
+    private static readonly System.Collections.Generic.Dictionary<Sprite, Sprite> GrayscaleCache
+        = new System.Collections.Generic.Dictionary<Sprite, Sprite>();
 
     [Header("Status Feedback")]
     [SerializeField] private TMP_Text statusLabel;    // (opsiyonel) buton yakınında küçük metin
@@ -98,8 +102,6 @@ public class UIShopItemDisplay : MonoBehaviour
         // Overlay ilk açılışta kapalı olsun
         if (fetchingPanel != null) fetchingPanel.SetActive(false);
 
-        // Ensure material instance if icon exists
-        EnsureIconMaterialInstance();
 
         // If already active at enable, ensure countdown starts
         TryStartCountdown();
@@ -183,6 +185,7 @@ public class UIShopItemDisplay : MonoBehaviour
         // Icon
         if (data?.iconSprite != null)
         {
+            _originalIconSprite = data.iconSprite;
             iconImage.sprite = data.iconSprite;
             var col = iconImage.color;
             col.a = 1f;
@@ -190,6 +193,7 @@ public class UIShopItemDisplay : MonoBehaviour
         }
         else
         {
+            _originalIconSprite = null;
             iconImage.sprite = null;
             _blinkCoroutine = StartCoroutine(BlinkWhileNoIcon());
         }
@@ -231,15 +235,18 @@ public class UIShopItemDisplay : MonoBehaviour
 
     private ShopVisualState DetermineVisualState(ItemDatabaseManager.ReadableItemData data, ShopCategory category, bool owned, bool equipped, int referralCount)
     {
-        // Referral: threshold karşılanmadıysa kilit, karşılandıysa Normal_Owned (fiyat gizlenir)
+        // Referral: threshold karşılanmadıysa kilitli, karşılandıysa owned/equipped gibi davran
         if (category == ShopCategory.Referral)
         {
             if (data != null && referralCount < data.referralThreshold)
             {
+                // Threshold henüz karşılanmadı → kilitli
                 return ShopVisualState.Referral_Locked;
             }
             else
             {
+                // Threshold karşılandı → normal item gibi owned/equipped state kullanalım
+                if (equipped) return ShopVisualState.Normal_Equipped;
                 return ShopVisualState.Normal_Owned;
             }
         }
@@ -302,25 +309,18 @@ public class UIShopItemDisplay : MonoBehaviour
 
         if (iconImage != null)
         {
-            iconImage.enabled = true; // Always visible
+            iconImage.enabled = true;
 
-            var d = Data;
-            int referralCount = _cachedReferralCount;
-
-            bool isReferralLocked = (Category == ShopCategory.Referral)
-                                     && d != null
-                                     && referralCount < d.referralThreshold;
-
-            bool isConsumableAndInactive = false;
-            if (_isConsumable && d != null && UserInventoryManager.Instance != null)
+            // Shader kullanmadan grayscale göster: referral kilitliyken,
+            // sprite'ın grayscale kopyasını kullan, diğer durumda orijinal sprite'a dön.
+            if (state == ShopVisualState.Referral_Locked && _originalIconSprite != null)
             {
-                var nid = IdUtil.NormalizeId(d.id);
-                isConsumableAndInactive = !UserInventoryManager.Instance.IsConsumableActive(nid);
+                iconImage.sprite = GetOrCreateGrayscaleSprite(_originalIconSprite);
             }
-
-            // Default 1. Only two cases go 0: inactive consumable OR referral locked
-            float saturation = (isReferralLocked || isConsumableAndInactive) ? 0f : 1f;
-            SetIconSaturation(saturation);
+            else if (_originalIconSprite != null)
+            {
+                iconImage.sprite = _originalIconSprite;
+            }
         }
 
         UpdateActionButton(state);
@@ -563,7 +563,7 @@ public class UIShopItemDisplay : MonoBehaviour
     }
 
     /// <summary>
-    /// UI Button callback. Kategorisine ve item verisine göre uygun satın alma metodunu çağırır.
+    /// UI Button callback. Kategorisine ve item verisine göre uygun satın alma/equip metodunu çağırır.
     /// </summary>
     public void OnClickBuy()
     {
@@ -572,14 +572,6 @@ public class UIShopItemDisplay : MonoBehaviour
         if (Data == null)
         {
             Debug.LogWarning("[UIShopItemDisplay] OnClickBuy but Data is null.");
-            if (fetchingPanel != null) fetchingPanel.SetActive(false);
-            return;
-        }
-
-        // Referral tabında satın alma yok
-        if (Category == ShopCategory.Referral)
-        {
-            Debug.Log("[UIShopItemDisplay] Referral item cannot be purchased from shop. Unlock via referrals.");
             if (fetchingPanel != null) fetchingPanel.SetActive(false);
             return;
         }
@@ -594,6 +586,21 @@ public class UIShopItemDisplay : MonoBehaviour
 
         bool owned = inv.IsOwned(nid);
         bool equipped = inv.IsEquipped(nid);
+
+        // Referral tabında SATIN ALMA yok, ama sahip olunan referral item equip/unequip edilebilir.
+        if (Category == ShopCategory.Referral)
+        {
+            if (!owned)
+            {
+                Debug.Log("[UIShopItemDisplay] Referral item is locked. Unlock via referrals.");
+                if (fetchingPanel != null) fetchingPanel.SetActive(false);
+                return;
+            }
+
+            // Referral item zaten envanterdeyse normal toggle davranışı uygula
+            StartCoroutine(ToggleEquipRoutine(inv, nid, equipped));
+            return;
+        }
 
         // Eğer zaten sahipsek toggle davranışı uygula
         if (owned)
@@ -778,36 +785,6 @@ public class UIShopItemDisplay : MonoBehaviour
         yield return new WaitForSeconds(statusDuration);
         statusLabel.gameObject.SetActive(false);
     }
-    private Material EnsureIconMaterialInstance()
-    {
-        if (iconImage == null) return null;
-        var current = iconImage.material;
-        if (_iconMaterialInstance == null && current != null)
-        {
-            _iconMaterialInstance = new Material(current);
-            iconImage.material = _iconMaterialInstance;
-        }
-        return _iconMaterialInstance;
-    }
-
-    private void SetIconSaturation(float value)
-    {
-        if (iconImage == null) return;
-        var mat = EnsureIconMaterialInstance();
-        if (mat != null && mat.HasProperty("_HsvSaturation"))
-        {
-            mat.SetFloat("_HsvSaturation", value);
-        }
-    }
-
-    private void OnDestroy()
-    {
-        if (_iconMaterialInstance != null)
-        {
-            Destroy(_iconMaterialInstance);
-            _iconMaterialInstance = null;
-        }
-    }
     private void HandleActiveConsumablesChanged()
     {
         // When server pushes changes, simply refresh visuals
@@ -860,5 +837,69 @@ public class UIShopItemDisplay : MonoBehaviour
     {
         int hours = (int)t.TotalHours;
         return $"{hours:D2}:{t.Minutes:D2}:{t.Seconds:D2}";
+    }
+    /// <summary>
+    /// Shader kullanmadan, runtime'da orijinal sprite'tan grayscale bir sprite üretir.
+    /// Texture Read/Write kapalıysa orijinali geri döner.
+    /// </summary>
+    private Sprite GetOrCreateGrayscaleSprite(Sprite original)
+    {
+        if (original == null) return null;
+
+        // Cache'lenmişse direkt geri dön
+        if (GrayscaleCache.TryGetValue(original, out var cached) && cached != null)
+            return cached;
+
+        var tex = original.texture;
+        if (tex == null)
+            return original;
+
+        try
+        {
+            // Orijinal sprite'ın rect'ini baz alarak sadece o bölgenin pixellerini çek
+            var rect = original.rect;
+            int x = Mathf.RoundToInt(rect.x);
+            int y = Mathf.RoundToInt(rect.y);
+            int w = Mathf.RoundToInt(rect.width);
+            int h = Mathf.RoundToInt(rect.height);
+
+            // Unity'nin GetPixels(x, y, w, h) overload'unu kullan (GetPixels32'de bu overload yok)
+            var pixels = tex.GetPixels(x, y, w, h);
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                var c = pixels[i];
+                // Standart luminance, 0–1 aralığında
+                float lum = 0.3f * c.r + 0.59f * c.g + 0.11f * c.b;
+                pixels[i] = new Color(lum, lum, lum, c.a);
+            }
+
+            var grayTex = new Texture2D(w, h, TextureFormat.ARGB32, false);
+            grayTex.SetPixels(pixels);
+            grayTex.Apply();
+
+            // Pivot'u normalize ederek koru
+            var pivotNorm = new Vector2(
+                original.pivot.x / rect.width,
+                original.pivot.y / rect.height
+            );
+
+            var graySprite = Sprite.Create(
+                grayTex,
+                new Rect(0, 0, w, h),
+                pivotNorm,
+                original.pixelsPerUnit,
+                0,
+                SpriteMeshType.Tight,
+                original.border
+            );
+
+            GrayscaleCache[original] = graySprite;
+            return graySprite;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[UIShopItemDisplay] Failed to create grayscale sprite (texture likely not Read/Write enabled): {ex.Message}");
+            return original;
+        }
     }
 }

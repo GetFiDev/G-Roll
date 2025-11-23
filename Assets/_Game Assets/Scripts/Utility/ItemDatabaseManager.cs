@@ -12,7 +12,7 @@ public static class ItemDatabaseManager
     // Bellek-içi aktif veri
     private static Dictionary<string, RemoteItemService.ItemData> _items;
 
-    public static bool IsReady => _items != null;
+    public static bool IsReady => _items != null && _items.Count > 0;
 
     /// <summary>
     /// 1) Local cache'i anında yükler (offline-friendly)
@@ -20,27 +20,44 @@ public static class ItemDatabaseManager
     /// </summary>
     public static async Task InitializeAsync()
     {
-        // 1) Lokal
-        _items = ItemLocalDatabase.Load();
+        // 1) Lokal cache'i hemen oku (null dönerse bile sorun yok)
+        var local = ItemLocalDatabase.Load();
+        Dictionary<string, RemoteItemService.ItemData> result = null;
 
-        // 2) Remote (best-effort)
+        // 2) Remote (asıl kaynak) – her açılışta denenecek
         try
         {
             var fetched = await RemoteItemService.FetchAllItemsWithIconsAsync();
             if (fetched != null && fetched.Count > 0)
             {
-                _items = fetched;
+                result = fetched;
                 ItemLocalDatabase.Save(fetched);
                 Debug.Log($"[ItemDatabaseManager] Refreshed {fetched.Count} items from remote.");
             }
             else
             {
-                Debug.Log("[ItemDatabaseManager] Remote returned 0 items, using local cache.");
+                Debug.LogError("[ItemDatabaseManager] Remote returned 0 items. This is treated as an error; falling back to local cache if available.");
             }
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[ItemDatabaseManager] Remote fetch failed, using local cache. {ex.Message}");
+            Debug.LogError($"[ItemDatabaseManager] Remote fetch failed, falling back to local cache if available. {ex.Message}");
+        }
+
+        // 3) Remote başarısızsa ama lokal doluysa local cache'i kullan
+        if ((result == null || result.Count == 0) && local != null && local.Count > 0)
+        {
+            Debug.LogWarning("[ItemDatabaseManager] Using local item cache as fallback.");
+            result = local;
+        }
+
+        // 4) Sonucu belleğe yaz
+        _items = result;
+
+        // 5) Hâlâ boşsa, IsReady false kalacak; shop bir sonraki denemeye kadar item gösteremez
+        if (_items == null || _items.Count == 0)
+        {
+            Debug.LogError("[ItemDatabaseManager] No items available after initialization. Shop will remain empty until a successful fetch.");
         }
     }
 

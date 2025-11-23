@@ -5,6 +5,7 @@ using NetworkingData;
 using System.Globalization;
 using System;
 using System.Linq;
+using System.Collections;
 using AssetKits.ParticleImage;
 
 public class UserStatsDisplayer : MonoBehaviour
@@ -29,6 +30,7 @@ public class UserStatsDisplayer : MonoBehaviour
     public string lastCurrencyPrefsKey = "UserStatsDisplayer.LastCurrency";
 
     [Header("Options")] public int leaderboardProbeLimit = 100; // callable snapshot limit
+    private Coroutine currencyAnimCoroutine;
 
     private double LoadLastCurrency()
     {
@@ -107,7 +109,31 @@ public class UserStatsDisplayer : MonoBehaviour
                 MaybePlayCurrencyFx(prev, curr);
                 SaveLastCurrency(curr);
 
-                if (currencyTMP) currencyTMP.text = data.currency.ToString("F2", CultureInfo.InvariantCulture);
+                // Currency arttıysa: önce eski değeri göster, sonra 1 sn içinde yeni değere doğru animasyonla yükselt
+                if (currencyTMP)
+                {
+                    // Her seferinde önce olası eski animasyonu durdur
+                    if (currencyAnimCoroutine != null)
+                    {
+                        StopCoroutine(currencyAnimCoroutine);
+                        currencyAnimCoroutine = null;
+                    }
+
+                    if (curr > prev)
+                    {
+                        // Animasyon başlamadan önce eski değeri hemen göster
+                        currencyTMP.text = prev.ToString("F2", CultureInfo.InvariantCulture);
+                        currencyTMP.rectTransform.localScale = Vector3.one;
+                        currencyAnimCoroutine = StartCoroutine(AnimateCurrencyIncrease(prev, curr));
+                    }
+                    else
+                    {
+                        // Azaldıysa veya aynıysa direkt yeni değeri yaz ve scale'i resetle
+                        currencyTMP.text = curr.ToString("F2", CultureInfo.InvariantCulture);
+                        currencyTMP.rectTransform.localScale = Vector3.one;
+                    }
+                }
+
                 if (streakTMP)   streakTMP.text   = data.streak.ToString();
             }
         }
@@ -122,6 +148,52 @@ public class UserStatsDisplayer : MonoBehaviour
             if (currencyFetchingPanel) currencyFetchingPanel.SetActive(false);
             if (streakFetchingPanel)   streakFetchingPanel.SetActive(false);
         }
+    }
+    /// <summary>
+    /// Currency arttığında eski değerden yeni değere 1 saniyede yavaş yavaş yükselme
+    /// ve bu sırada text'in scale'inin büyüyüp küçülmesi animasyonu.
+    /// </summary>
+    private IEnumerator AnimateCurrencyIncrease(double from, double to)
+    {
+        if (currencyTMP == null)
+        {
+            yield break;
+        }
+
+        // Delay before anim starting
+        yield return new WaitForSeconds(0.75f);
+
+        var rt = currencyTMP.rectTransform;
+        const float duration = 1f;
+        const float punchAmount = 0.2f; // %20 büyüme
+        float t = 0f;
+
+        // Başlangıç: eski currency değeri ve normal scale
+        double start = from;
+        double end = to;
+        currencyTMP.text = start.ToString("F2", CultureInfo.InvariantCulture);
+        rt.localScale = Vector3.one;
+
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            float normalized = Mathf.Clamp01(t / duration);
+
+            // Değer interpolasyonu
+            double value = Mathf.Lerp((float)start, (float)end, normalized);
+            currencyTMP.text = value.ToString("F2", CultureInfo.InvariantCulture);
+
+            // Scale animasyonu: sinüs eğrisiyle büyüyüp geri küçülme
+            float scaleFactor = 1f + punchAmount * Mathf.Sin(normalized * Mathf.PI);
+            rt.localScale = new Vector3(scaleFactor, scaleFactor, 1f);
+
+            yield return null;
+        }
+
+        // Son frame: kesin olarak hedef değeri ve normal scale'i ayarla
+        currencyTMP.text = end.ToString("F2", CultureInfo.InvariantCulture);
+        rt.localScale = Vector3.one;
+        currencyAnimCoroutine = null;
     }
 
     private async Task RefreshRankFromSnapshot()
