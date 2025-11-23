@@ -86,6 +86,7 @@ public class AchievementDetailPanel : MonoBehaviour
             {
                 int n = await AchievementService.ClaimAllEligibleAsync(def, state);
                 _onAnyClaim?.Invoke();
+                using var _ = NotificationBadgeManager.Instance.RefreshAchievementBadges();
             }
             finally
             {

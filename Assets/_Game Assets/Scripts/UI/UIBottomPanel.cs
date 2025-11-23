@@ -56,6 +56,7 @@ public class UIBottomPanel : MonoBehaviour
         shopIcon.color = selectedColor;
 
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Shop);
+        NotificationBadgeManager.Instance.MarkAllShopItemsSeen();
     }
 
     public void OnClickReferralButton()
@@ -74,6 +75,7 @@ public class UIBottomPanel : MonoBehaviour
         achievementsIcon.color = selectedColor;
 
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Task);
+        _ = NotificationBadgeManager.Instance.RefreshAchievementBadges();
     }
 
     public void OnClickRankingButton()
