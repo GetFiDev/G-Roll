@@ -1,146 +1,342 @@
+using UnityEngine.UI;
 using UnityEngine;
 using TMPro;
 using System;
 using System.Threading.Tasks;
+using Firebase.Functions;
+using NetworkingData;
 
 public class UIProfilePanel : MonoBehaviour
 {
     [Header("Profile Fields")]
-    [SerializeField] private TextMeshProUGUI emailText;    // Kullanıcının e‑posta adresi
-    [SerializeField] private TextMeshProUGUI usernameText; // Kullanıcı adı
-    [SerializeField] private TextMeshProUGUI currencyText; // 99.99 GET formatında bakiye
+    [SerializeField] private TextMeshProUGUI emailText;
+    [SerializeField] private TextMeshProUGUI currencyText;
+
+    [Header("Username UI")]
+    [SerializeField] private TMP_InputField usernameInput;
+    [SerializeField] private TextMeshProUGUI usernameLabel;
+    [SerializeField] private GameObject usernameBusyOverlay;
+    [SerializeField] private TextMeshProUGUI usernameErrorText;
+
+    [Header("Button Sprites")]
+    [SerializeField] private Sprite inactiveSprite;
+    [SerializeField] private Sprite activeSprite;
+
+    [Header("Save Username Button")]
+    [SerializeField] private Button saveUsernameButton;
+    [SerializeField] private TextMeshProUGUI saveUsernameLabel;
+
+    [Header("Button Texts")]
+    [SerializeField] private string inactiveText;
+    [SerializeField] private string activeText;
+    [SerializeField] private string fetchingText;
+
+    private bool _isSavingUsername;
+    private UserData _data;
+
+    private string _originalUsername = string.Empty;
+
+    private enum UsernameButtonState
+    {
+        Inactive,
+        Active,
+        Fetching
+    }
+
+    private UsernameButtonState _buttonState = UsernameButtonState.Inactive;
+    private Coroutine _errorRoutine;
 
     private void OnEnable()
     {
+        if (usernameInput != null)
+        {
+            usernameInput.onValueChanged.RemoveListener(OnUsernameInputChanged);
+            usernameInput.onValueChanged.AddListener(OnUsernameInputChanged);
+        }
+
+        if (usernameErrorText != null)
+        {
+            usernameErrorText.text = string.Empty;
+        }
+
         _ = RefreshProfileAsync();
     }
 
-    /// <summary>
-    /// UserDatabaseManager üzerinden kullanıcı verisini çekip UI'a uygular.
-    /// </summary>
+    private void OnDisable()
+    {
+        if (usernameInput != null)
+        {
+            usernameInput.onValueChanged.RemoveListener(OnUsernameInputChanged);
+        }
+    }
+
     private async Task RefreshProfileAsync()
     {
         try
         {
-            var mgr = UserDatabaseManager.Instance;
-            if (mgr == null)
-            {
-                Debug.LogError("[UIProfilePanel] UserDatabaseManager.Instance bulunamadı");
-                ApplyToUI(null); // boşları çiz
-                return;
-            }
-
-            // Öncelik: async yükleme
-            object data = null;
-            try
-            {
-                // Projendeki imza farklıysa derleme zamanı hatası olmasın diye object olarak tutuyoruz.
-                // En yaygın senaryo: LoadUserData() -> UserData
-                var maybeTask = mgr.LoadUserData();
-                data = await WrapUnknownTask(maybeTask);
-            }
-            catch (Exception)
-            {
-                // Fallback: cached/current property varsa onu dene (reflection ile)
-                data = TryGetProperty(mgr, "CurrentUserData") ?? TryGetProperty(mgr, "UserData") ?? null;
-            }
-
-            ApplyToUI(data);
+            SetUsernameBusy(false, null);
+            _data = await UserDatabaseManager.Instance.LoadUserData();
+            ApplyToUI();
         }
         catch (Exception e)
         {
-            Debug.LogError($"[UIProfilePanel] RefreshProfileAsync error: {e.Message}");
-            ApplyToUI(null);
+            Debug.LogError($"[UIProfilePanel] Refresh error: {e.Message}");
         }
     }
 
+    private void ApplyToUI()
+    {
+        if (_data == null)
+        {
+            if (emailText) emailText.text = "-";
+            if (currencyText) currencyText.text = "0 GET";
+            if (usernameInput) usernameInput.text = string.Empty;
+            if (usernameLabel) usernameLabel.text = "-";
+            _originalUsername = string.Empty;
+            UpdateSaveButtonVisual();
+            return;
+        }
+
+        if (emailText) emailText.text = string.IsNullOrEmpty(_data.mail) ? "-" : _data.mail;
+        if (currencyText) currencyText.text = $"{_data.currency} GET";
+
+        _originalUsername = _data.username ?? string.Empty;
+
+        if (usernameInput) usernameInput.text = _originalUsername;
+        if (usernameLabel) usernameLabel.text = string.IsNullOrEmpty(_originalUsername) ? "-" : _originalUsername;
+
+        UpdateSaveButtonVisual();
+    }
+
+    public async void OnClickSaveUsername()
+    {
+        if (_isSavingUsername) return;
+        if (usernameInput == null) return;
+
+        string newName = (usernameInput.text ?? string.Empty).Trim();
+
+        // State 1 vs 2: button aktifliği zaten UpdateSaveButtonVisual ile kontrol ediliyor.
+        // Burada sadece gerçekten değişmiş bir isim için işlem yapıyoruz.
+        if (string.Equals(newName, _originalUsername, StringComparison.Ordinal))
+        {
+            // Zaten mevcut isim; hiçbir şey yapma.
+            return;
+        }
+
+        string localErr = ValidateLocal(newName);
+        if (localErr != null)
+        {
+            // Buton state'i ACTIVE kalabilir, kullanıcı ismi düzenlemeye devam eder.
+            ShowMessage(localErr);
+            return;
+        }
+
+        _isSavingUsername = true;
+        SetUsernameBusy(true, null); // FETCHING state
+
+        try
+        {
+            bool ok = await ChangeUsernameAsync(newName);
+            if (ok)
+            {
+                _originalUsername = newName;
+
+                if (_data != null)
+                    _data.username = newName;
+
+                ApplyToUI();
+                ShowMessage("Username changed");
+            }
+        }
+        finally
+        {
+            _isSavingUsername = false;
+            SetUsernameBusy(false, null); // geri dön: INACTIVE veya ACTIVE (input değerine göre)
+        }
+    }
+
+    private string ValidateLocal(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "Kullanıcı adı boş olamaz.";
+        if (name.Length < 3) return "En az 3 karakter olmalı.";
+        if (name.Length > 20) return "En fazla 20 karakter.";
+        foreach (char c in name)
+        {
+            if (!(char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '.'))
+                return "Sadece harf, rakam ve _-.";
+        }
+        return null;
+    }
+
+    private async Task<bool> ChangeUsernameAsync(string newName)
+    {
+        try
+        {
+            var fn = FirebaseFunctions.GetInstance("us-central1").GetHttpsCallable("changeUsername");
+            var dict = new System.Collections.Generic.Dictionary<string, object>
+            {
+                {"newName", newName}
+            };
+
+            var resp = await fn.CallAsync(dict);
+            if (resp.Data is System.Collections.IDictionary d)
+            {
+                if (d.Contains("ok") && d["ok"] is bool b && b)
+                    return true;
+
+                if (d.Contains("error"))
+                {
+                    ShowError(MapServerError(d["error"].ToString()));
+                    return false;
+                }
+            }
+
+            ShowError("Sunucu hatası.");
+            return false;
+        }
+        catch (FunctionsException fe)
+        {
+            ShowError(MapServerError(fe.Message));
+            return false;
+        }
+        catch (Exception e)
+        {
+            ShowError("Bağlantı hatası.");
+            return false;
+        }
+    }
+
+    private void OnUsernameInputChanged(string value)
+    {
+        if (_isSavingUsername) return;
+        UpdateSaveButtonVisual();
+    }
+
+    private void UpdateSaveButtonVisual()
+    {
+        string current = usernameInput ? (usernameInput.text ?? string.Empty).Trim() : string.Empty;
+        string baseline = (_originalUsername ?? string.Empty).Trim();
+
+        if (_isSavingUsername)
+        {
+            _buttonState = UsernameButtonState.Fetching;
+        }
+        else if (string.IsNullOrEmpty(current) || string.Equals(current, baseline, StringComparison.Ordinal))
+        {
+            _buttonState = UsernameButtonState.Inactive;
+        }
+        else
+        {
+            _buttonState = UsernameButtonState.Active;
+        }
+
+        if (saveUsernameButton != null)
+        {
+            switch (_buttonState)
+            {
+                case UsernameButtonState.Inactive:
+                    saveUsernameButton.interactable = false;
+                    break;
+                case UsernameButtonState.Active:
+                    saveUsernameButton.interactable = true;
+                    break;
+                case UsernameButtonState.Fetching:
+                    saveUsernameButton.interactable = false;
+                    break;
+            }
+
+            var img = saveUsernameButton.GetComponent<Image>();
+            if (img != null)
+            {
+                img.sprite = _buttonState == UsernameButtonState.Active ? activeSprite : inactiveSprite;
+            }
+        }
+
+        if (saveUsernameLabel != null)
+        {
+            saveUsernameLabel.text = _buttonState == UsernameButtonState.Inactive ? inactiveText :
+                                     _buttonState == UsernameButtonState.Active ? activeText :
+                                     fetchingText;
+        }
+
+        if (usernameBusyOverlay != null)
+        {
+            usernameBusyOverlay.SetActive(_buttonState == UsernameButtonState.Fetching);
+        }
+    }
+
+    private string MapServerError(string code)
+    {
+        switch (code)
+        {
+            case "USERNAME_TAKEN": return "Bu kullanıcı adı zaten alınmış.";
+            case "USERNAME_BAD_WORD": return "Uygunsuz kelime içeriyor.";
+            case "USERNAME_INVALID_LENGTH": return "3-20 karakter arası olmalı.";
+            case "USERNAME_INVALID_CHARS": return "Geçersiz karakter.";
+            case "USERNAME_CHANGE_TOO_SOON": return "Haftada bir kez değiştirebilirsin.";
+            default: return "Kullanıcı adı değiştirilemedi.";
+        }
+    }
+
+    private void ShowError(string msg)
+    {
+        SetUsernameBusy(false, msg);
+    }
+
+    private void ShowMessage(string msg, float duration = 3f)
+    {
+        if (usernameErrorText == null) return;
+
+        if (_errorRoutine != null)
+        {
+            StopCoroutine(_errorRoutine);
+            _errorRoutine = null;
+        }
+
+        usernameErrorText.text = msg ?? string.Empty;
+        if (!string.IsNullOrEmpty(msg))
+        {
+            _errorRoutine = StartCoroutine(ClearMessageAfterDelay(duration));
+        }
+    }
+
+    private System.Collections.IEnumerator ClearMessageAfterDelay(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        if (usernameErrorText != null)
+        {
+            usernameErrorText.text = string.Empty;
+        }
+        _errorRoutine = null;
+    }
+
+    private void SetUsernameBusy(bool busy, string error)
+    {
+        if (usernameBusyOverlay) usernameBusyOverlay.SetActive(busy);
+
+        // busy state değişince buton state'ini güncelle
+        UpdateSaveButtonVisual();
+
+        if (!string.IsNullOrEmpty(error))
+        {
+            ShowMessage(error);
+        }
+        else if (busy && usernameErrorText != null)
+        {
+            // yeni bir işlem başlarken eski mesajı temizle
+            if (_errorRoutine != null)
+            {
+                StopCoroutine(_errorRoutine);
+                _errorRoutine = null;
+            }
+            usernameErrorText.text = string.Empty;
+        }
+    }
     /// <summary>
-    /// Elimizdeki data objesinden email/username/currency alanlarını okuyup UI'a basar.
+    /// Logout button action. Signs out the user and restarts the application.
     /// </summary>
-    private void ApplyToUI(object data)
+    public void OnClickLogout()
     {
-        string email = ReadStringProp(data, "mail", "email");
-        if (emailText) emailText.text = string.IsNullOrWhiteSpace(email) ? "-" : email;
-
-        string uname = ReadStringProp(data, "username", "name", "userName");
-        if (usernameText) usernameText.text = string.IsNullOrWhiteSpace(uname) ? "-" : uname;
-
-        double currency = ReadDoubleProp(data, 0.0, "currency", "balance", "coins");
-        if (currencyText) currencyText.text = $"{FormatCurrency(currency)} GET";
-    }
-
-    // ---- Helpers ----
-
-    // Some managers dönebileceği Task<T> için, generic türü bilmeden object’e çözen yardımcı.
-    private static async Task<object> WrapUnknownTask(object unknownTask)
-    {
-        if (unknownTask == null) return null;
-
-        // Eğer zaten Task<object> ise direkt await et
-        if (unknownTask is Task<object> tobj) return await tobj;
-
-        // Task<T> ise dynamic await ile Result çek
-        if (unknownTask is System.Threading.Tasks.Task t)
-        {
-            await t; // tamamlanmasını bekle
-            var type = t.GetType();
-            var prop = type.GetProperty("Result");
-            return prop != null ? prop.GetValue(t) : null;
-        }
-
-        return unknownTask; // T olmayan bir şey döndüyse zaten object
-    }
-
-    private static object TryGetProperty(object owner, string propName)
-    {
-        if (owner == null) return null;
-        var p = owner.GetType().GetProperty(propName);
-        return p != null ? p.GetValue(owner) : null;
-    }
-
-    private static string ReadStringProp(object obj, params string[] names)
-    {
-        if (obj == null) return string.Empty;
-        var type = obj.GetType();
-        foreach (var n in names)
-        {
-            var p = type.GetProperty(n);
-            if (p != null)
-            {
-                var v = p.GetValue(obj);
-                if (v is string s) return s;
-            }
-        }
-        return string.Empty;
-    }
-
-    private static double ReadDoubleProp(object obj, double def, params string[] names)
-    {
-        if (obj == null) return def;
-        var type = obj.GetType();
-        foreach (var n in names)
-        {
-            var p = type.GetProperty(n);
-            if (p != null)
-            {
-                var v = p.GetValue(obj);
-                if (v is double d) return d;
-                if (v is float f) return (double)f;
-                if (v is int i) return i;
-                if (v is long l) return l;
-                if (v is decimal m) return (double)m;
-                // string ise parse etmeyi dene
-                if (v is string s && double.TryParse(s, out var parsed)) return parsed;
-            }
-        }
-        return def;
-    }
-
-    private static string FormatCurrency(double amount)
-    {
-        double rounded = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
-        if (Math.Abs(rounded - Math.Round(rounded)) < 1e-9)
-            return ((long)rounded).ToString(); // tam sayı ise .00 yazma
-        return rounded.ToString("0.##"); // en fazla 2 ondalık
+        Application.Quit();
     }
 }

@@ -2689,3 +2689,149 @@ export const recomputeRanks = onCall(async (req) => {
   const res = await recomputeAllRanks();
   return {ok: true, updated: res.count};
 });
+
+// ========================= Change Username =========================
+
+export const changeUsername = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const newNameRaw = String(req.data?.newName ?? "").trim();
+  const now = Timestamp.now();
+  const newNameLower = newNameRaw.toLowerCase();
+
+  // --- Basic format validation ---
+  if (newNameRaw.length < 3 || newNameRaw.length > 20) {
+    throw new HttpsError("invalid-argument", "USERNAME_INVALID_LENGTH");
+  }
+
+  if (!/^[a-zA-Z0-9._-]+$/.test(newNameRaw)) {
+    throw new HttpsError("invalid-argument", "USERNAME_INVALID_CHARS");
+  }
+
+  // --- Banned keyword rules from Firestore (config driven) ---
+  // Path: appdata/usernamerules  (doc)
+  // Field: bannedKeywords (array)  veya bannedkeywords (array)
+  let bannedList: string[] = [
+    // fallback (Firestore'dan bir şey bulamazsa)
+    "fuck",
+    "amk",
+    "siktir",
+    "orospu",
+    "piç",
+    "aq",
+    "porno",
+  ];
+
+  try {
+    const rulesSnap = await db.collection("appdata").doc("usernamerules").get();
+    if (rulesSnap.exists) {
+      const d = (rulesSnap.data() || {}) as Record<string, any>;
+      let fromField =
+        d.bannedKeywords ??
+        d.bannedkeywords;
+
+      // CASE 1: Already an array
+      if (Array.isArray(fromField)) {
+        bannedList = fromField
+          .map((x) => String(x || "").toLowerCase().trim())
+          .filter((s) => s.length > 0);
+
+      // CASE 2: A raw string → attempt JSON parse first
+      } else if (typeof fromField === "string" && fromField.trim().length > 0) {
+        const raw = fromField.trim();
+        let parsedOk = false;
+
+        // Try JSON parse
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.bannedKeywords)) {
+            bannedList = parsed.bannedKeywords
+              .map((x: any) => String(x || "").toLowerCase().trim())
+              .filter((s: string) => s.length > 0);
+            parsedOk = true;
+          }
+        } catch (_) {}
+
+        // Fallback: split by comma/whitespace
+        if (!parsedOk) {
+          bannedList = raw
+            .split(/[,\s]+/)
+            .map((x) => x.toLowerCase().trim())
+            .filter((s) => s.length > 0);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[changeUsername] could not load usernamerules, using fallback list:", e);
+  }
+
+  const lower = newNameLower;
+  for (const bad of bannedList) {
+    if (!bad) continue;
+    if (lower.includes(bad)) {
+      throw new HttpsError("invalid-argument", "USERNAME_BAD_WORD");
+    }
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const nameRef = db.collection("usernames").doc(newNameLower);
+
+  await db.runTransaction(async (tx) => {
+    const [uSnap, nameSnap] = await Promise.all([
+      tx.get(userRef),
+      tx.get(nameRef),
+    ]);
+
+    if (!uSnap.exists) {
+      throw new HttpsError("failed-precondition", "USER_DOC_MISSING");
+    }
+
+    const data = uSnap.data() || {};
+    const lastChangedAt = data.usernameLastChangedAt as Timestamp | null;
+
+    // --- Haftada 1 değişim limiti ---
+    if (lastChangedAt) {
+      const diff = now.toMillis() - lastChangedAt.toMillis();
+      const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+      if (diff < WEEK_MS) {
+        throw new HttpsError("failed-precondition", "USERNAME_CHANGE_TOO_SOON");
+      }
+    }
+
+    // --- Benzersiz username kontrolü ---
+    if (nameSnap.exists) {
+      const owner = nameSnap.get("uid");
+      if (owner !== uid) {
+        throw new HttpsError("already-exists", "USERNAME_TAKEN");
+      }
+    }
+
+    // Eski username rezervasyonunu sil
+    const oldName = (data.username || "").toLowerCase();
+    if (oldName) {
+      const oldRef = db.collection("usernames").doc(oldName);
+      tx.delete(oldRef);
+    }
+
+    // Yeni username'i rezerve et
+    tx.set(
+      nameRef,
+      {uid, updatedAt: now},
+      {merge: true}
+    );
+
+    // User doc'u güncelle
+    tx.set(
+      userRef,
+      {
+        username: newNameRaw,
+        usernameLastChangedAt: now,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true}
+    );
+  });
+
+  return {ok: true, newName: newNameRaw};
+});
