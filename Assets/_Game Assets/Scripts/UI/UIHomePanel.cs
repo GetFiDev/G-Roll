@@ -99,7 +99,7 @@ public class UIHomePanel : MonoBehaviour
     private async Task StartCountdownAsync(double startRemainingSeconds, CancellationToken ct)
     {
         double remaining = Math.Max(0.0, startRemainingSeconds);
-        const int tickMs = 250; // update 4 times per second for smoother fill
+        const int tickMs = 250;
         var sw = new System.Diagnostics.Stopwatch();
         sw.Start();
 

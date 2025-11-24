@@ -315,7 +315,29 @@ public class UIReferralPanel : MonoBehaviour
     /// </summary>
     public void OnShareButtonClick()
     {
-        ShareReferralText("Hello World");
+        var msg = BuildReferralShareMessage();
+        ShareReferralText(msg);
+    }
+    public void OnCopyReferralKeyClick()
+    {
+        var msg = BuildReferralShareMessage();
+        if (!string.IsNullOrWhiteSpace(msg))
+        {
+            GUIUtility.systemCopyBuffer = msg;
+            Debug.Log("[UIReferralPanel] Copied to clipboard: " + msg);
+        }
+    }
+    private string BuildReferralShareMessage()
+    {
+        if (manager == null)
+            return "Join G‑Roll using my referral code!";
+
+        string key = manager.MyReferralKey;
+
+        if (string.IsNullOrWhiteSpace(key) || key == "-")
+            return "Join G‑Roll using my referral code!";
+
+        return $"Join G‑Roll using my referral code: {key}";
     }
     public async void ShareReferralText(string text)
     {

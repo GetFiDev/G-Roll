@@ -1368,6 +1368,73 @@ export const spendEnergy = onCall(async (req) => {
   };
 });
 
+// -------- grantBonusEnergy (callable, +1 life via ad / reward) --------
+export const grantBonusEnergy = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  // İstersen burada ileride adToken / source vs. doğrulayabilirsin:
+  // const adToken = String(req.data?.adToken || "");
+
+  const userRef = db.collection("users").doc(uid);
+  const now = Timestamp.now();
+
+  // 1) Önce expired consumable'ları temizle (senin diğer energy fonksiyonlarınla aynı pattern)
+  await db.runTransaction(async (tx) => {
+    await cleanupExpiredConsumablesInTx(tx, userRef, now);
+  });
+
+  // 2) Enerjiyi lazy regen + bonus life aynı transaction içinde
+  const res = await db.runTransaction(async (tx) => {
+    const st = await lazyRegenInTx(tx, userRef, now); // READ (tx.get içeriyor)
+
+    // Zaten full ise hiçbir şey verme (idempotent / no-op)
+    if (st.cur >= st.max) {
+      return {
+        granted: 0,
+        cur: st.cur,
+        max: st.max,
+        period: st.period,
+        nextAt: st.nextAt,
+      };
+    }
+
+    const newCur = Math.min(st.max, st.cur + 1);
+    const granted = newCur - st.cur; // normalde 1
+
+    // Bonus life verirken energyUpdatedAt'e dokunmuyoruz:
+    // regen zamanlaması aynı kalıyor, sadece fazladan 1 life eklenmiş oluyor.
+    tx.set(
+      userRef,
+      {
+        energyCurrent: newCur,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true}
+    ); // WRITE
+
+    // nextAt: lazyRegenInTx zaten hesapladı; full olduysa null olabilir
+    const nextAt =
+      newCur < st.max
+        ? st.nextAt ||
+          Timestamp.fromMillis(now.toMillis() + st.period * 1000)
+        : null;
+
+    return {granted, cur: newCur, max: st.max, period: st.period, nextAt};
+  });
+
+  const nextMs = res.nextAt ? res.nextAt.toMillis() : null;
+
+  return {
+    ok: true,
+    grantedEnergy: res.granted,
+    energyCurrent: res.cur,
+    energyMax: res.max,
+    regenPeriodSec: res.period,
+    nextEnergyAtMillis: nextMs,
+  };
+});
+
 // ========================= Autopilot (AFK) =========================
 // Global config at appdata/autopilotconfig:
 //  - normalUserEarningPerHour:number

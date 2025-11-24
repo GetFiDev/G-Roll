@@ -7,6 +7,7 @@ public class UISessionGate : MonoBehaviour
     [SerializeField] private CanvasGroup root;
     [SerializeField] private TMP_Text statusText;
     [SerializeField] private float toastDuration = 0.5f;
+    [SerializeField] private GameObject insufficientEnergyPanel;
 
     void Awake() { if (root != null) root.alpha = 0; gameObject.SetActive(false); }
 
@@ -64,6 +65,10 @@ public class UISessionGate : MonoBehaviour
         }
         yield return new WaitForSeconds(toastDuration);
         Close();
+        if (insufficientEnergyPanel != null)
+        {
+            insufficientEnergyPanel.SetActive(true);
+        }
     }
 
     public void Close()

@@ -21,6 +21,7 @@ public static class UserEnergyService
         public int max;                 // energyMax
         public int regenPeriodSec;      // energyRegenPeriodSec
         public long nextEnergyAtMillis; // nextEnergyAtMillis (ms epoch) - yoksa 0
+        public int granted;             // grantedEnergy (only meaningful for grantBonusEnergy, else 0)
     }
 
     // Functions region (sunucuda us-central1)
@@ -52,6 +53,34 @@ public static class UserEnergyService
             max               = GetAs<int>(dict, "energyMax", 6),
             regenPeriodSec    = GetAs<int>(dict, "regenPeriodSec", 14400),
             nextEnergyAtMillis= GetAs<long>(dict, "nextEnergyAtMillis", 0L),
+            granted           = 0,
+        };
+    }
+
+    /// <summary>
+    /// grantBonusEnergy callable'ına gider; +1 bonus enerji vermeyi dener.
+    /// Enerji zaten max ise granted=0 dönebilir.
+    /// </summary>
+    public static async Task<EnergySnapshot> GrantBonusEnergyAsync()
+    {
+        EnsureSignedIn(); // guard
+
+        var call = Fn.GetHttpsCallable("grantBonusEnergy");
+        var res  = await call.CallAsync(new Dictionary<string, object>());
+
+        var dict = NormalizeToStringKeyDict(res.Data);
+        if (dict == null) throw new Exception("[UserEnergyService] Null payload (grantBonusEnergy)");
+
+        var ok = GetAs<bool>(dict, "ok", false);
+        if (!ok) throw new Exception("[UserEnergyService] ok=false (grantBonusEnergy)");
+
+        return new EnergySnapshot
+        {
+            current            = GetAs<int>(dict,  "energyCurrent",       0),
+            max                = GetAs<int>(dict,  "energyMax",           6),
+            regenPeriodSec     = GetAs<int>(dict,  "regenPeriodSec",      14400),
+            nextEnergyAtMillis = GetAs<long>(dict, "nextEnergyAtMillis",  0L),
+            granted            = GetAs<int>(dict,  "grantedEnergy",       0),
         };
     }
 
