@@ -39,19 +39,22 @@ public class UIManager : MonoSingleton<UIManager>
             case GamePhase.Boot:
                 if (mainMenu)        mainMenu.gameObject.SetActive(false);
                 if (gamePlay)        gamePlay.gameObject.SetActive(false);
-                if (levelEnd)        levelEnd.gameObject.SetActive(false);
+                if (levelEnd) levelEnd.gameObject.SetActive(false);
+                if (overlay) overlay.gameObject.SetActive(false);
                 if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
                 break;
             case GamePhase.Meta:
                 if (mainMenu)        mainMenu.gameObject.SetActive(true);
                 if (gamePlay)        gamePlay.gameObject.SetActive(false);
-                if (levelEnd)        levelEnd.gameObject.SetActive(false);
+                if (levelEnd) levelEnd.gameObject.SetActive(false);
+                if (overlay) overlay.gameObject.SetActive(true);
                 if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
                 break;
             case GamePhase.Gameplay:
                 if (mainMenu)        mainMenu.gameObject.SetActive(false);
                 if (gamePlay)        gamePlay.gameObject.SetActive(true);
-                if (levelEnd)        levelEnd.gameObject.SetActive(false);
+                if (levelEnd) levelEnd.gameObject.SetActive(false);
+                if (overlay) overlay.gameObject.SetActive(false);
                 if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
                 break;
             default:
