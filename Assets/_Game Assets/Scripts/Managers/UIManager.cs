@@ -9,6 +9,7 @@ public class UIManager : MonoSingleton<UIManager>
     public UILevelEnd levelEnd;
     public UIOverlay overlay;
     public UIMetaSettingsPanel metaSettingsPanel;
+    public UINewHighScorePanel newHighScorePanel;
 
     public UIGameplayLoading gameplayLoading;
     [SerializeField] private PhaseEventChannelSO phaseChanged;
@@ -83,4 +84,35 @@ public class UIManager : MonoSingleton<UIManager>
         else
             Debug.LogError("[UIManager] levelEnd is not assigned.");
     }
+
+    public void ShowNewHighScore(double score, Action onClosed)
+    {
+        if (newHighScorePanel)
+        {
+            // Clean previous listeners to avoid duplicates if reused
+            newHighScorePanel.OnClosed -= OnHighScorePanelClosed;
+            newHighScorePanel.OnClosed += OnHighScorePanelClosed;
+            
+            // Store the callback temporarily or use a lambda wrapper if simpler, 
+            // but here we need to bridge the event.
+            // Simpler approach: Pass the callback to the panel? 
+            // Or just handle it here. 
+            // Let's use a local wrapper.
+            
+            Action wrapper = null;
+            wrapper = () => {
+                newHighScorePanel.OnClosed -= wrapper;
+                onClosed?.Invoke();
+            };
+            newHighScorePanel.OnClosed += wrapper;
+
+            newHighScorePanel.Show(score);
+        }
+        else
+        {
+            onClosed?.Invoke(); // Fallback if panel missing
+        }
+    }
+
+    private void OnHighScorePanelClosed() { } // Dummy target for -= check if needed, or just use lambda above
 }

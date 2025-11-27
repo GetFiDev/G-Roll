@@ -33,6 +33,7 @@ public class GameplayManager : MonoBehaviour
     private float sessionStartTime;
     private string _currentSessionId = null; // server-granted session id
     private double _sessionCurrencyTotal = 0d; // this session's earned currency (coins value after bonuses)
+    private double _initialMaxScore = 0d;
     // --- Cached finals coming from PlayerStatHandler (per session) ---
     private int   _comboPowerFactor = 1;     // integer factor, base 1
     private int   _coinBonusPercent = 0;     // integer percent, base 0
@@ -98,6 +99,18 @@ public class GameplayManager : MonoBehaviour
         while (!hasControl) yield return null;
 
         UIManager.Instance?.ShowGameplayLoading();
+
+        // Capture initial high score for comparison later
+        _initialMaxScore = 0;
+        if (UserDatabaseManager.Instance != null)
+        {
+            var task = UserDatabaseManager.Instance.LoadUserData();
+            yield return new WaitUntil(() => task.IsCompleted);
+            if (task.Result != null)
+            {
+                _initialMaxScore = task.Result.maxScore;
+            }
+        }
 
         // Hazırlık
         mapLoader?.Load();
@@ -239,7 +252,34 @@ public class GameplayManager : MonoBehaviour
         // Remote reporting (fire-and-forget) – logic layer owns the call
         var earnedScore = logicApplier != null ? (double)logicApplier.Score : 0d;
         var earnedCurrency = _sessionCurrencyTotal;
+        
+        Debug.Log($"[GameplayManager] EndSession. EarnedScore: {earnedScore}, InitialMaxScore: {_initialMaxScore}");
+
         SubmitSessionToServer(earnedCurrency, earnedScore);
+
+        // Check for New High Score
+        if (earnedScore > _initialMaxScore)
+        {
+            Debug.Log($"[GameplayManager] New High Score! {earnedScore} > {_initialMaxScore}");
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowNewHighScore(earnedScore, () => 
+                {
+                    // Fazı Meta'ya geri aldır (Panel kapandıktan sonra)
+                    requestReturnToMeta.Raise();
+                });
+            }
+            else
+            {
+                 requestReturnToMeta.Raise();
+            }
+        }
+        else
+        {
+            Debug.Log($"[GameplayManager] No New High Score. {earnedScore} <= {_initialMaxScore}");
+            // Fazı Meta'ya geri aldır
+            requestReturnToMeta.Raise();
+        }
 
 
         // Let player stats cleanup (if any)
@@ -276,8 +316,8 @@ public class GameplayManager : MonoBehaviour
         // (Gerekirse burada async raporlama yapabilirsiniz)
         stats = null;
 
-        // Fazı Meta'ya geri aldır
-        requestReturnToMeta.Raise();
+        // Fazı Meta'ya geri aldır -> Moved to High Score logic block above
+        // requestReturnToMeta.Raise();
     }
 
     private void TearDownIfAny()
