@@ -199,7 +199,7 @@ public class UIProfilePanel : MonoBehaviour
             ShowError(MapServerError(fe.Message));
             return false;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             ShowError("Bağlantı hatası.");
             return false;

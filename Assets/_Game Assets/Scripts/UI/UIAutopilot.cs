@@ -11,45 +11,45 @@ using UnityEngine.UI;
 public class UIAutoPilot : MonoBehaviour
 {
     [Header("Root / Panels")]
-    [SerializeField] private GameObject fetchingPanel;                 // fetch sırasında aç
-    [SerializeField] private GameObject eliteBuyPanel;                 // elite değilse açık
+    [SerializeField] private GameObject fetchingPanel = null!;                 // fetch sırasında aç
+    [SerializeField] private GameObject eliteBuyPanel = null!;                 // elite değilse açık
 
     [Header("Progress UI")]
-    [SerializeField] private Slider progressSlider;                    // 0..1
-    [SerializeField] private Image  progressFillImage;                 // Slider/Fill Image
-    [SerializeField] private TextMeshProUGUI progressLabel;            // bar üstü text
-    [SerializeField] private GameObject elitePassProcessBarAnimationObject; // elite çalışırken açık
+    [SerializeField] private Slider progressSlider = null!;                    // 0..1
+    [SerializeField] private Image  progressFillImage = null!;                 // Slider/Fill Image
+    [SerializeField] private TextMeshProUGUI progressLabel = null!;            // bar üstü text
+    [SerializeField] private GameObject elitePassProcessBarAnimationObject = null!; // elite çalışırken açık
 
     [Header("Progress Background")]
-    [SerializeField] private Image currentProgressBackgroundImage;   // arka plan image
-    [SerializeField] private Sprite normalProgressBackgroundSprite;  // normal arka plan sprite
-    [SerializeField] private Sprite eliteProgressBackgroundSprite;   // elite arka plan sprite
+    [SerializeField] private Image currentProgressBackgroundImage = null!;   // arka plan image
+    [SerializeField] private Sprite normalProgressBackgroundSprite = null!;  // normal arka plan sprite
+    [SerializeField] private Sprite eliteProgressBackgroundSprite = null!;   // elite arka plan sprite
 
     [Header("Action Button")]
-    [SerializeField] private Button actionButton;                      // Start / Claim / Disabled
-    [SerializeField] private TextMeshProUGUI actionButtonText;
-    [SerializeField] private Image actionButtonImage;                  // sprite swap için
+    [SerializeField] private Button actionButton = null!;                      // Start / Claim / Disabled
+    [SerializeField] private TextMeshProUGUI actionButtonText = null!;
+    [SerializeField] private Image actionButtonImage = null!;                  // sprite swap için
 
     [Header("Claim UI")]
-    [SerializeField] private TextMeshProUGUI claimAmountText;        // Claim butonu üzerindeki birikmiş miktar
-    [SerializeField] private GameObject claimAmountIcon;             // Claim amount ikonu (UI sprite GO)
+    [SerializeField] private TextMeshProUGUI claimAmountText = null!;        // Claim butonu üzerindeki birikmiş miktar
+    [SerializeField] private GameObject claimAmountIcon = null!;             // Claim amount ikonu (UI sprite GO)
 
     [Header("Main Menu Navigation")]
-    [SerializeField] private UIMainMenu mainMenu;                     // Claim sonrası ana menüye dönmek için
+    [SerializeField] private UIMainMenu mainMenu = null!;                     // Claim sonrası ana menüye dönmek için
 
     [Header("Sprites")]
-    [SerializeField] private Sprite normalProgressFillSprite;          // yeşil
-    [SerializeField] private Sprite eliteProgressFillSprite;           // mor
-    [SerializeField] private Sprite startButtonSprite;
-    [SerializeField] private Sprite claimActiveSprite;
-    [SerializeField] private Sprite claimDisabledSprite;
-    [SerializeField] private Sprite inProgressSprite;                  // “In Progress…” görseli (opsiyonel)
+    [SerializeField] private Sprite normalProgressFillSprite = null!;          // yeşil
+    [SerializeField] private Sprite eliteProgressFillSprite = null!;           // mor
+    [SerializeField] private Sprite startButtonSprite = null!;
+    [SerializeField] private Sprite claimActiveSprite = null!;
+    [SerializeField] private Sprite claimDisabledSprite = null!;
+    [SerializeField] private Sprite inProgressSprite = null!;                  // “In Progress…” görseli (opsiyonel)
 
     [Header("Texts")]
-    [SerializeField] private TextMeshProUGUI processHeaderText;        // renk + text (elite/normal)
-    [SerializeField] private TextMeshProUGUI subheaderText;            // sadece text (elite/normal)
-    [SerializeField] private TextMeshProUGUI ratePerDayText;           // "X GET / day"
-    [SerializeField] private TextMeshProUGUI promoRatePerDayText;      // Pro tanıtımındaki günlük kazanç metni
+    [SerializeField] private TextMeshProUGUI processHeaderText = null!;        // renk + text (elite/normal)
+    [SerializeField] private TextMeshProUGUI subheaderText = null!;            // sadece text (elite/normal)
+    [SerializeField] private TextMeshProUGUI ratePerDayText = null!;           // "X GET / day"
+    [SerializeField] private TextMeshProUGUI promoRatePerDayText = null!;      // Pro tanıtımındaki günlük kazanç metni
 
     [Header("Header Colors")]
     [SerializeField] private Color normalHeaderColor = new Color(0.24f, 0.73f, 0.36f); // yeşil ton
@@ -62,9 +62,9 @@ public class UIAutoPilot : MonoBehaviour
     [SerializeField] private string eliteSubheaderString  = "Claim anytime while working";
 
     // ---- internal state ----
-    private CancellationTokenSource _cts;
-    private Coroutine _countdownCo;
-    private AutopilotService.Status _status;
+    private CancellationTokenSource? _cts;
+    private Coroutine? _countdownCo;
+    private AutopilotService.Status? _status;
     private Mode _mode = Mode.None;
 
     private enum Mode

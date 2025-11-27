@@ -65,7 +65,7 @@ public class UserStatsDisplayer : MonoBehaviour
     /// <summary>
     /// Tek giriş noktası: tüm statları yeniler. Başka yerden çağrı yok.
     /// </summary>
-    public async void RefreshUserStats()
+    public void RefreshUserStats()
     {
         // Açılış: her panel için loading göster
         if (currencyTMP) currencyTMP.text = "…";

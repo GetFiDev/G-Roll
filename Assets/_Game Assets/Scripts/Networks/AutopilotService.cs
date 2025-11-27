@@ -248,7 +248,7 @@ public static class AutopilotService
     // Helpers
     // ----------------------------------------------------
 
-    private static IDictionary<string, object>? ToStringObjectDict(object data)
+    private static IDictionary<string, object>? ToStringObjectDict(object? data)
     {
         if (data == null) return null;
 

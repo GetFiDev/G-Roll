@@ -50,10 +50,12 @@ namespace Sych.ShareAssets.Example
                 items.Add(_url.text);
 
             _logView.LogMessage("Share: requested");
+#pragma warning disable CS0618
             Share.Items(items, success =>
             {
                 _logView.LogMessage($"Share: {(success ? "success" : "failed")}");
             });
+#pragma warning restore CS0618
         }
 
         private string CreateSampleAttachment(string fileName)

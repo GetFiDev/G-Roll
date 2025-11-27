@@ -58,16 +58,9 @@ public class PlayerMovement : MonoBehaviour
     private Coroutine _turnBoostRoutine;
 
     [Header("Teleport Settings")]
-    [SerializeField, Tooltip("Spiralın toplam süresi (s)")] private float teleportSpiralDuration = 0.35f;
     [SerializeField, Tooltip("Spiral başlangıç yarıçapı (m)")] private float teleportSpiralStartRadius = 0.6f;
-    [SerializeField, Tooltip("Spiral tur sayısı")] private int teleportSpiralTurns = 2;
-    [SerializeField, Tooltip("Vortex hissi için yukarı kaldırma (m)")] private float teleportVortexLift = 0.25f;
-    [SerializeField, Tooltip("Spiral sonunda zemine gömülme miktarı (m, pozitif)")] private float teleportSinkDepth = 0.5f;
-    [SerializeField, Tooltip("Merkeze geldikten SONRA ekstra aşağı dalma miktarı (m)")] private float centerExtraSinkDepth = 0.2f;
-    [SerializeField, Tooltip("Merkez sonrası ekstra dalma süresi (s)")] private float centerExtraSinkDuration = 0.08f;
     [SerializeField, Tooltip("Çıkışta yer altından başlama derinliği (m, pozitif)")] private float exitBurrowDepth = 0.5f;
     [SerializeField, Tooltip("Çıkışta uygulanacak sıçrama yüksekliği (m)")] private float exitJumpHeight = 2f;
-    [SerializeField, Tooltip("Çıkış sıçramasının süresi (s)")] private float exitJumpDuration = 0.35f;
 
     // Teleport state
     private bool teleportInProgress = false;
@@ -563,10 +556,6 @@ public class PlayerMovement : MonoBehaviour
         catch (Exception) { /* sessizce geç */ }
     }
 
-    [Header("Lateral (x) Movement")]
-    [SerializeField] private float lateralVelocity = 0f;
-    [SerializeField] private float lateralDampOnStop = 30f; // daha hızlı sönümle
-
     [Header("Wall Hit Feedback")]
     [Tooltip("İlk geri itiş mesafesi (metre).")]
     [SerializeField] private float knockbackDistance = 0.8f; // biraz daha mesafe
@@ -582,7 +571,7 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>Dışarıdan anlık durdurma.</summary>
     public void StopImmediately()
     {
-        lateralVelocity = 0f;
+        // lateralVelocity removed
     }
 
     /// <summary>Duvara çarpma hissi: sadece geriye (XZ) knockback.</summary>

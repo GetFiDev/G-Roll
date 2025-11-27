@@ -48,7 +48,7 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
         // Notify gameplay logic for Power-Up tracking (achievement: Power-Up Explorer)
         if (countsAsPowerUp)
         {
-            var logic = FindObjectOfType<GameplayLogicApplier>();
+            var logic = FindFirstObjectByType<GameplayLogicApplier>();
             if (logic != null)
             {
                 logic.RegisterPowerUpPickup();

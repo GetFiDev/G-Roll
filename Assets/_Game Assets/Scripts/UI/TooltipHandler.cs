@@ -139,7 +139,7 @@ public class TooltipHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHand
             {
                 tmp.font = TMP_Settings.defaultFontAsset;
             }
-            tmp.enableWordWrapping = true;
+            tmp.textWrappingMode = TextWrappingModes.Normal;
             tmp.alignment = TextAlignmentOptions.MidlineGeoAligned;
             tmp.color = textColor;
             tmp.raycastTarget = false;

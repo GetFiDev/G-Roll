@@ -51,7 +51,7 @@ public class UIShopItemDisplay : MonoBehaviour
     [Header("Fetching Overlay")]
     [SerializeField] private GameObject fetchingPanel; // İşlem sırasında butonun üstünü kapatan panel
 
-    [SerializeField] private bool setNativeSizeOnLoad = false;
+
 
     [Header("Background Sprites")]
     [SerializeField] private Sprite bgNormalNotOwned;

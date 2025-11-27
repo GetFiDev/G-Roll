@@ -16,7 +16,7 @@ public class EquippedItemDisplay : MonoBehaviour
     [SerializeField] private Sprite equippedFrame;
 
     [Header("Fallbacks")]
-    [SerializeField] private Sprite placeholderIcon;
+
 
     [Header("Animation")]
     [SerializeField] private AnimationCurve turnScaleCurve = null; // Inspector'dan ayarlanabilir
@@ -48,7 +48,7 @@ public class EquippedItemDisplay : MonoBehaviour
     private Coroutine _turnRoutine;
     private enum FaceState { Front, RotatingToBack, Back, RotatingToFront }
     private FaceState _state = FaceState.Front;
-    private bool _isAnimating = false;
+
     private float _lastActionTime = -999f;
     [SerializeField] private float clickThrottleSec = 0.08f;
     private Quaternion _baseRotation;
@@ -216,7 +216,7 @@ public class EquippedItemDisplay : MonoBehaviour
         if (turnScaleCurve == null)
             turnScaleCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
-        _isAnimating = true;
+
         _state = frontToBack ? FaceState.RotatingToBack : FaceState.RotatingToFront;
 
         Transform target = transform;
@@ -270,7 +270,7 @@ public class EquippedItemDisplay : MonoBehaviour
             }
         }
 
-        _isAnimating = false;
+
         _turnRoutine = null;
     }
     private void Awake()

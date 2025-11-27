@@ -32,8 +32,7 @@ public class OrbitCamera : MonoBehaviour
         {
             Vector2 d = mouse.delta.ReadValue();
             // Convert screen delta to world-space at current distance using vertical FOV
-            float pixelsPerUnit = 1f;
-            float scale = 1f;
+
             if (_cam != null)
             {
                 float vfovRad = _cam.fieldOfView * Mathf.Deg2Rad;

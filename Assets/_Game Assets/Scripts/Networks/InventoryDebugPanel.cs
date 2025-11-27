@@ -24,7 +24,7 @@ public class InventoryDebugPanel : MonoBehaviour
     [ContextMenu("Log Inventory (Owned/Equipped/Qty)")]
     public void LogInventory()
     {
-        var invMgr = FindObjectOfType<UserInventoryManager>();
+        var invMgr = FindFirstObjectByType<UserInventoryManager>();
         if (invMgr == null)
         {
             Debug.LogWarning("[InventoryDebug] UserInventoryManager bulunamadı.");
@@ -40,7 +40,7 @@ public class InventoryDebugPanel : MonoBehaviour
     [ContextMenu("Refresh From Server, Then Log")]
     public async void RefreshThenLog()
     {
-        var invMgr = FindObjectOfType<UserInventoryManager>();
+        var invMgr = FindFirstObjectByType<UserInventoryManager>();
         if (invMgr == null)
         {
             Debug.LogWarning("[InventoryDebug] UserInventoryManager bulunamadı.");
