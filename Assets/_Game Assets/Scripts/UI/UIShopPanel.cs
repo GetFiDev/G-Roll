@@ -27,12 +27,25 @@ public class UIShopPanel : MonoBehaviour
 
     private Coroutine slideRoutine;
 
-    private void Start()
+    private void OnEnable()
     {
-        // Orijinal akış: My Items sekmesini aktif et
-        OnMyItemsButtonClicked();
-        // Opsiyonel: Scroll konumunu da ilk panele (My Items) hizala
-        if (scrollRect != null) JumpTo(0);
+        // Her açılışta Core sekmesi (Index 2) ile başla
+        // Buton mantığını manuel işletiyoruz ama Slide yerine Jump yapıyoruz
+        
+        CloseAll();
+
+        // Core Tab Visuals
+        coreActive.SetActive(true);
+        coreInactive.SetActive(false);
+
+        // Panel Visibility
+        ApplyPanelVisibility(2);
+
+        // Scroll Position (Instant)
+        // SlideTo çağırırsak animasyon başlar, biz direkt oraya ışınlanmak istiyoruz.
+        // Ayrıca varsa eski slide coroutine'i durduralım.
+        if (slideRoutine != null) StopCoroutine(slideRoutine);
+        JumpTo(2);
     }
 
     public void OnReferralButtonClicked()

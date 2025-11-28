@@ -26,39 +26,65 @@ public class UIMainMenu : MonoBehaviour
         Home, Settings, Shop, Referral, Customization, Ranking, Task, Profile, ElitePass, AutoPilot
     }
 
-    private Dictionary<PanelType, GameObject> panels;
+    private Dictionary<PanelType, UIFadePanel> panels;
 
     private void Awake()
     {
-        panels = new Dictionary<PanelType, GameObject>
+        // Helper to get or add UIFadePanel
+        UIFadePanel GetOrAdd(GameObject go)
         {
-            { PanelType.Home, homePanel.gameObject },
-            { PanelType.Settings, settingsPanel.gameObject },
-            { PanelType.Shop, shopPanel.gameObject },
-            { PanelType.Referral, referralPanel.gameObject },
-            { PanelType.Ranking, rankingPanel.gameObject },
-            { PanelType.Task, TaskPanel.gameObject },
-            { PanelType.Profile, profilePanel.gameObject },
-            { PanelType.ElitePass, elitePassPanel.gameObject },
-            { PanelType.AutoPilot, autoPilotpanel.gameObject }
+            if (go == null) return null;
+            var fade = go.GetComponent<UIFadePanel>();
+            if (fade == null) fade = go.AddComponent<UIFadePanel>();
+            return fade;
+        }
 
+        panels = new Dictionary<PanelType, UIFadePanel>
+        {
+            { PanelType.Home, GetOrAdd(homePanel.gameObject) },
+            { PanelType.Settings, GetOrAdd(settingsPanel.gameObject) },
+            { PanelType.Shop, GetOrAdd(shopPanel.gameObject) },
+            { PanelType.Referral, GetOrAdd(referralPanel.gameObject) },
+            { PanelType.Ranking, GetOrAdd(rankingPanel.gameObject) },
+            { PanelType.Task, GetOrAdd(TaskPanel.gameObject) },
+            { PanelType.Profile, GetOrAdd(profilePanel.gameObject) },
+            { PanelType.ElitePass, GetOrAdd(elitePassPanel.gameObject) },
+            { PanelType.AutoPilot, GetOrAdd(autoPilotpanel.gameObject) }
         };
     }
 
     public void ShowPanel(PanelType type)
     {
-        foreach (var panel in panels.Values)
-            panel.SetActive(false);
-
-        panels[type].SetActive(true);
+        foreach (var kvp in panels)
+        {
+            if (kvp.Key == type)
+                kvp.Value.Show();
+            else
+                kvp.Value.Hide();
+        }
     }
+
     public void TogglePanel(PanelType type)
     {
-        if (panels[type].activeSelf) {
-            panels[type].SetActive(false);
+        // Toggle logic: if active, hide. If inactive, show (and hide others? usually yes for main panels)
+        // Assuming Toggle is for overlays like Settings/ElitePass on top of others?
+        // Or is it switching main views? 
+        // Based on usage (OnElitePassButtonClick), it seems to be an overlay or modal.
+        // Let's check if it's currently visible.
+        
+        // Note: We can't easily check 'isVisible' from outside without casting, 
+        // but we can check gameObject.activeSelf as a proxy if UIFadePanel manages it correctly.
+        
+        var panel = panels[type];
+        if (panel.gameObject.activeSelf) 
+        {
+            panel.Hide();
         }
-        else {
-            panels[type].SetActive(true);
+        else 
+        {
+            panel.Show();
+            // Optional: Hide others if this is a main panel switch? 
+            // For now, keep original behavior (just toggle this one).
         };
     }
 

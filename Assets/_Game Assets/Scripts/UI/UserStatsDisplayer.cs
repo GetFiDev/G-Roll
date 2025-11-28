@@ -95,11 +95,19 @@ public class UserStatsDisplayer : MonoBehaviour
     {
         try
         {
-            var data = await userDB.LoadUserData();
+            // Parallel fetch: UserData (Currency) & StreakService (Streak)
+            var userDataTask = userDB.LoadUserData();
+            var streakTask = StreakService.FetchAsync();
+
+            await Task.WhenAll(userDataTask, streakTask);
+
+            var data = userDataTask.Result;
+            var streakSnap = streakTask.Result;
+
+            // 1. Handle Currency (from UserData)
             if (data == null)
             {
                 if (currencyTMP) currencyTMP.text = "-";
-                if (streakTMP)   streakTMP.text   = "-";
             }
             else
             {
@@ -133,8 +141,20 @@ public class UserStatsDisplayer : MonoBehaviour
                         currencyTMP.rectTransform.localScale = Vector3.one;
                     }
                 }
+            }
 
-                if (streakTMP)   streakTMP.text   = data.streak.ToString();
+            // 2. Handle Streak (from StreakService)
+            if (streakSnap.ok)
+            {
+                if (streakTMP) streakTMP.text = streakSnap.totalDays.ToString();
+            }
+            else
+            {
+                // Fallback to UserData if StreakService fails, or show error
+                if (data != null && streakTMP) 
+                    streakTMP.text = data.streak.ToString();
+                else if (streakTMP)
+                    streakTMP.text = "-";
             }
         }
         catch (Exception e)

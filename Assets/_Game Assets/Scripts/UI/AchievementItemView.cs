@@ -77,6 +77,20 @@ public class AchievementItemView : MonoBehaviour
         iconImage.color = c;
 
         var sp = await AchievementIconCache.LoadSpriteAsync(def.iconUrl);
+        
+        // Fix: Check if object is still active before starting coroutine
+        if (!gameObject.activeInHierarchy)
+        {
+            if (sp) 
+            {
+                iconImage.sprite = sp;
+                var cFinal = iconImage.color;
+                cFinal.a = 1f;
+                iconImage.color = cFinal;
+            }
+            return;
+        }
+
         if (sp) iconImage.sprite = sp;
 
         if (_iconFadeRoutine != null)

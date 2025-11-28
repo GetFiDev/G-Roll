@@ -41,7 +41,7 @@ public class UILoginPanel : MonoBehaviour
     public void CloseManualLoginPanel()
     {
         canvasGroup.DOKill();
-        canvasGroup.DOFade(0, 0.25f).SetDelay(.75f).SetEase(Ease.OutCubic)
+        canvasGroup.DOFade(0, 0.25f).SetEase(Ease.OutCubic)
             .OnComplete(() => gameObject.SetActive(false));
     }
 

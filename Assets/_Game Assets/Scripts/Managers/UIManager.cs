@@ -35,28 +35,39 @@ public class UIManager : MonoSingleton<UIManager>
 
     private void OnPhaseChanged(GamePhase phase)
     {
+        // Helper to fade
+        void Fade(Component comp, bool show)
+        {
+            if (comp == null) return;
+            var fp = comp.GetComponent<UIFadePanel>();
+            if (fp == null) fp = comp.gameObject.AddComponent<UIFadePanel>();
+            
+            if (show) fp.Show();
+            else fp.Hide();
+        }
+
         switch (phase)
         {
             case GamePhase.Boot:
-                if (mainMenu)        mainMenu.gameObject.SetActive(false);
-                if (gamePlay)        gamePlay.gameObject.SetActive(false);
-                if (levelEnd) levelEnd.gameObject.SetActive(false);
-                if (overlay) overlay.gameObject.SetActive(false);
-                if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
+                Fade(mainMenu, false);
+                Fade(gamePlay, false);
+                Fade(levelEnd, false);
+                Fade(overlay, false);
+                Fade(gameplayLoading, false);
                 break;
             case GamePhase.Meta:
-                if (mainMenu)        mainMenu.gameObject.SetActive(true);
-                if (gamePlay)        gamePlay.gameObject.SetActive(false);
-                if (levelEnd) levelEnd.gameObject.SetActive(false);
-                if (overlay) overlay.gameObject.SetActive(true);
-                if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
+                Fade(mainMenu, true);
+                Fade(gamePlay, false);
+                Fade(levelEnd, false);
+                Fade(overlay, true);
+                Fade(gameplayLoading, false);
                 break;
             case GamePhase.Gameplay:
-                if (mainMenu)        mainMenu.gameObject.SetActive(false);
-                if (gamePlay)        gamePlay.gameObject.SetActive(true);
-                if (levelEnd) levelEnd.gameObject.SetActive(false);
-                if (overlay) overlay.gameObject.SetActive(false);
-                if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
+                Fade(mainMenu, false);
+                Fade(gamePlay, true);
+                Fade(levelEnd, false);
+                Fade(overlay, false);
+                Fade(gameplayLoading, false);
                 break;
             default:
                 break;
@@ -65,19 +76,34 @@ public class UIManager : MonoSingleton<UIManager>
 
     public void ShowGameplayLoading()
     {
-        if (mainMenu)        mainMenu.gameObject.SetActive(false);
-        if (gamePlay)        gamePlay.gameObject.SetActive(true);   // HUD açık kalsın; overlay üstüne çıkar
-        if (levelEnd)        levelEnd.gameObject.SetActive(false);
-        if (gameplayLoading) gameplayLoading.gameObject.SetActive(true);
-        // UI tarafı yüklemeyi başlatmaz; GameplayManager mapLoader.Load() çağırır
+        void Fade(Component comp, bool show)
+        {
+            if (comp == null) return;
+            var fp = comp.GetComponent<UIFadePanel>();
+            if (fp == null) fp = comp.gameObject.AddComponent<UIFadePanel>();
+            if (show) fp.Show(); else fp.Hide();
+        }
+
+        Fade(mainMenu, false);
+        Fade(gamePlay, true); // HUD stays visible? Original code said yes.
+        Fade(levelEnd, false);
+        Fade(gameplayLoading, true);
     }
 
     public void ShowLevelEnd(bool success)
     {
-        if (mainMenu)        mainMenu.gameObject.SetActive(false);
-        if (gamePlay)        gamePlay.gameObject.SetActive(false);
-        if (levelEnd)        levelEnd.gameObject.SetActive(true);
-        if (gameplayLoading) gameplayLoading.gameObject.SetActive(false);
+        void Fade(Component comp, bool show)
+        {
+            if (comp == null) return;
+            var fp = comp.GetComponent<UIFadePanel>();
+            if (fp == null) fp = comp.gameObject.AddComponent<UIFadePanel>();
+            if (show) fp.Show(); else fp.Hide();
+        }
+
+        Fade(mainMenu, false);
+        Fade(gamePlay, false);
+        Fade(levelEnd, true);
+        Fade(gameplayLoading, false);
 
         if (levelEnd)
             levelEnd.ShowSequence(success);
