@@ -34,14 +34,34 @@ public class PlayerMagnet : MonoBehaviour
     /// - Üzerine magnet bonus yüzdesi (magnetPct) çarpan olarak eklenir.
     /// - Negatif bonus görselin altına düşüremez (min = sadece görsel).
     /// </summary>
+    private float _currentMagnetPct = 0f;
+    private float _boosterMultiplier = 1f;
+
+    /// <summary>
+    /// Magnet yarıçapını belirler:
+    /// - Üzerine magnet bonus yüzdesi (magnetPct) çarpan olarak eklenir.
+    /// - Negatif bonus görselin altına düşüremez (min = sadece görsel).
+    /// </summary>
     public void ApplySizeAndMagnet(int magnetPct)
+    {
+        _currentMagnetPct = magnetPct;
+        UpdateRadius();
+    }
+
+    public void SetBoosterMultiplier(float multiplier)
+    {
+        _boosterMultiplier = multiplier;
+        UpdateRadius();
+    }
+
+    private void UpdateRadius()
     {
         if (magnetTrigger == null) return;
 
-        float magnetK = 1f + (magnetPct / 100f);         // ek magnet faktörü
+        float magnetK = 1f + (_currentMagnetPct / 100f);         // ek magnet faktörü
         if (magnetK < 1f) magnetK = 1f;                  // negatif bonus görselin altına düşmesin
 
-        magnetTrigger.radius = baseRadius * magnetK;
+        magnetTrigger.radius = baseRadius * magnetK * _boosterMultiplier;
     }
 
     private void FixedUpdate()

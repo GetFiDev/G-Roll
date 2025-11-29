@@ -39,6 +39,13 @@ public class UIHomePanel : MonoBehaviour
         {
             var status = await AutopilotService.GetStatusAsync();
 
+            // Safety check: if no activation date, force off
+            if (status.autopilotActivationDateMillis == null || status.autopilotActivationDateMillis <= 0)
+            {
+                status.isAutopilotOn = false;
+                status.timeToCapSeconds = null;
+            }
+
             double perHour = status.isElite ? status.eliteUserEarningPerHour : status.normalUserEarningPerHour;
             double maxHours = status.normalUserMaxAutopilotDurationInHours;
             double capSeconds = maxHours * 3600.0;
@@ -50,6 +57,11 @@ public class UIHomePanel : MonoBehaviour
             {
                 // Elite = Always full bar
                 progress01 = 1f;
+            }
+            else if (!status.isAutopilotOn)
+            {
+                // Not started
+                progress01 = 0f;
             }
             else
             {
@@ -76,6 +88,10 @@ public class UIHomePanel : MonoBehaviour
                 if (status.isElite)
                 {
                     autopilotTimerText.text = "Working...";
+                }
+                else if (!status.isAutopilotOn)
+                {
+                    autopilotTimerText.text = "Waiting to start";
                 }
                 else if (status.isClaimReady || !status.timeToCapSeconds.HasValue || _capSecondsCache <= 0.0)
                 {

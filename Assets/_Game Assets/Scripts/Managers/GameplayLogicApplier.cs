@@ -23,8 +23,12 @@ public class GameplayLogicApplier : MonoBehaviour
     [SerializeField] private float boosterFillMin = 0f;
     [SerializeField] private float boosterFillMax = 100f;
     [SerializeField] private float boosterDurationSeconds = 5f;
+    [SerializeField] private float boosterSpeedMultiplier = 1.35f;
+    [SerializeField] private float boosterMagnetMultiplier = 50f;
 
-    // --- New Concept: Percent-based speed multipliers ---
+    // ... (existing code) ...
+
+
     [Header("Speed Multipliers (percent-based)")]
     [SerializeField, Tooltip("Gameplay(camera) speed multiplier. 1 = 100% (default).")]
     private float gameplaySpeedMultiplier = 1f;
@@ -445,6 +449,8 @@ public class GameplayLogicApplier : MonoBehaviour
         OnBoosterChanged?.Invoke(BoosterFill, boosterFillMin, boosterFillMax);
     }
 
+
+
     private void SetBoosterActive(bool active)
     {
         BoosterActive = active;
@@ -454,6 +460,24 @@ public class GameplayLogicApplier : MonoBehaviour
         {
             player.isBoosterEnabled = active;
             if (active) player.OnBoosterStart(); else player.OnBoosterEnd();
+            
+            // Apply Magnet Boost
+            var magnet = player.GetComponentInChildren<PlayerMagnet>();
+            if (magnet != null)
+            {
+                magnet.SetBoosterMultiplier(active ? boosterMagnetMultiplier : 1f);
+            }
+        }
+
+        if (active)
+        {
+            // Apply boost (additive percentage: 1.35x means +35%)
+            ApplyPlayerSpeedPercent(boosterSpeedMultiplier - 1f);
+        }
+        else
+        {
+            // Revert to normal (100%)
+            SetPlayerSpeedMultiplier(1f);
         }
     }
 

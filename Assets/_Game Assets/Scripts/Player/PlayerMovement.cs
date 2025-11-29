@@ -61,9 +61,17 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField, Tooltip("Spiral başlangıç yarıçapı (m)")] private float teleportSpiralStartRadius = 0.6f;
     [SerializeField, Tooltip("Çıkışta yer altından başlama derinliği (m, pozitif)")] private float exitBurrowDepth = 0.5f;
     [SerializeField, Tooltip("Çıkışta uygulanacak sıçrama yüksekliği (m)")] private float exitJumpHeight = 2f;
+    
+    [Header("Wall Hit Feedback")]
+    [SerializeField, Tooltip("Duvara çarpınca geri zıplama mesafesi")] private float bounceDistance = 1.5f;
+    [SerializeField, Tooltip("Bounce sırasında hava yüksekliği")] private float bounceHeight = 0.8f;
+    [SerializeField, Tooltip("Bounce animasyon süresi")] private float bounceDuration = 0.35f;
+    [SerializeField, Tooltip("Duvara çarpınca squash scale")] private Vector3 wallSquashScale = new Vector3(0.7f, 1.3f, 0.7f);
+    [SerializeField, Tooltip("Wall hit particle prefab")] private ParticleSystem wallHitParticlePrefab;
 
     // Teleport state
     private bool teleportInProgress = false;
+    private SwipeDirection? _queuedPortalExitDirection = null; // Portal içindeyken gelen direction queue
     private Vector3 _preservedEntryForward = Vector3.forward;
     private Vector3 _savedMoveDir = Vector3.zero;
 
@@ -155,6 +163,21 @@ public class PlayerMovement : MonoBehaviour
     }
 
 
+    private void Start()
+    {
+        // UI Speed Element'e kendini tanıt (Inactive olsa bile bul)
+        var speedElement = FindFirstObjectByType<UISpeedElement>(FindObjectsInactive.Include);
+        if (speedElement != null)
+        {
+            Debug.Log("[PlayerMovement] Found UISpeedElement, registering...");
+            speedElement.RegisterPlayer(this);
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerMovement] Could not find UISpeedElement!");
+        }
+    }
+
     private void Update()
     {
         // Teleport sırasında normal hareket/rotasyon akışını durdur
@@ -190,11 +213,11 @@ public class PlayerMovement : MonoBehaviour
     private void RotateTowardsMovement()
     {
         if (_isFrozen) return;
-        // Hareket yoksa dönme yapma
+        
+        // The ball always faces where it's moving (cardinal direction)
         if (_movementDirection.sqrMagnitude < 0.0001f)
             return;
 
-        // Sadece Y ekseninde hedef yönü hesapla
         Vector3 fwd = new Vector3(_movementDirection.x, 0f, _movementDirection.z);
         if (fwd.sqrMagnitude < 0.0001f) return;
 
@@ -213,16 +236,78 @@ public class PlayerMovement : MonoBehaviour
         EnsureFirstMoveNotified();
         if (!IsAlive() || _isFrozen) return;
         if (dir.sqrMagnitude < 0.0001f) return;
-        _movementDirection = new Vector3(dir.x, 0f, dir.z).normalized;
+        
+        // Enforce cardinal-only movement
+        _movementDirection = SnapToCardinal(dir);
         StartTurnBoost();
     }
+
+    private float _lastSwipeTime;
+    private SwipeDirection _lastSwipeDirection = SwipeDirection.Up;
 
     private void ChangeDirection(SwipeDirection swipeDirection)
     {
         EnsureFirstMoveNotified();
-        if (!IsAlive() || _isFrozen) return;
-        _movementDirection = SwipeToWorld(swipeDirection);
+        if (!IsAlive()) return;
+        
+        // Portal içindeyse direction'ı queue'ya al ve return
+        if (teleportInProgress)
+        {
+            _queuedPortalExitDirection = swipeDirection;
+            Debug.Log($"[PlayerMovement] Queued portal exit direction: {swipeDirection}");
+            return;
+        }
+        
+        if (_isFrozen) return;
+
+        // Filter accidental "Up" swipes after side swipes
+        if (swipeDirection == SwipeDirection.Up && 
+           (_lastSwipeDirection == SwipeDirection.Left || _lastSwipeDirection == SwipeDirection.Right))
+        {
+            if (Time.time - _lastSwipeTime < 0.35f)
+            {
+                Debug.Log($"[PlayerMovement] Ignored rapid UP swipe (dt={Time.time - _lastSwipeTime:F3}s) after SIDE swipe.");
+                return;
+            }
+        }
+
+        _lastSwipeTime = Time.time;
+        _lastSwipeDirection = swipeDirection;
+
+        // Pure cardinal direction - no diagonal movement ever
+        Vector3 targetDir = SwipeToWorld(swipeDirection);
+        
+        // ARCHITECTURAL ENFORCEMENT: Only cardinal directions allowed
+        _movementDirection = SnapToCardinal(targetDir);
+        
+        Debug.Log($"[PlayerMovement] ChangeDirection: Swipe={swipeDirection}, Direction set to {_movementDirection} (Cardinal-only)");
+        
         StartTurnBoost();
+    }
+
+    /// <summary>
+    /// Snaps any vector to the nearest cardinal direction.
+    /// This is architectural enforcement - the character can ONLY move in 4 directions.
+    /// </summary>
+    private Vector3 SnapToCardinal(Vector3 dir)
+    {
+        if (dir.sqrMagnitude < 0.0001f)
+            return Vector3.zero;
+
+        // Normalize for comparison
+        Vector3 normalized = dir.normalized;
+        
+        // Choose dominant axis
+        if (Mathf.Abs(normalized.x) > Mathf.Abs(normalized.z))
+        {
+            // Left or Right
+            return new Vector3(Mathf.Sign(normalized.x), 0, 0);
+        }
+        else
+        {
+            // Forward or Back
+            return new Vector3(0, 0, Mathf.Sign(normalized.z));
+        }
     }
 
     private void StartTurnBoost()
@@ -239,6 +324,7 @@ public class PlayerMovement : MonoBehaviour
 
         while (true)
         {
+            // Align with movement direction
             Vector3 fwd = new Vector3(_movementDirection.x, 0f, _movementDirection.z);
             if (fwd.sqrMagnitude < 0.0001f) break;
 
@@ -355,16 +441,60 @@ public class PlayerMovement : MonoBehaviour
             transform.rotation = Quaternion.LookRotation(fwdFlat, Vector3.up);
         });
 
-        // Exit jump (preserved forward yönüne 1m)
+        // Exit spiral rise (giriş spiral'inin tersi - collision-safe)
         Vector3 preservedFlat = Vector3.ProjectOnPlane(_preservedEntryForward, Vector3.up).normalized;
         if (preservedFlat.sqrMagnitude < 1e-4f) preservedFlat = transform.forward;
-        Vector3 jumpEnd = exitTransform.position + preservedFlat; // 1m ileri
         float outDuration = 0.5f;
-        seq.Append(transform.DOJump(jumpEnd, exitJumpHeight, 1, outDuration)
-                            .SetEase(Ease.OutQuad)
+        
+        // Spiral çıkış path'i - PORTAL MERKEZİNDE, ileri hareket yok
+        Vector3 exitUp = Vector3.up;
+        int spiralSteps = Mathf.Clamp(Mathf.CeilToInt(turns * 18f), 12, 128);
+        
+        // Radyal başlangıç (preserved forward'a dik)
+        Vector3 exitRadial = Vector3.Cross(preservedFlat, exitUp).normalized;
+        if (exitRadial.sqrMagnitude < 1e-4f) exitRadial = Vector3.right;
+        
+        var exitPoints = new Vector3[spiralSteps];
+        for (int i = 0; i < spiralSteps; i++)
+        {
+            float t = (i + 1) / (float)spiralSteps;  // 0..1
+            float eased = Mathf.Pow(t, 3f); // easeInCubic (ters yönde)
+            
+            // Spiral radius: küçükten büyüğe (içten dışa açılır)
+            float radius = Mathf.Lerp(0f, startRadius, eased);
+            float angle = eased * turns * Mathf.PI * 2f;
+            
+            Vector3 offset = Quaternion.AngleAxis(Mathf.Rad2Deg * angle, exitUp) * exitRadial * radius;
+            
+            // Yer altından (-exitBurrowDepth) yüzeye (0) yüksel - PORTAL MERKEZİNDE
+            float heightProgress = t; // linear yükseliş
+            Vector3 pos = exitTransform.position 
+                + offset 
+                + exitUp * Mathf.Lerp(-Mathf.Abs(exitBurrowDepth), 0f, heightProgress);
+                // İleri hareket KALDIRILDI - portal merkezinde çıkar
+                
+            exitPoints[i] = pos;
+        }
+        
+        seq.Append(transform.DOPath(exitPoints, outDuration, PathType.CatmullRom, PathMode.Full3D, 10, Color.white)
+                            .SetEase(Ease.InOutQuad)
+                            .OnUpdate(() =>
+                            {
+                                // Queued direction varsa ona bak, yoksa preserved forward
+                                Vector3 lookDir = _queuedPortalExitDirection.HasValue 
+                                    ? SwipeToWorld(_queuedPortalExitDirection.Value) 
+                                    : preservedFlat;
+                                
+                                if (lookDir.sqrMagnitude > 1e-4f)
+                                {
+                                    Quaternion look = Quaternion.LookRotation(lookDir, Vector3.up);
+                                    transform.rotation = Quaternion.Slerp(transform.rotation, look, 0.15f);
+                                }
+                            })
                             .SetUpdate(UpdateType.Normal, false)
                             .SetLink(gameObject));
-        // Çıkış sırasında normal zıplamadaki gibi büyüyüp küçülme efekti
+        
+        // Çıkış sırasında görsel scale efekti
         Transform scaleTarget = visualRoot != null ? visualRoot : transform;
         var scaleSeq = DOTween.Sequence()
             .Append(scaleTarget.DOScale(Vector3.one * Mathf.Max(0.01f, jumpArcScalePeak), outDuration * 0.5f).SetEase(jumpArcEaseUp))
@@ -382,9 +512,19 @@ public class PlayerMovement : MonoBehaviour
         // Tamamlanmasını bekle
         yield return _teleportSeq.WaitForCompletion();
 
-        // ---- UNFREEZE: hareketi geri aç ve yönü preserved forward yap ----
+        // ---- UNFREEZE: hareketi geri aç ----
         Speed = prevSpeed;
-        _movementDirection = preservedFlat;
+        
+        // Queued direction varsa onu kullan, yoksa preserved forward
+        Vector3 exitDirection = preservedFlat;
+        if (_queuedPortalExitDirection.HasValue)
+        {
+            exitDirection = SnapToCardinal(SwipeToWorld(_queuedPortalExitDirection.Value));
+            Debug.Log($"[PlayerMovement] Using queued exit direction: {_queuedPortalExitDirection.Value} -> {exitDirection}");
+            _queuedPortalExitDirection = null; // Clear queue
+        }
+        
+        _movementDirection = exitDirection;
 
         if (disableAnimatorRootMotionOnFreeze && _cachedAnimator != null)
             _cachedAnimator.applyRootMotion = _cachedAnimatorRootMotion;
@@ -575,10 +715,15 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>Duvara çarpma hissi: sadece geriye (XZ) knockback.</summary>
-    public void WallHitFeedback(Vector3 hitNormal)
+    public void WallHitFeedback(Vector3 hitPoint, Vector3 hitNormal)
     {
-        _frozenRotation = transform.rotation; // freeze boyunca baş yönü
-        // Oyunu bitiriyoruz: yön ve hız sıfırlansın, ileri hareket tamamen dursun
+        _frozenRotation = transform.rotation;
+        
+        // Hareket yönünü sakla (bounce direction için)
+        Vector3 moveDir = _movementDirection.normalized;
+        if (moveDir.sqrMagnitude < 0.01f) moveDir = -transform.forward;
+        
+        // Oyunu bitir
         _movementDirection = Vector3.zero;
         Speed = 0f;
         _playerController?.HitTheWall();
@@ -591,43 +736,57 @@ public class PlayerMovement : MonoBehaviour
             _cachedAnimator.applyRootMotion = false;
         }
 
-        _isFrozen = true; // input ve auto-rotation kilit
+        _isFrozen = true;
         if (_turnBoostRoutine != null) { StopCoroutine(_turnBoostRoutine); _turnBoostRoutine = null; }
         if (_wallHitCo != null) StopCoroutine(_wallHitCo);
-        _wallHitCo = StartCoroutine(WallHitSequenceSimple(hitNormal));
+        _wallHitCo = StartCoroutine(WallHitBounceSequence(hitPoint, hitNormal, moveDir));
     }
 
-    private IEnumerator WallHitSequenceSimple(Vector3 normal)
+    private IEnumerator WallHitBounceSequence(Vector3 contactPoint, Vector3 hitNormal, Vector3 movementDirection)
     {
-        // Güvenli XZ geri yön
-        Vector3 n = normal.sqrMagnitude > 1e-6f ? normal : -transform.forward;
-        Vector3 back = new Vector3(n.x, 0f, n.z);
-        if (back.sqrMagnitude < 1e-6f)
-            back = new Vector3(-transform.forward.x, 0f, -transform.forward.z);
-        back = back.normalized;
-
-        // Hemen azıcık ayır (XZ)
-        if (immediateSeparation > 0f)
+        // 1) Bounce direction hesapla - hareket yönünü hit normal'e göre yansıt
+        Vector3 bounceDir = Vector3.Reflect(-movementDirection, hitNormal);
+        bounceDir = new Vector3(bounceDir.x, 0, bounceDir.z).normalized;
+        
+        Debug.Log($"[WallHit] MoveDir={movementDirection}, HitNormal={hitNormal}, BounceDir={bounceDir}");
+        
+        // 2) Particle FX spawn et
+        if (wallHitParticlePrefab != null)
         {
-            Vector3 p = transform.position + back * immediateSeparation;
-            transform.position = new Vector3(p.x, transform.position.y, p.z);
+            try
+            {
+                var fx = Instantiate(wallHitParticlePrefab, contactPoint, Quaternion.LookRotation(hitNormal));
+                fx.Play();
+                Destroy(fx.gameObject, 2f);
+            }
+            catch (Exception) { /* sessizce geç */ }
         }
-
-        // Var olan tweeni durdur
+        
+        // 3) Kill active tweens
         if (_knockbackTween != null && _knockbackTween.IsActive()) _knockbackTween.Kill(false);
-
-        // Tek adımlık geri itiş (Y sabit)
-        Vector3 start = transform.position;
-        Vector3 end = start + back * knockbackDistance;
-        _knockbackTween = transform
-            .DOMove(new Vector3(end.x, start.y, end.z), knockbackDuration)
-            .SetEase(Ease.OutQuad)
-            .SetUpdate(UpdateType.Fixed)
-            .SetLink(gameObject);
-
-        yield return _knockbackTween.WaitForCompletion();
-
-        // Oyun bitti durumunda donuk kalsın; coroutine biter ama freeze korunur
+        
+        // 4) Bounce sequence: Squash → Bounce → Unsquash
+        Transform scaleTarget = visualRoot != null ? visualRoot : transform;
+        var seq = DOTween.Sequence();
+        
+        // Squash (ezilme)
+        seq.Append(scaleTarget.DOScale(wallSquashScale, 0.08f).SetEase(Ease.InQuad));
+        
+        // Bounce back with jump
+        Vector3 bounceEnd = transform.position + bounceDir * bounceDistance;
+        bounceEnd.y = transform.position.y; // Y seviyesini koru
+        
+        seq.Append(transform.DOJump(bounceEnd, bounceHeight, 1, bounceDuration)
+            .SetEase(Ease.OutQuad));
+        
+        // Unsquash (normale dön)
+        seq.Join(scaleTarget.DOScale(Vector3.one, bounceDuration).SetEase(Ease.OutBack));
+        
+        _knockbackTween = seq;
+        seq.SetLink(gameObject);
+        
+        yield return seq.WaitForCompletion();
+        
         _wallHitCo = null;
     }
 

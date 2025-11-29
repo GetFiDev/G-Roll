@@ -10,6 +10,7 @@ public class EquippedItemDisplay : MonoBehaviour
     [SerializeField] private TMP_Text nameLabel;
     [SerializeField] private Image iconImage;
     [SerializeField] private Image frameImage; // Button'ın arka plan/frame Image'ı (Button component'ındaki Image olabilir)
+    [SerializeField] private Button unequipButton; // Unequip butonu (Inspector'dan bağlayın)
 
     [Header("Frame Sprites")]
     [SerializeField] private Sprite emptyFrame;
@@ -278,6 +279,12 @@ public class EquippedItemDisplay : MonoBehaviour
         if (HasFaces()) SetFaceVisibility(true);
         _baseRotation = transform.localRotation;
         _baseScale    = transform.localScale;
+        
+        // Unequip button listener
+        if (unequipButton != null)
+        {
+            unequipButton.onClick.AddListener(OnUnequipClicked);
+        }
     }
 
     private void OnEnable()
@@ -433,16 +440,51 @@ public class EquippedItemDisplay : MonoBehaviour
         }
     }
 
-    private void RefreshStatChipsFromItemId(string itemId)
+    public async void RefreshStatChipsFromItemId(string itemId)
     {
-        if (string.IsNullOrEmpty(itemId))
+        var data = ItemDatabaseManager.GetItemData(itemId);
+        if (data == null) return;
+        await System.Threading.Tasks.Task.Yield();
+        if (this == null) return;
+        ClearStatChips();
+        BuildStatChips(data);
+    }
+    
+    /// <summary>
+    /// Unequip button onClick handler
+    /// </summary>
+    private async void OnUnequipClicked()
+    {
+        if (string.IsNullOrEmpty(_itemId))
         {
-            ClearStatChips();
+            Debug.LogWarning("[EquippedItemDisplay] No item to unequip.");
             return;
         }
-
-        var data = ItemDatabaseManager.GetItemData(itemId);
-        ClearStatChips();
-        if (data != null) BuildStatChips(data);
+        
+        // Disable button to prevent double-click
+        if (unequipButton != null) unequipButton.interactable = false;
+        
+        Debug.Log($"[EquippedItemDisplay] Unequipping {_itemId}...");
+        
+        var manager = UserInventoryManager.Instance;
+        if (manager == null)
+        {
+            Debug.LogError("[EquippedItemDisplay] UserInventoryManager not found!");
+            if (unequipButton != null) unequipButton.interactable = true;
+            return;
+        }
+        
+        bool success = await manager.UnequipAsync(_itemId);
+        
+        if (success)
+        {
+            Debug.Log($"[EquippedItemDisplay] Successfully unequipped {_itemId}");
+            // Bind will be refreshed by parent (e.g., UIHomePanel) via OnInventoryChanged event
+        }
+        else
+        {
+            Debug.LogWarning($"[EquippedItemDisplay] Failed to unequip {_itemId}");
+            if (unequipButton != null) unequipButton.interactable = true;
+        }
     }
 }

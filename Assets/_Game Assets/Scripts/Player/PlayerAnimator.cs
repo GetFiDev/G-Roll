@@ -61,10 +61,17 @@ public class PlayerAnimator : MonoBehaviour
             return;
         }
 
-        // 1) Yalnızca yatay düzlemde hareket yönüne dön
+        // 1) Rotate to face movement direction (which is always cardinal)
         Vector3 targetDirection = delta.normalized;
-        Quaternion targetRot = Quaternion.LookRotation(targetDirection, Vector3.up);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, turnSpeedDegPerSec * Time.deltaTime);
+        if (targetDirection.sqrMagnitude > 0.0001f)
+        {
+            Quaternion targetRot = Quaternion.LookRotation(targetDirection, Vector3.up);
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation, 
+                targetRot, 
+                turnSpeedDegPerSec * Time.deltaTime
+            );
+        }
 
         // 2) Kat edilen mesafe kadar topu yuvarla (dünya uzayında sağ ekseni etrafında)
         if (ballTransform != null)

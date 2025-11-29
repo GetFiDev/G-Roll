@@ -70,7 +70,7 @@ public class PlayerController : MonoBehaviour
         // 3) Geri itiş / feedback
         if (playerMovement != null)
         {
-            playerMovement.WallHitFeedback(hitNormal);
+            playerMovement.WallHitFeedback(hitPoint, hitNormal);
         }
         else
         {
