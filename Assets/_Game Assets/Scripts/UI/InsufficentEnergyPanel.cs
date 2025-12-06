@@ -18,7 +18,9 @@ public class InsufficientEnergyPanel : MonoBehaviour
     [SerializeField] private TMP_Text infoText;              // Alt açıklama (opsiyonel)
     [SerializeField] private Button getButton;               // "Get" butonu
     [SerializeField] private Button closeButton;             // Close/X butonu
+
     [SerializeField] private CanvasGroup canvasGroup;        // Panelin root'u (opsiyonel)
+    [SerializeField] private GameObject processingPanel;     // İşlem sırasında açılacak overlay
 
     [Header("Countdown Settings")]
     [SerializeField] private float countdownRefreshInterval = 1f;
@@ -128,11 +130,13 @@ public class InsufficientEnergyPanel : MonoBehaviour
     {
         _isBusy = busy;
 
+        if (processingPanel) processingPanel.SetActive(busy);
+
         if (canvasGroup != null)
         {
             canvasGroup.interactable = !busy;
             canvasGroup.blocksRaycasts = !busy;
-            canvasGroup.alpha = busy ? 0.9f : 1f;
+            // canvasGroup.alpha = busy ? 0.9f : 1f; // Dimming removed per request
         }
 
         if (getButton != null)
@@ -170,25 +174,30 @@ public class InsufficientEnergyPanel : MonoBehaviour
 
             if (res.granted > 0)
             {
-                // Gerçekten +1 verdiyse paneli kapatmak genelde mantıklı
-                Close();
+                // Successful grant -> Fade out then close
+                await FadeOutAndCloseAsync();
+
+                // 2. Trigger Home Panel refresh
+                var homePanel = FindObjectOfType<UIHomePanel>();
+                if (homePanel != null)
+                {
+                    homePanel.Initialize();
+                }
             }
             else
             {
-                // Full enerji ise küçük bir bilgi metni yazabilirsin
+                // Full energy
+                SetBusy(false); // Re-enable interaction
                 if (infoText != null)
                     infoText.text = "Energy is already full.";
             }
         }
         catch (Exception ex)
         {
+            SetBusy(false);
             Debug.LogWarning("[InsufficientEnergyPanel] GrantBonusEnergyAsync error: " + ex.Message);
             if (infoText != null)
                 infoText.text = "Unable to grant energy. Please try again.";
-        }
-        finally
-        {
-            SetBusy(false);
         }
     }
 
@@ -204,5 +213,30 @@ public class InsufficientEnergyPanel : MonoBehaviour
     {
         StopCountdown();
         gameObject.SetActive(false);
+    }
+
+    private async Task FadeOutAndCloseAsync()
+    {
+        if (canvasGroup != null)
+        {
+            float duration = 0.3f; // UI fade duration
+            float elapsed = 0f;
+            float startAlpha = canvasGroup.alpha;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                canvasGroup.alpha = Mathf.Lerp(startAlpha, 0f, elapsed / duration);
+                await Task.Yield();
+            }
+            canvasGroup.alpha = 0f;
+        }
+        // Finally deactivate
+        Close();
+        // Reset alpha for next time
+        if (canvasGroup != null) canvasGroup.alpha = 1f;
+        
+        // Ensure busy state is reset
+        SetBusy(false);
     }
 }

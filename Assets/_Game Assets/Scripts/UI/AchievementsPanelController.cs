@@ -14,15 +14,20 @@ public class AchievementsPanelController : MonoBehaviour
     [Header("Streak UI")]
     [SerializeField] private Button streakActionButton;
     [SerializeField] private Image streakActionButtonImage;
-    [SerializeField] private TMP_Text streakActionLabel;
+    [SerializeField] private TMP_Text streakTimerText;
+    [SerializeField] private TMP_Text streakClaimValueText;
     [SerializeField] private Sprite streakClaimableSprite;   // Active look
     [SerializeField] private Sprite streakWaitingSprite;     // Inactive look
-    [SerializeField] private GameObject streakCounterFetchingPanel;   // covers streakTMP while fetching
     [SerializeField] private GameObject streakClaimButtonFetchingPanel; // covers button while fetching
+    [SerializeField] private GameObject streakButtonCoinIcon; // Coin icon for claim button
 
     [Header("Grid")]
     public Transform gridRoot;
     public AchievementItemView itemPrefab;
+
+    [Header("Social Links")]
+    public string telegramLink;
+    public string xLink;
 
     [Header("Detail")]
     public AchievementDetailPanel detailPanel;
@@ -59,7 +64,7 @@ public class AchievementsPanelController : MonoBehaviour
 
     void HandleUserDataSaved(UserData u)
     {
-        if (streakTMP) streakTMP.text = $"{u.streak}";
+        // if (streakTMP) streakTMP.text = $"{u.streak}"; // Disabled to allow custom animation control
     }
 
     public async Task RefreshUIAsync()
@@ -68,7 +73,14 @@ public class AchievementsPanelController : MonoBehaviour
         _refreshing = true;
 
         if (fetchingPanel) fetchingPanel.SetActive(true);
-        if (streakCounterFetchingPanel) streakCounterFetchingPanel.SetActive(true);
+        // if (streakCounterFetchingPanel) streakCounterFetchingPanel.SetActive(true);
+        if (streakTMP) 
+        {
+            streakTMP.text = "0";
+            streakTMP.alpha = 1f; 
+        }
+        StartCoroutine(PulseStreakCounter());
+
         if (streakClaimButtonFetchingPanel) streakClaimButtonFetchingPanel.SetActive(true);
         try
         {
@@ -76,7 +88,7 @@ public class AchievementsPanelController : MonoBehaviour
             if (udm?.currentUser != null)
             {
                 var data = await udm.LoadUserData();
-                if (data != null && streakTMP) streakTMP.text = $"{data.streak}";
+                // if (data != null && streakTMP) streakTMP.text = $"{data.streak}";
             }
 
             // Fetch streak status from server (idempotent: counts today if needed)
@@ -172,16 +184,33 @@ public class AchievementsPanelController : MonoBehaviour
         finally
         {
             if (fetchingPanel) fetchingPanel.SetActive(false);
-            if (streakCounterFetchingPanel) streakCounterFetchingPanel.SetActive(false);
+            // if (streakCounterFetchingPanel) streakCounterFetchingPanel.SetActive(false);
             if (streakClaimButtonFetchingPanel) streakClaimButtonFetchingPanel.SetActive(false);
             _refreshing = false;
         }
     }
 
+    private System.Collections.IEnumerator PulseStreakCounter()
+    {
+        if (!streakTMP) yield break;
+        float t = 0f;
+        while (true)
+        {
+            t += Time.deltaTime * 2f; 
+            float a = Mathf.Lerp(0.25f, 1f, (Mathf.Sin(t) + 1f) * 3f);
+            streakTMP.alpha = a;
+            yield return null;
+        }
+    }
+
+
     private void UpdateStreakUI(StreakService.StreakSnapshot s)
     {
         // Update counter
-        if (streakTMP) streakTMP.text = s.totalDays.ToString();
+        StopAllCoroutines(); // Stop pulse or countdown
+        if (streakTMP) streakTMP.alpha = 1f;
+        StartCoroutine(CountUpStreak(s.totalDays, 0.5f));
+
 
         // Reset any running countdown
         if (_countdownCo != null) { StopCoroutine(_countdownCo); _countdownCo = null; }
@@ -191,21 +220,55 @@ public class AchievementsPanelController : MonoBehaviour
         _serverNowAtFetchMillis = s.serverNowMillis;
 
         bool claimable = s.claimAvailable && s.unclaimedDays > 0 && s.pendingTotalReward > 0;
+        
+        if (streakButtonCoinIcon) streakButtonCoinIcon.SetActive(claimable);
+
         if (claimable)
         {
             // Button shows Claim {amount}
-            if (streakActionLabel) streakActionLabel.text = $"Claim {s.pendingTotalReward:0.##}";
+            if (streakClaimValueText)
+            {
+                streakClaimValueText.text = $"{s.pendingTotalReward:F2}";
+                streakClaimValueText.gameObject.SetActive(true);
+            }
+            if (streakTimerText) streakTimerText.gameObject.SetActive(false);
+            
             if (streakActionButtonImage && streakClaimableSprite) streakActionButtonImage.sprite = streakClaimableSprite;
             if (streakActionButton) streakActionButton.interactable = true;
         }
         else
         {
             // Waiting mode: show countdown HH:MM:SS to nextUtcMidnight
+            if (streakClaimValueText) streakClaimValueText.gameObject.SetActive(false);
+            if (streakTimerText) streakTimerText.gameObject.SetActive(true);
+
             if (streakActionButtonImage && streakWaitingSprite) streakActionButtonImage.sprite = streakWaitingSprite;
             if (streakActionButton) streakActionButton.interactable = false;
             _countdownCo = StartCoroutine(CountdownCo());
         }
     }
+
+    private System.Collections.IEnumerator CountUpStreak(int targetVal, float duration)
+    {
+        if (!streakTMP) yield break;
+        if (targetVal <= 0) 
+        {
+            streakTMP.text = "0";
+            yield break;
+        }
+
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            int current = Mathf.RoundToInt(Mathf.Lerp(0, targetVal, t));
+            streakTMP.text = current.ToString();
+            yield return null;
+        }
+        streakTMP.text = targetVal.ToString();
+    }
+
 
     private System.Collections.IEnumerator CountdownCo()
     {
@@ -221,7 +284,7 @@ public class AchievementsPanelController : MonoBehaviour
 
             var t = System.TimeSpan.FromMilliseconds(remainMs);
             string label = string.Format("{0:D2}:{1:D2}:{2:D2}", (int)t.TotalHours, t.Minutes, t.Seconds);
-            if (streakActionLabel) streakActionLabel.text = label;
+            if (streakTimerText) streakTimerText.text = label;
 
             if (remainMs == 0) yield break; // stop; next refresh will restart
             yield return new WaitForSeconds(1f);
@@ -297,5 +360,17 @@ public class AchievementsPanelController : MonoBehaviour
             case AchievementItemView.AchievementVisualState.Completed: return 3; // Or 2 if treated same as Locked
             default: return 99;
         }
+    }
+
+    public void OpenTelegramLink()
+    {
+        if (!string.IsNullOrEmpty(telegramLink))
+            Application.OpenURL(telegramLink);
+    }
+
+    public void OpenXLink()
+    {
+        if (!string.IsNullOrEmpty(xLink))
+            Application.OpenURL(xLink);
     }
 }

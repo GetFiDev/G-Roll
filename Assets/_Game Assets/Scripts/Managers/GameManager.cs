@@ -41,7 +41,7 @@ public class GameManager : MonoBehaviour
 
     private void OnRequestStartGameplay()
     {
-        OnPlayButtonPressed();
+        _ = RequestSessionAndStartAsync();
     }
 
     private void OnRequestReturnToMeta()
@@ -63,58 +63,81 @@ public class GameManager : MonoBehaviour
 
     public void OnPlayButtonPressed()
     {
-        // 1) UI kapıyı HEMEN göster ve zaman damgasını al
-        if (sessionGate)
-        {
-            sessionGate.ShowRequesting();
-            _gateShownAt = Time.realtimeSinceStartup;
-        }
-
-        // 2) Ardından isteği başlat
-        StartCoroutine(RequestAndStart());
+        Debug.LogWarning("[GameManager] OnPlayButtonPressed is DEPRECATED. Use RequestSessionAndStartAsync() or ensure UIHomePanel handles the flow.");
+        // Forwarding to new logic for safety, but UIHomePanel should be the caller.
+        _ = RequestSessionAndStartAsync();
     }
 
-    private System.Collections.IEnumerator RequestAndStart()
+    /// <summary>
+    /// Async method for external UI controllers (like UIHomePanel) to request start.
+    /// Returns true if session granted and game starting, false otherwise.
+    /// Does NOT trigger sessionGate "Requesting" screen, assumes caller handles loading UI.
+    /// </summary>
+    /// <summary>
+    /// Async method for external UI controllers (like UIHomePanel) to request start.
+    /// STRICT FLOW: Request Session -> Check Result -> (If OK) Show Loading & Start Game -> (If Fail) Show Energy Panel.
+    /// </summary>
+    public async System.Threading.Tasks.Task<bool> RequestSessionAndStartAsync()
     {
-        // UI'nın gerçekten bir frame çizmesine izin ver
-        if (sessionGate) yield return null;
-
-        // requestSession server call
+        // 1. Request Session
         var task = SessionRemoteService.RequestSessionAsync();
-        while (!task.IsCompleted) yield return null;
+        try
+        {
+            await task;
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[GameManager] Session request exception: {ex.Message}");
+        }
 
         if (task.IsFaulted || task.IsCanceled)
         {
-            // ağ hatası vs.
-            if (sessionGate) yield return sessionGate.ShowInsufficientToast();
-            yield break;
+            // Fail Scenario A: Network error or obscure fail
+            ShowInsufficientEnergyPanel(); 
+            return false;
         }
 
         var resp = task.Result;
         if (resp.ok && !string.IsNullOrEmpty(resp.sessionId))
         {
-            // 'Please wait…' en az kısa bir süre görünsün (ör. 0.2s)
-            const float minVisible = 0.2f;
-            if (sessionGate)
-            {
-                float elapsed = Time.realtimeSinceStartup - _gateShownAt;
-                if (elapsed < minVisible)
-                    yield return new WaitForSecondsRealtime(minVisible - elapsed);
-            }
+             // Success Scenario B: Energy OK -> Game Start
+             
+             // 1. Show Loading Screen First (so user sees transition)
+             UIManager.Instance?.ShowGameplayLoading();
+             
+             // 2. Grant Session to GameplayManager (still in boot/meta phase technically until next line)
+             gameplayManager?.BeginSessionWithServerGrant(resp.sessionId);
 
-            // 0.5s granted tostu
-            if (sessionGate) yield return sessionGate.ShowGrantedToast();
-
-            // Eski mimariyi koru: grant sonrası fazı Gameplay'e al, dinleyenler çalışsın
-            SetPhase(GamePhase.Gameplay);
-            gameplayManager?.BeginSessionWithServerGrant(resp.sessionId);
+             // 3. Switch Phase to Gameplay (Triggers GameplayManager logic)
+             SetPhase(GamePhase.Gameplay);
+             
+             return true;
         }
         else
         {
-            // yeterli enerji yok
-            if (sessionGate) yield return sessionGate.ShowInsufficientToast();
+            // Fail Scenario A: Not enough energy (or other logical fail)
+            ShowInsufficientEnergyPanel();
+            return false;
         }
     }
+
+    private void ShowInsufficientEnergyPanel()
+    {
+        if (UIManager.Instance && UIManager.Instance.insufficientEnergyPanel)
+        {
+            UIManager.Instance.insufficientEnergyPanel.gameObject.SetActive(true);
+            UIManager.Instance.insufficientEnergyPanel.RefreshSnapshotAsync(); // ensure up to date
+        }
+        else
+        {
+            // Fallback if panel is missing (should not happen in prod)
+            Debug.LogError("[GameManager] InsufficientEnergyPanel not assigned in UIManager!");
+            if (sessionGate) StartCoroutine(sessionGate.ShowInsufficientToast()); // Legacy backup
+        }
+    }
+
+    // Legacy internal wrapper removed to prevent accidental usage of old flow.
+    // private System.Collections.IEnumerator RequestAndStartInternal(bool useGate) { ... }
     private System.Collections.IEnumerator FetchAndDebugItems()
     {
         var initTask = ItemDatabaseManager.InitializeAsync();

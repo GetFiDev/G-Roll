@@ -25,6 +25,13 @@ public class BuildZoneGridDisplay : MonoBehaviour
         _refreshRoutine = StartCoroutine(RefreshCoroutine());
     }
 
+    public void Refresh()
+    {
+        if (_refreshRoutine != null) StopCoroutine(_refreshRoutine);
+        if (isActiveAndEnabled)
+            _refreshRoutine = StartCoroutine(RefreshCoroutine());
+    }
+
     private void OnDisable()
     {
         if (UserInventoryManager.Instance != null)

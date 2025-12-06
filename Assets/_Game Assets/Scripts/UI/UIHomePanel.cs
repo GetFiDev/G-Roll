@@ -12,12 +12,46 @@ public class UIHomePanel : MonoBehaviour
     [SerializeField] private Image autopilotFillImage;   // progress bar fill
     [SerializeField] private TextMeshProUGUI autopilotTimerText; // optional UI text
     [SerializeField] private Image elitePassBadgeImage;
+    [Header("Play Button Overlay")]
+    [SerializeField] private GameObject playButtonLoadingOverlay;
 
     private CancellationTokenSource _timerCts;
     private double _capSecondsCache = 0.0;
 
     private void OnEnable()
     {
+        Initialize();
+    }
+
+    public void Initialize()
+    {
+        // 1. Refresh Top Panel
+        if (UITopPanel.Instance != null)
+        {
+            UITopPanel.Instance.Initialize();
+        }
+
+        // 2. Refresh Player Stats
+        if (UIPlayerStatsHandler.Instance != null)
+        {
+            UIPlayerStatsHandler.Instance.Refresh();
+        }
+
+        // 3. Refresh Energy Display (in children)
+        var energyDisplay = GetComponentInChildren<UIEnergyDisplay>(true);
+        if (energyDisplay != null)
+        {
+            energyDisplay.RefreshNow();
+        }
+
+        // 4. Refresh Build Zone Grid (in children)
+        var gridDisplay = GetComponentInChildren<BuildZoneGridDisplay>(true);
+        if (gridDisplay != null)
+        {
+            gridDisplay.Refresh();
+        }
+
+        // 5. Refresh Autopilot Preview (local async)
         _ = RefreshAutopilotPreviewAsync();
     }
 
@@ -152,5 +186,18 @@ public class UIHomePanel : MonoBehaviour
             if (autopilotTimerText)
                 autopilotTimerText.text = "Ready to claim";
         }
+    }
+
+    public async void OnPlayButtonClicked()
+    {
+        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(true);
+        if (GameManager.Instance)
+        {
+            await GameManager.Instance.RequestSessionAndStartAsync();
+        }
+        // Whether success or fail, hide the local overlay.
+        // If success -> Game Phase changes, loading screen appears.
+        // If fail -> Toast appears (handled by GameManager/SessionGate), we stay here.
+        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(false);
     }
 }

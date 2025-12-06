@@ -10,11 +10,9 @@ public class UIReferralPanel : MonoBehaviour
 {
     [Header("Refs")] public ReferralManager manager;
 
-    [Header("List UI")]
+    [Header("Values")]
     public Transform listParent;          // VerticalLayout
     public UIReferralDisplay itemPrefab;  // one per referred user
-    public GameObject loadingPanel;
-    public GameObject referralListLoadingPanel;
 
     [Header("Counter UI")]
     public TextMeshProUGUI friendsCountText; // "--" while fetching, then "N friend(s)"
@@ -28,7 +26,6 @@ public class UIReferralPanel : MonoBehaviour
     public Sprite lockedBackgroundSprite;
     [Tooltip("Background sprite when reward is unlocked.")]
     public Sprite unlockedBackgroundSprite;
-    public GameObject referralStripLoadingPanel;
 
     // Optional explicit ordering: if empty, all referral items from ItemLocalDatabase will be used.
     [Tooltip("Optional ordered list of referral itemIds. If empty, all items with itemReferralThreshold > 0 are shown.")]
@@ -44,10 +41,6 @@ public class UIReferralPanel : MonoBehaviour
 
     private void OnDisable()
     {
-        // Hide loader when panel is disabled
-        ShowLoading(false);
-        if (referralListLoadingPanel) referralListLoadingPanel.SetActive(false);
-        if (referralStripLoadingPanel) referralStripLoadingPanel.SetActive(false);
         // Bump sequence so any in-flight RefreshAsync won't touch UI after disable
         _refreshSeq++;
     }
@@ -59,26 +52,14 @@ public class UIReferralPanel : MonoBehaviour
     {
         int token = ++_refreshSeq;
         if (friendsCountText) friendsCountText.text = "--";
-        if (referralListLoadingPanel) referralListLoadingPanel.SetActive(true);
-        if (referralStripLoadingPanel) referralStripLoadingPanel.SetActive(true);
         StopAllCoroutines();
         StartCoroutine(Co_Refresh(token));
     }
 
-    private void ShowLoading(bool on)
-    {
-        if (loadingPanel && loadingPanel.activeSelf != on)
-            loadingPanel.SetActive(on);
-    }
-
     private System.Collections.IEnumerator Co_Refresh(int token)
     {
-        // Open loader immediately
-        ShowLoading(true);
-
         if (manager == null)
         {
-            ShowLoading(false);
             yield break;
         }
 
@@ -91,7 +72,6 @@ public class UIReferralPanel : MonoBehaviour
         // If a newer refresh started meanwhile, abort UI updates
         if (_refreshSeq != token)
         {
-            ShowLoading(false);
             yield break;
         }
 
@@ -99,7 +79,6 @@ public class UIReferralPanel : MonoBehaviour
         if (task.IsFaulted)
         {
             Debug.LogWarning(task.Exception?.GetBaseException()?.Message);
-            ShowLoading(false);
             yield break;
         }
 
@@ -121,8 +100,6 @@ public class UIReferralPanel : MonoBehaviour
             }
         }
 
-        if (referralListLoadingPanel) referralListLoadingPanel.SetActive(false);
-
         int referralCount = items != null ? items.Count : 0;
 
         // Refresh the referral rewards strip using the same token guard
@@ -134,9 +111,6 @@ public class UIReferralPanel : MonoBehaviour
             int count = items != null ? items.Count : 0;
             friendsCountText.text = count + " " + (count == 1 ? "friend" : "friends");
         }
-
-        // Close loader at the end of THIS refresh
-        ShowLoading(false);
     }
 
     #region Referral Rewards Strip
@@ -304,7 +278,6 @@ public class UIReferralPanel : MonoBehaviour
             }
         }
 
-        if (referralStripLoadingPanel) referralStripLoadingPanel.SetActive(false);
     }
 
     #endregion

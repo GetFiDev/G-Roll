@@ -96,9 +96,11 @@ public class GameplayManager : MonoBehaviour
     private IEnumerator BeginSessionWhenInGameplay()
     {
         // Faz GamePlay olana kadar bekle (GameManager set edecek)
+        // Faz GamePlay olana kadar bekle (GameManager set edecek)
         while (!hasControl) yield return null;
-
-        UIManager.Instance?.ShowGameplayLoading();
+        
+        // Initial Loading UI is now handled by GameManager BEFORE switching phase.
+        // We focus on logic setup here.
 
         // Capture initial high score for comparison later
         _initialMaxScore = 0;

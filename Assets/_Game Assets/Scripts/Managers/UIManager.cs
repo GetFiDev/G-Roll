@@ -13,6 +13,7 @@ public class UIManager : MonoSingleton<UIManager>
     public UINewHighScorePanel newHighScorePanel;
 
     public UIGameplayLoading gameplayLoading;
+    public InsufficientEnergyPanel insufficientEnergyPanel;
     [SerializeField] private PhaseEventChannelSO phaseChanged;
 
     [SerializeField] private CanvasGroup fullscreenFader;
@@ -82,7 +83,9 @@ public class UIManager : MonoSingleton<UIManager>
                 Fade(gamePlay, true);
                 Fade(levelEnd, false);
                 Fade(overlay, false);
-                Fade(gameplayLoading, false);
+                // Don't force hide gameplayLoading here. It was opened by GameManager just before this phase change.
+                // It will close itself when loading completes (UIGameplayLoading logic).
+                // Fade(gameplayLoading, false); 
                 break;
             default:
                 break;

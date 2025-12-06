@@ -20,7 +20,7 @@ public class UIRankingPanel : MonoBehaviour
     [SerializeField] private UILeaderboardDisplay rowPrefab;
     [SerializeField] private Transform rowsRoot;
     [SerializeField] private UILeaderboardDisplay selfDisplay; // üstteki kendini gösteren satır
-    [SerializeField] private GameObject fetchingPanel;         // opsiyonel: yükleniyor overlay
+
 
     [Header("Options")]
     [SerializeField] private int maxRows = 100;
@@ -47,7 +47,7 @@ public class UIRankingPanel : MonoBehaviour
     {
         try
         {
-            if (fetchingPanel) fetchingPanel.SetActive(true);
+
 
             // 1) Veriyi tek kapıdan çek
             var result = await LeaderboardService.FetchAsync(ct: ct); // Result: items (List<Item>), self (nullable / optional)
@@ -65,10 +65,6 @@ public class UIRankingPanel : MonoBehaviour
         catch (System.Exception ex)
         {
             Debug.LogWarning($"[UIRankingPanel] LoadAsync EX: {ex.Message}");
-        }
-        finally
-        {
-            if (fetchingPanel) fetchingPanel.SetActive(false);
         }
     }
 
