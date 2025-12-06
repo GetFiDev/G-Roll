@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Button_AutopilotBG_0: -2528385681151654228
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

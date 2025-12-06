@@ -11,6 +11,7 @@ public class UIHomePanel : MonoBehaviour
     [Header("Autopilot Preview")]
     [SerializeField] private Image autopilotFillImage;   // progress bar fill
     [SerializeField] private TextMeshProUGUI autopilotTimerText; // optional UI text
+    [SerializeField] private Image elitePassBadgeImage;
 
     private CancellationTokenSource _timerCts;
     private double _capSecondsCache = 0.0;
@@ -44,6 +45,12 @@ public class UIHomePanel : MonoBehaviour
             {
                 status.isAutopilotOn = false;
                 status.timeToCapSeconds = null;
+            }
+
+            // Elite pass badge visibility
+            if (elitePassBadgeImage != null)
+            {
+                elitePassBadgeImage.gameObject.SetActive(status.isElite);
             }
 
             double perHour = status.isElite ? status.eliteUserEarningPerHour : status.normalUserEarningPerHour;
@@ -85,22 +92,17 @@ public class UIHomePanel : MonoBehaviour
 
             if (autopilotTimerText)
             {
-                if (status.isElite)
+                // Varsayılan olarak boş metin (aktif süreç yoksa hiçbir şey yazmayacağız)
+                autopilotTimerText.text = string.Empty;
+
+                if (status.isClaimReady)
                 {
-                    autopilotTimerText.text = "Working...";
+                    // Claim edilebilir durumda her zaman text göster
+                    autopilotTimerText.text = "";
                 }
-                else if (!status.isAutopilotOn)
+                else if (status.isAutopilotOn && status.timeToCapSeconds.HasValue && _capSecondsCache > 0.0)
                 {
-                    autopilotTimerText.text = "Waiting to start";
-                }
-                else if (status.isClaimReady || !status.timeToCapSeconds.HasValue || _capSecondsCache <= 0.0)
-                {
-                    // either ready or we don't have a countdown value
-                    autopilotTimerText.text = status.isClaimReady ? "Ready to claim" : "--:--:--";
-                }
-                else
-                {
-                    // Start live countdown
+                    // Sadece aktif bir autopilot süreci varsa geri sayım başlat
                     _timerCts = new CancellationTokenSource();
                     _ = StartCountdownAsync(status.timeToCapSeconds.Value, _timerCts.Token);
                 }

@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      PictoIcon_BackArrow_0: -934114851512962212
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

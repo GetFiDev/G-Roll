@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Plater_InsufficentEnergy_0: -5787856151748480052
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

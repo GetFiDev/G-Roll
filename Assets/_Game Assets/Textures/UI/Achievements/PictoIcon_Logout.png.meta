@@ -198,7 +198,9 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      PictoIcon_Logout_0: 8730157574155433866
+      PictoIcon_Logout_1: 8710591252103647328
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

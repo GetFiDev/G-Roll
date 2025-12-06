@@ -110,15 +110,63 @@ public class AchievementsPanelController : MonoBehaviour
             var byType = new Dictionary<string, AchState>();
             foreach (var s in _snapshot.states) byType[s.typeId] = s;
 
+            var renderList = new List<(AchDef def, AchState state, AchievementItemView.AchievementVisualState visualState)>();
+            
             foreach (var def in _snapshot.defs)
             {
                 var state = byType.ContainsKey(def.typeId)
                     ? byType[def.typeId]
                     : new AchState { typeId = def.typeId, level = 0, progress = 0, claimedLevels = new List<int>() };
 
+                // Determine Visual State
+                AchievementItemView.AchievementVisualState vState;
+                
+                // Logic Fix: Check if any level <= state.level is NOT in claimedLevels
+                bool isClaimable = false;
+                if (state.level > 0)
+                {
+                    var claimedSet = new HashSet<int>(state.claimedLevels ?? new List<int>());
+                    for (int i = 1; i <= state.level; i++)
+                    {
+                        if (!claimedSet.Contains(i))
+                        {
+                            isClaimable = true;
+                            break;
+                        }
+                    }
+                }
+
+                bool isMaxLevelReached = state.level >= def.maxLevel;
+                bool isCompleted = isMaxLevelReached && !isClaimable;
+                bool isInProgress = !isCompleted && !isClaimable && state.progress > 0;
+
+                if (isClaimable)
+                    vState = AchievementItemView.AchievementVisualState.Claimable;
+                else if (isInProgress)
+                    vState = AchievementItemView.AchievementVisualState.InProgress;
+                else if (isCompleted)
+                    vState = AchievementItemView.AchievementVisualState.Completed;
+                else
+                    vState = AchievementItemView.AchievementVisualState.Locked; // No progress
+
+                renderList.Add((def, state, vState));
+            }
+
+            // Sort: Claimable (0) < InProgress (1) < Locked/Completed (2/3)
+            // Secondary sort: def.order
+            renderList.Sort((a, b) =>
+            {
+                int stateA = GetStatePriority(a.visualState);
+                int stateB = GetStatePriority(b.visualState);
+                if (stateA != stateB) return stateA.CompareTo(stateB);
+                return a.def.order.CompareTo(b.def.order);
+            });
+
+            foreach (var itemData in renderList)
+            {
                 var item = Instantiate(itemPrefab, gridRoot);
-                item.name = $"AchItem_{def.typeId}"; // aid in debugging hierarchy
-                item.Bind(def, state, OnItemClicked);
+                item.name = $"AchItem_{itemData.def.typeId}";
+                item.Bind(itemData.def, itemData.state, itemData.visualState, OnItemClicked);
             }
         }
         finally
@@ -237,5 +285,17 @@ public class AchievementsPanelController : MonoBehaviour
                 }
             }
         });
+    }
+
+    private int GetStatePriority(AchievementItemView.AchievementVisualState state)
+    {
+        switch (state)
+        {
+            case AchievementItemView.AchievementVisualState.Claimable: return 0;
+            case AchievementItemView.AchievementVisualState.InProgress: return 1;
+            case AchievementItemView.AchievementVisualState.Locked: return 2;
+            case AchievementItemView.AchievementVisualState.Completed: return 3; // Or 2 if treated same as Locked
+            default: return 99;
+        }
     }
 }

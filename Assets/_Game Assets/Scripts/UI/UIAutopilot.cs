@@ -177,7 +177,7 @@ public class UIAutoPilot : MonoBehaviour
             case Mode.Normal_NotStarted:
                 SetProgress(0f);
                 SetProgressLabel("Waiting to start...");
-                SetupButton(startButtonSprite, true, "Start Autopilot");
+                SetupButton(startButtonSprite, true, "Start");
                 break;
 
             case Mode.Normal_InProgress:
@@ -208,7 +208,7 @@ public class UIAutoPilot : MonoBehaviour
             case Mode.Elite_NotStarted:
                 SetProgress(0f);
                 SetProgressLabel("Waiting to start...");
-                SetupButton(startButtonSprite, true, "Start Autopilot");
+                SetupButton(startButtonSprite, true, "Start");
                 break;
 
             case Mode.Elite_Working:
@@ -442,8 +442,8 @@ public class UIAutoPilot : MonoBehaviour
             }
         }
 
-        // Tek ondalık format (0.0 şeklinde) — 0.0 da dahil hepsini göstereceğiz
-        string formatted = value.ToString("0.0", CultureInfo.InvariantCulture);
+        // Çift ondalık format (0.00 şeklinde) — 0.00 da dahil hepsini göstereceğiz
+        string formatted = value.ToString("0.00", CultureInfo.InvariantCulture);
         SetClaimAmountText(formatted);
     }
 

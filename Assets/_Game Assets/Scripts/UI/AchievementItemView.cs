@@ -15,16 +15,26 @@ public class AchievementItemView : MonoBehaviour
 
     private Coroutine _iconFadeRoutine;
 
+    public enum AchievementVisualState
+    {
+        Claimable,    // Green
+        InProgress,   // Orange
+        Locked,       // Gray (No progress)
+        Completed     // Gray (Max level reached)
+    }
+
     [Header("Background Sprites")]
-    public Sprite spriteLevel0;
-    public Sprite spriteLevel1to4;
-    public Sprite spriteLevelMax;
+    // Eski sprite'lar yerine state-based sprite'lar
+    public Sprite spriteClaimable;   // Green
+    public Sprite spriteInProgress;  // Orange
+    public Sprite spriteLocked;      // Gray
+    public Sprite spriteCompleted;   // Gray (or distinct)
 
     private AchDef _def;
     private AchState _state;
     private System.Action<AchDef, AchState> _onClick;
 
-    public async void Bind(AchDef def, AchState state, System.Action<AchDef, AchState> onClick)
+    public async void Bind(AchDef def, AchState state, AchievementVisualState visualState, System.Action<AchDef, AchState> onClick)
     {
         _def = def; _state = state; _onClick = onClick;
 
@@ -68,8 +78,22 @@ public class AchievementItemView : MonoBehaviour
         }
         // === End strict block ===
 
-        backgroundImage.sprite = (lvl >= def.maxLevel) ? spriteLevelMax
-                             : (lvl >= 1 ? spriteLevel1to4 : spriteLevel0);
+        // Apply background based on visual state
+        switch (visualState)
+        {
+            case AchievementVisualState.Claimable:
+                backgroundImage.sprite = spriteClaimable;
+                break;
+            case AchievementVisualState.InProgress:
+                backgroundImage.sprite = spriteInProgress;
+                break;
+            case AchievementVisualState.Locked:
+                backgroundImage.sprite = spriteLocked;
+                break;
+            case AchievementVisualState.Completed:
+                backgroundImage.sprite = spriteCompleted;
+                break;
+        }
 
         iconImage.sprite = null;
         var c = iconImage.color;

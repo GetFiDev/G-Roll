@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using UnityEngine;
 
 public class UIManager : MonoSingleton<UIManager>
@@ -14,6 +15,10 @@ public class UIManager : MonoSingleton<UIManager>
     public UIGameplayLoading gameplayLoading;
     [SerializeField] private PhaseEventChannelSO phaseChanged;
 
+    [SerializeField] private CanvasGroup fullscreenFader;
+    [SerializeField] private float fullscreenFadeDuration = 0.5f;
+    [SerializeField] private bool disableFaderOnComplete = true;
+
     public UIManager Initialize()
     {
         return this;
@@ -21,6 +26,16 @@ public class UIManager : MonoSingleton<UIManager>
 
     private void OnEnable()
     {
+        StopAllCoroutines();
+
+        if (fullscreenFader != null)
+        {
+            fullscreenFader.alpha = 1f;
+            fullscreenFader.blocksRaycasts = true;
+            fullscreenFader.interactable = true;
+            StartCoroutine(FadeOutFaderCoroutine());
+        }
+
         if (phaseChanged != null)
             phaseChanged.OnEvent += OnPhaseChanged;
         else
@@ -141,4 +156,29 @@ public class UIManager : MonoSingleton<UIManager>
     }
 
     private void OnHighScorePanelClosed() { } // Dummy target for -= check if needed, or just use lambda above
+
+    private IEnumerator FadeOutFaderCoroutine()
+    {
+        fullscreenFader.gameObject.SetActive(true);
+        fullscreenFader.alpha = 1f;
+        float t = 0f;
+        while (t < fullscreenFadeDuration)
+        {
+            t += Time.deltaTime;
+            float normalized = Mathf.Clamp01(t / fullscreenFadeDuration);
+            if (fullscreenFader != null)
+                fullscreenFader.alpha = Mathf.Lerp(1f, 0f, normalized);
+            yield return null;
+        }
+
+        if (fullscreenFader != null)
+        {
+            fullscreenFader.alpha = 0f;
+            fullscreenFader.blocksRaycasts = false;
+            fullscreenFader.interactable = false;
+
+            if (disableFaderOnComplete)
+                fullscreenFader.gameObject.SetActive(false);
+        }
+    }
 }

@@ -223,7 +223,10 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      ShopActionButton_Referral_0: -7779698560989032823
+      ShopActionButton_Referral_1: -8210463269299453268
+      ShopActionButton_Referral_2: -3219813812006634230
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

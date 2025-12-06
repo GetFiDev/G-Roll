@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Plater_ReferralUnlockItems_0: 4179513259197065656
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

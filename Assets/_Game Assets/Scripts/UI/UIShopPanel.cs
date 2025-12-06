@@ -29,6 +29,9 @@ public class UIShopPanel : MonoBehaviour
 
     private void OnEnable()
     {
+        // Setup Nested Scrolling and Snapping
+        SetupScrollHelpers();
+
         // Her açılışta Core sekmesi (Index 2) ile başla
         // Buton mantığını manuel işletiyoruz ama Slide yerine Jump yapıyoruz
         
@@ -48,52 +51,89 @@ public class UIShopPanel : MonoBehaviour
         JumpTo(2);
     }
 
+    private void SetupScrollHelpers()
+    {
+        if (scrollRect == null) return;
+
+        // 1. Add Snapper to Main ScrollRect
+        var snapper = scrollRect.gameObject.GetComponent<ShopScrollSnapper>();
+        if (snapper == null) snapper = scrollRect.gameObject.AddComponent<ShopScrollSnapper>();
+        snapper.shopPanel = this;
+        snapper.scrollRect = scrollRect;
+        snapper.panelCount = panelCount;
+
+        // 2. Add Nested Router to Child Panels
+        // List of panels in order (or just all of them)
+        GameObject[] panels = { myItemsPanel, referralPanel, corePanel, proPanel, bullPanel };
+        
+        foreach (var p in panels)
+        {
+            if (p == null) continue;
+            var childScroll = p.GetComponent<ScrollRect>();
+            if (childScroll != null)
+            {
+                var router = p.GetComponent<NestedScrollRouter>();
+                if (router == null) router = p.AddComponent<NestedScrollRouter>();
+                router.parentScrollRect = scrollRect;
+            }
+        }
+    }
+
+    public void SnapToPage(int index)
+    {
+        // Update Tab Visuals based on index
+        CloseAll();
+        switch (index)
+        {
+            case 0: // My Items
+                myItemsActive.SetActive(true);
+                myItemsInactive.SetActive(false);
+                break;
+            case 1: // Referral
+                referralActive.SetActive(true);
+                referralInactive.SetActive(false);
+                break;
+            case 2: // Core
+                coreActive.SetActive(true);
+                coreInactive.SetActive(false);
+                break;
+            case 3: // Pro
+                proActive.SetActive(true);
+                proInactive.SetActive(false);
+                break;
+            case 4: // Bull
+                bullActive.SetActive(true);
+                bullInactive.SetActive(false);
+                break;
+        }
+
+        ApplyPanelVisibility(index);
+        SlideTo(index);
+    }
+
     public void OnReferralButtonClicked()
     {
-        CloseAll();
-
-        // Tab visuals
-        referralActive.SetActive(true);
-        referralInactive.SetActive(false);
-
-        // Panel görünürlükleri
-        ApplyPanelVisibility(1);
-
-        // Slide
-        SlideTo(1);
+        SnapToPage(1);
     }
 
     public void OnCoreButtonClicked()
     {
-        CloseAll();
-
-        coreActive.SetActive(true);
-        coreInactive.SetActive(false);
-
-        ApplyPanelVisibility(2);
-        SlideTo(2);
+        SnapToPage(2);
     }
 
     public void OnProButtonClicked()
     {
-        CloseAll();
-
-        proActive.SetActive(true);
-        proInactive.SetActive(false);
-
-        ApplyPanelVisibility(3);
-        SlideTo(3);
+        SnapToPage(3);
     }
 
     public void OnBullButtonClicked()
     {
-        CloseAll();
+        SnapToPage(4);
+    }
 
-        bullActive.SetActive(true);
-        bullInactive.SetActive(false);
-
-        ApplyPanelVisibility(4);
-        SlideTo(4);
+    public void OnMyItemsButtonClicked()
+    {
+        SnapToPage(0);
     }
 
     private void CloseAll()
@@ -111,16 +151,6 @@ public class UIShopPanel : MonoBehaviour
         proInactive.SetActive(true);
         bullInactive.SetActive(true);
         myItemsInactive.SetActive(true);
-    }
-    public void OnMyItemsButtonClicked()
-    {
-        CloseAll();
-
-        myItemsActive.SetActive(true);
-        myItemsInactive.SetActive(false);
-
-        ApplyPanelVisibility(0);
-        SlideTo(0);
     }
 
     // --- Slide Yardımcıları ---

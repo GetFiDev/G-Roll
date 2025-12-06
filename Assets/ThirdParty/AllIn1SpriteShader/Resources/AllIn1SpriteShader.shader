@@ -621,6 +621,14 @@
 			half _OverlayGlow, _OverlayBlend, _OverlayTextureScrollXSpeed, _OverlayTextureScrollYSpeed;
 			#endif
 
+            // Fix for UI Clipping errors
+            #ifdef UNITY_UI_CLIP_RECT
+            float4 _ClipRect;
+            #endif
+            #ifdef UNITY_UI_ALPHACLIP
+            float _UseUIAlphaClip;
+            #endif
+
             UNITY_INSTANCING_BUFFER_START(Props)
                 UNITY_DEFINE_INSTANCED_PROP(float, _RandomSeed)
             UNITY_INSTANCING_BUFFER_END(Props)

@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      ShopActionButton_Unequip_0: 8803695851842469654
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

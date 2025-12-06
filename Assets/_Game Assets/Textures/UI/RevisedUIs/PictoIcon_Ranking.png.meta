@@ -248,7 +248,11 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      PictoIcon_Ranking_0: 5297915820384449883
+      PictoIcon_Ranking_1: -1454920177411735919
+      PictoIcon_Ranking_2: -1390922239827374376
+      PictoIcon_Ranking_3: -8266915725586715905
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

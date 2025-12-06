@@ -73,8 +73,7 @@ public class UIShopItemDisplay : MonoBehaviour
 
     // Icon için: orijinal sprite'ı sakla ve grayscale versiyonlarını cache'le
     private Sprite _originalIconSprite;
-    private static readonly System.Collections.Generic.Dictionary<Sprite, Sprite> GrayscaleCache
-        = new System.Collections.Generic.Dictionary<Sprite, Sprite>();
+
 
     [Header("Status Feedback")]
     [SerializeField] private TMP_Text statusLabel;    // (opsiyonel) buton yakınında küçük metin
@@ -303,7 +302,7 @@ public class UIShopItemDisplay : MonoBehaviour
                 break;
             case ShopVisualState.Referral_Locked:
                 backgroundImage.sprite = bgReferralLocked;
-                if (nameText != null) nameText.text = "Locked";
+                if (nameText != null) nameText.text = Data?.name ?? "Unnamed";
                 break;
         }
 
@@ -313,11 +312,7 @@ public class UIShopItemDisplay : MonoBehaviour
 
             // Shader kullanmadan grayscale göster: referral kilitliyken,
             // sprite'ın grayscale kopyasını kullan, diğer durumda orijinal sprite'a dön.
-            if (state == ShopVisualState.Referral_Locked && _originalIconSprite != null)
-            {
-                iconImage.sprite = GetOrCreateGrayscaleSprite(_originalIconSprite);
-            }
-            else if (_originalIconSprite != null)
+            if (_originalIconSprite != null)
             {
                 iconImage.sprite = _originalIconSprite;
             }
@@ -388,7 +383,8 @@ public class UIShopItemDisplay : MonoBehaviour
                 label = $"{referralCount}/{target}";
                 icon = iconReferral;
                 // Kilitli halde butona basılmasını engelleyebiliriz
-                actionButton.interactable = false;
+                // Kilitli halde butona basılmasını engelleyebiliriz -> Artık basılsın istiyoruz
+                actionButton.interactable = true;
                 break;
 
             case ShopVisualState.Normal_NotOwned:
@@ -593,6 +589,13 @@ public class UIShopItemDisplay : MonoBehaviour
             if (!owned)
             {
                 Debug.Log("[UIShopItemDisplay] Referral item is locked. Unlock via referrals.");
+                
+                var mainMenu = FindObjectOfType<UIMainMenu>();
+                if (mainMenu != null)
+                {
+                    mainMenu.ShowPanel(UIMainMenu.PanelType.Referral);
+                }
+
                 if (fetchingPanel != null) fetchingPanel.SetActive(false);
                 return;
             }
@@ -838,68 +841,6 @@ public class UIShopItemDisplay : MonoBehaviour
         int hours = (int)t.TotalHours;
         return $"{hours:D2}:{t.Minutes:D2}:{t.Seconds:D2}";
     }
-    /// <summary>
-    /// Shader kullanmadan, runtime'da orijinal sprite'tan grayscale bir sprite üretir.
-    /// Texture Read/Write kapalıysa orijinali geri döner.
-    /// </summary>
-    private Sprite GetOrCreateGrayscaleSprite(Sprite original)
-    {
-        if (original == null) return null;
 
-        // Cache'lenmişse direkt geri dön
-        if (GrayscaleCache.TryGetValue(original, out var cached) && cached != null)
-            return cached;
 
-        var tex = original.texture;
-        if (tex == null)
-            return original;
-
-        try
-        {
-            // Orijinal sprite'ın rect'ini baz alarak sadece o bölgenin pixellerini çek
-            var rect = original.rect;
-            int x = Mathf.RoundToInt(rect.x);
-            int y = Mathf.RoundToInt(rect.y);
-            int w = Mathf.RoundToInt(rect.width);
-            int h = Mathf.RoundToInt(rect.height);
-
-            // Unity'nin GetPixels(x, y, w, h) overload'unu kullan (GetPixels32'de bu overload yok)
-            var pixels = tex.GetPixels(x, y, w, h);
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                var c = pixels[i];
-                // Standart luminance, 0–1 aralığında
-                float lum = 0.3f * c.r + 0.59f * c.g + 0.11f * c.b;
-                pixels[i] = new Color(lum, lum, lum, c.a);
-            }
-
-            var grayTex = new Texture2D(w, h, TextureFormat.ARGB32, false);
-            grayTex.SetPixels(pixels);
-            grayTex.Apply();
-
-            // Pivot'u normalize ederek koru
-            var pivotNorm = new Vector2(
-                original.pivot.x / rect.width,
-                original.pivot.y / rect.height
-            );
-
-            var graySprite = Sprite.Create(
-                grayTex,
-                new Rect(0, 0, w, h),
-                pivotNorm,
-                original.pixelsPerUnit,
-                0,
-                SpriteMeshType.Tight,
-                original.border
-            );
-
-            GrayscaleCache[original] = graySprite;
-            return graySprite;
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogWarning($"[UIShopItemDisplay] Failed to create grayscale sprite (texture likely not Read/Write enabled): {ex.Message}");
-            return original;
-        }
-    }
 }

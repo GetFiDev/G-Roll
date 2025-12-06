@@ -373,7 +373,16 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Icon_Bull_0: 7430240680367569409
+      Icon_Bull_1: 5313653700799851131
+      Icon_Bull_2: -8547070769269969109
+      Icon_Bull_3: 7091746326326348028
+      Icon_Bull_4: 3185072131129556038
+      Icon_Bull_5: 5859966997955603534
+      Icon_Bull_6: -4859210444175516276
+      Icon_Bull_7: 2697338623696946873
+      Icon_Bull_8: -1524640711915194446
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

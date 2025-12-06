@@ -88,9 +88,28 @@ public class UIMainMenu : MonoBehaviour
         };
     }
 
-    public void OnElitePassButtonClick()
+    public async void OnElitePassButtonClick()
     {
-        TogglePanel(PanelType.ElitePass);
+        try
+        {
+            // AutopilotService statik bir servis; durumu almak için GetStatusAsync kullanılmalı
+            var status = await AutopilotService.GetStatusAsync();
+
+            // Kullanıcı elite pass sahibiyse panel açılmayacak
+            if (status != null && status.isElite)
+            {
+                return;
+            }
+
+            // Elite değilse panel toggle yapılacak
+            TogglePanel(PanelType.ElitePass);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[UIMainMenu] Failed to get autopilot status: {ex.Message}");
+            // İstersen burada fallback olarak yine de paneli açabiliriz.
+            // TogglePanel(PanelType.ElitePass);
+        }
     }
     public void OnAutoPilotInfoButtonClick()
     {
