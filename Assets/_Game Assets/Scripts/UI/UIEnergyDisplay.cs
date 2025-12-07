@@ -9,6 +9,8 @@ public class UIEnergyDisplay : MonoBehaviour
 
     [SerializeField] private TMP_Text energyText;   // “1/6”
     [SerializeField] private TMP_Text timerText;    // “03:59:59” veya “--:--”
+    [SerializeField] private GameObject timerParent;
+    [SerializeField] private GameObject livesParent;
 
     private Coroutine _tickCo;
     private UserEnergyService.EnergySnapshot _snap;
@@ -68,7 +70,34 @@ public class UIEnergyDisplay : MonoBehaviour
                 continue;
             }
 
-            if (_snap.current >= _snap.max || _snap.nextEnergyAtMillis <= 0)
+            bool isFull = _snap.current >= _snap.max;
+
+            // Update parent visibility
+            // Enerji full ise timer kapanıcak.
+            // eğer değil ise timer + lives parent ikisi de açık olacak.
+            if (isFull)
+            {
+                 if (timerParent) timerParent.SetActive(false);
+                 // livesParent ile ilgili özel bir istek yoksa, açık kalabilir veya o da logic'e dahil edilebilir.
+                 // Ancak istek "eğer değil ise timer + lives parent ikisi de açık olacak" diyor.
+                 // "Enerji full ise timer kapanıcak" denmiş sadece. livesParent için bir şey denmemiş full durumda.
+                 // Genelde livesParent hep açık kalır, sadece timer gizlenir full ise.
+                 // Ama "değil ise timer + lives parent ikisi de açık olacak" ifadesi, livesParent'in de bir şekilde kontrol edildiğini ima edebilir.
+                 // Şimdilik sadece timerParent'i kapatıyorum full ise. livesParent'e dokunmuyorum (zaten açıktır varsayımıyla).
+                 // Fakat kullanıcının isteği: "enerji full ise timer kapanıcak. eğer değil ise timer + lives parent ikisi de açık olacak."
+                 // Bu cümle livesParent'in full iken ne olacağı konusunda net değil ama muhtemelen livesParent zaten hep açık duruyor.
+                 // Emin olmak için livesParent.SetActive(true) her zaman diyebiliriz veya full iken ne olmalı sorusu var.
+                 // Genelde "Lives" (Can) göstergesi hep görünür. Sadece sayaç (Timer) gizlenir.
+                 // Kodda livesParent'i de garantiye alalım.
+                 if (livesParent) livesParent.SetActive(true); 
+            }
+            else
+            {
+                if (timerParent) timerParent.SetActive(true);
+                if (livesParent) livesParent.SetActive(true);
+            }
+
+            if (isFull || _snap.nextEnergyAtMillis <= 0)
             {
                 timerText.text = "--:--";
             }

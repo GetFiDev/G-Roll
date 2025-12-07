@@ -18,11 +18,6 @@ public class UserStatsDisplayer : MonoBehaviour
     public TextMeshProUGUI rankTMP;
     public TextMeshProUGUI streakTMP;
 
-    [Header("UI: Fetching Panels (per stat)")]
-    public GameObject currencyFetchingPanel;
-    public GameObject rankFetchingPanel;
-    public GameObject streakFetchingPanel;
-
     [Header("FX")] public ParticleImage currencyGainFx;
 
     [Header("Persistence")]
@@ -30,7 +25,12 @@ public class UserStatsDisplayer : MonoBehaviour
     public string lastCurrencyPrefsKey = "UserStatsDisplayer.LastCurrency";
 
     [Header("Options")] public int leaderboardProbeLimit = 100; // callable snapshot limit
-    private Coroutine currencyAnimCoroutine;
+
+    // Coroutine references to manage animations cleanly
+    private Coroutine _currencyPulseRoutine;
+    private Coroutine _rankPulseRoutine;
+    private Coroutine _streakPulseRoutine;
+    private Coroutine _referralPulseRoutine;
 
     private double LoadLastCurrency()
     {
@@ -53,7 +53,6 @@ public class UserStatsDisplayer : MonoBehaviour
 
     private void MaybePlayCurrencyFx(double previous, double current)
     {
-        // tolerance to avoid float noise
         const double EPS = 0.0001;
         if (currencyGainFx == null) return;
         if (current > previous + EPS)
@@ -63,39 +62,45 @@ public class UserStatsDisplayer : MonoBehaviour
     }
 
     /// <summary>
-    /// Tek giriş noktası: tüm statları yeniler. Başka yerden çağrı yok.
+    /// Tek giriş noktası: tüm statları yeniler.
     /// </summary>
     public void RefreshUserStats()
     {
-        // Açılış: her panel için loading göster
-        if (currencyTMP) currencyTMP.text = "…";
-        if (rankTMP)     rankTMP.text     = "…";
-        if (streakTMP)   streakTMP.text   = "…";
+        // 1. Reset values to "0" (or previous known for currency if desired, but request implies 0 base for fetch)
+        // Request says: "fetch olurken 0 görünecek... rakamlar fetchlendiğinde 0'dan hedef değere... yükselecekler"
+        // So we reset to 0 visually and start pulse.
+        
+        SetText(currencyTMP, "0.00");
+        SetText(rankTMP, "0");
+        SetText(streakTMP, "0");
 
-        if (currencyFetchingPanel) currencyFetchingPanel.SetActive(true);
-        if (rankFetchingPanel)     rankFetchingPanel.SetActive(true);
-        if (streakFetchingPanel)   streakFetchingPanel.SetActive(true);
+        // 2. Start Pulse Animations
+        StartPulse(currencyTMP, ref _currencyPulseRoutine);
+        StartPulse(rankTMP, ref _rankPulseRoutine);
+        StartPulse(streakTMP, ref _streakPulseRoutine);
 
         if (userDB == null)
         {
-            // Hepsini kapat ve unavailable yaz
-            SetUnavailable();
-            SetFetchingPanelsActive(false);
+            StopAllPulses();
             return;
         }
 
-        // 1) Currency + Streak (UserData'dan)
+        // 3. Fire Fetches (Fire-and-forget logic handles completion internally)
         _ = RefreshCurrencyAndStreak();
-
-        // 2) Rank (callable snapshot üzerinden index+1)
         _ = RefreshRankFromSnapshot();
+    }
+
+    private void StopAllPulses()
+    {
+        StopPulse(currencyTMP, ref _currencyPulseRoutine);
+        StopPulse(rankTMP, ref _rankPulseRoutine);
+        StopPulse(streakTMP, ref _streakPulseRoutine);
     }
 
     private async Task RefreshCurrencyAndStreak()
     {
         try
         {
-            // Parallel fetch: UserData (Currency) & StreakService (Streak)
             var userDataTask = userDB.LoadUserData();
             var streakTask = StreakService.FetchAsync();
 
@@ -104,116 +109,45 @@ public class UserStatsDisplayer : MonoBehaviour
             var data = userDataTask.Result;
             var streakSnap = streakTask.Result;
 
-            // 1. Handle Currency (from UserData)
-            if (data == null)
+            // --- Handling Currency ---
+            if (data != null)
             {
-                if (currencyTMP) currencyTMP.text = "-";
-            }
-            else
-            {
-                // compare & fx
-                var prev = LoadLastCurrency();
+                var prev = LoadLastCurrency(); // We might use this for FX, but visual anim starts from 0 as requested
                 var curr = (double)data.currency;
+                
+                // FX check logic remains based on PREVIOUS session value for consistency
                 MaybePlayCurrencyFx(prev, curr);
                 SaveLastCurrency(curr);
 
-                // Currency arttıysa: önce eski değeri göster, sonra 1 sn içinde yeni değere doğru animasyonla yükselt
-                if (currencyTMP)
-                {
-                    // Her seferinde önce olası eski animasyonu durdur
-                    if (currencyAnimCoroutine != null)
-                    {
-                        StopCoroutine(currencyAnimCoroutine);
-                        currencyAnimCoroutine = null;
-                    }
-
-                    if (curr > prev)
-                    {
-                        // Animasyon başlamadan önce eski değeri hemen göster
-                        currencyTMP.text = prev.ToString("F2", CultureInfo.InvariantCulture);
-                        currencyTMP.rectTransform.localScale = Vector3.one;
-                        currencyAnimCoroutine = StartCoroutine(AnimateCurrencyIncrease(prev, curr));
-                    }
-                    else
-                    {
-                        // Azaldıysa veya aynıysa direkt yeni değeri yaz ve scale'i resetle
-                        currencyTMP.text = curr.ToString("F2", CultureInfo.InvariantCulture);
-                        currencyTMP.rectTransform.localScale = Vector3.one;
-                    }
-                }
-            }
-
-            // 2. Handle Streak (from StreakService)
-            if (streakSnap.ok)
-            {
-                if (streakTMP) streakTMP.text = streakSnap.totalDays.ToString();
+                StopPulse(currencyTMP, ref _currencyPulseRoutine);
+                StartCoroutine(AnimateCountUp(currencyTMP, 0f, (float)curr, 0.5f, "F2"));
             }
             else
             {
-                // Fallback to UserData if StreakService fails, or show error
-                if (data != null && streakTMP) 
-                    streakTMP.text = data.streak.ToString();
-                else if (streakTMP)
-                    streakTMP.text = "-";
+                StopPulse(currencyTMP, ref _currencyPulseRoutine);
+                SetText(currencyTMP, "-");
             }
+
+            // --- Handling Streak ---
+            double targetStreak = 0;
+            if (streakSnap.ok)
+            {
+                targetStreak = streakSnap.totalDays;
+            }
+            else if (data != null)
+            {
+                targetStreak = data.streak;
+            }
+            
+            StopPulse(streakTMP, ref _streakPulseRoutine);
+            StartCoroutine(AnimateCountUp(streakTMP, 0f, (float)targetStreak, 0.5f, "0"));
         }
         catch (Exception e)
         {
             Debug.LogWarning($"[UserStats] currency/streak load failed: {e.Message}");
-            if (currencyTMP) currencyTMP.text = "-";
-            if (streakTMP)   streakTMP.text   = "-";
+            StopPulse(currencyTMP, ref _currencyPulseRoutine);
+            StopPulse(streakTMP, ref _streakPulseRoutine);
         }
-        finally
-        {
-            if (currencyFetchingPanel) currencyFetchingPanel.SetActive(false);
-            if (streakFetchingPanel)   streakFetchingPanel.SetActive(false);
-        }
-    }
-    /// <summary>
-    /// Currency arttığında eski değerden yeni değere 1 saniyede yavaş yavaş yükselme
-    /// ve bu sırada text'in scale'inin büyüyüp küçülmesi animasyonu.
-    /// </summary>
-    private IEnumerator AnimateCurrencyIncrease(double from, double to)
-    {
-        if (currencyTMP == null)
-        {
-            yield break;
-        }
-
-        // Delay before anim starting
-        yield return new WaitForSeconds(0.75f);
-
-        var rt = currencyTMP.rectTransform;
-        const float duration = 1f;
-        const float punchAmount = 0.2f; // %20 büyüme
-        float t = 0f;
-
-        // Başlangıç: eski currency değeri ve normal scale
-        double start = from;
-        double end = to;
-        currencyTMP.text = start.ToString("F2", CultureInfo.InvariantCulture);
-        rt.localScale = Vector3.one;
-
-        while (t < duration)
-        {
-            t += Time.deltaTime;
-            float normalized = Mathf.Clamp01(t / duration);
-
-            // Değer interpolasyonu
-            double value = Mathf.Lerp((float)start, (float)end, normalized);
-            currencyTMP.text = value.ToString("F2", CultureInfo.InvariantCulture);
-
-            // Scale animasyonu: sinüs eğrisiyle büyüyüp geri küçülme
-            float scaleFactor = 1f + punchAmount * Mathf.Sin(normalized * Mathf.PI);
-            rt.localScale = new Vector3(scaleFactor, scaleFactor, 1f);
-
-            yield return null;
-        }
-
-        // Son frame: kesin olarak hedef değeri ve normal scale'i ayarla
-        currencyTMP.text = end.ToString("F2", CultureInfo.InvariantCulture);
-        rt.localScale = Vector3.one;
-        currencyAnimCoroutine = null;
     }
 
     private async Task RefreshRankFromSnapshot()
@@ -224,57 +158,84 @@ public class UserStatsDisplayer : MonoBehaviour
             var page = await userDB.GetLeaderboardsSnapshotAsync(limit: limit, startAfterScore: null, includeSelf: true);
 
             string myUid = userDB.currentLoggedUserID;
-            int rank = -1;
+            int rank = 0;
 
             if (!string.IsNullOrEmpty(myUid) && page != null && page.items != null)
             {
                 int idx = page.items.FindIndex(e => e.uid == myUid);
-                if (idx >= 0) rank = idx + 1; // local list sırası
+                if (idx >= 0) rank = idx + 1; 
             }
 
-            if (rankTMP) rankTMP.text = (rank > 0) ? rank.ToString() : "-";
+            StopPulse(rankTMP, ref _rankPulseRoutine);
+            StartCoroutine(AnimateCountUp(rankTMP, 0f, (float)rank, 0.5f, "0"));
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"[UserStats] rank fetch failed: {ex.Message}");
-            if (rankTMP) rankTMP.text = "-";
+            StopPulse(rankTMP, ref _rankPulseRoutine); 
         }
-        finally
+    }
+
+    // --- Helpers ---
+
+    private void SetText(TextMeshProUGUI tmp, string text)
+    {
+        if (tmp) tmp.text = text;
+    }
+
+    // --- Animation Logic ---
+
+    private void StartPulse(TextMeshProUGUI tmp, ref Coroutine routine)
+    {
+        if (tmp == null) return;
+        if (routine != null) StopCoroutine(routine);
+        routine = StartCoroutine(Co_PulseAlpha(tmp));
+    }
+
+    private void StopPulse(TextMeshProUGUI tmp, ref Coroutine routine)
+    {
+        if (routine != null)
         {
-            if (rankFetchingPanel) rankFetchingPanel.SetActive(false);
+            StopCoroutine(routine);
+            routine = null;
+        }
+        // Ensure alpha is back to 1
+        if (tmp != null) tmp.alpha = 1f;
+    }
+
+    private IEnumerator Co_PulseAlpha(TextMeshProUGUI tmp)
+    {
+        // "alfları 0.25, 1 arasında hızlıca gidip gelecek"
+        float speed = 5f; // Adjust for "hızlıca" feel
+        while (true)
+        {
+            float val = Mathf.PingPong(Time.time * speed, 1f); 
+            // PingPong returns 0..1. Map 0..1 to 0.25..1.0
+            // Lerp(0.25, 1.0, val)
+            if (tmp) tmp.alpha = Mathf.Lerp(0.25f, 1f, val);
+            yield return null;
         }
     }
 
-    private void ApplyStats(UserData data)
+    private IEnumerator AnimateCountUp(TextMeshProUGUI tmp, float startVal, float endVal, float duration, string format)
     {
-        if (currencyTMP)
-            currencyTMP.text = data.currency.ToString("F2", CultureInfo.InvariantCulture);
+        if (tmp == null) yield break;
 
-        if (rankTMP)
-            rankTMP.text = "-"; // rank artık user doc'tan okunmuyor
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            float progress = Mathf.Clamp01(t / duration);
+            
+            // Optional: EaseOut
+            // progress = Mathf.Sin(progress * Mathf.PI * 0.5f);
 
-        if (streakTMP)
-            streakTMP.text = data.streak.ToString();
-    }
-
-    private void SetLoading()
-    {
-        if (currencyTMP) currencyTMP.text = "…";
-        if (rankTMP)     rankTMP.text     = "…";
-        if (streakTMP)   streakTMP.text   = "…";
-    }
-
-    private void SetUnavailable()
-    {
-        if (currencyTMP) currencyTMP.text = "-";
-        if (rankTMP)     rankTMP.text     = "-";
-        if (streakTMP)   streakTMP.text   = "-";
-    }
-
-    private void SetFetchingPanelsActive(bool active)
-    {
-        if (currencyFetchingPanel) currencyFetchingPanel.SetActive(active);
-        if (rankFetchingPanel)     rankFetchingPanel.SetActive(active);
-        if (streakFetchingPanel)   streakFetchingPanel.SetActive(active);
+            float current = Mathf.Lerp(startVal, endVal, progress);
+            tmp.text = current.ToString(format, CultureInfo.InvariantCulture);
+            yield return null;
+        }
+        
+        tmp.text = endVal.ToString(format, CultureInfo.InvariantCulture);
     }
 }
+
