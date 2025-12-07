@@ -28,4 +28,12 @@ public class ReferralManager : MonoBehaviour
 
         OnCacheUpdated?.Invoke();
     }
+
+    public void Reset()
+    {
+        Cached.Clear();
+        TotalEarned = 0;
+        MyReferralKey = "-";
+        OnCacheUpdated?.Invoke();
+    }
 }

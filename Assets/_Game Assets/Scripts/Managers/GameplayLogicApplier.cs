@@ -199,39 +199,8 @@ public class GameplayLogicApplier : MonoBehaviour
         OnRunStopped?.Invoke();
     }
 
-    /// <summary>
-    /// Sunucuya bu oturumun sonuçlarını gönderir. GameplayManager bu metodu tetikler.
-    /// Varsayılan olarak logic içindeki Score ve Coins değerlerini gönderir; istenirse override verilebilir.
-    /// </summary>
-    public async Task<bool> SubmitSessionResultAsync(string sessionId, double? currencyOverride = null, double? scoreOverride = null)
-    {
-        double earnedCurrency = currencyOverride ?? Coins;
-        double earnedScore    = scoreOverride ?? Score;
+    // SubmitSessionResultAsync removed. Logic moved to UserDatabaseManager.SubmitGameplaySessionAsync.
 
-        try
-        {
-            // Extended metrics (decimal combo, playtime, power-ups)
-            double maxComboInSession = GetMaxComboInSession();
-            int playtimeSec = GetPlaytimeSec();
-            int powerUpsCollectedInSession = GetPowerUpsCollectedInSession();
-            var res = await SessionResultRemoteService.SubmitAsync(
-                sessionId,
-                earnedCurrency,
-                earnedScore,
-                maxComboInSession,
-                playtimeSec,
-                powerUpsCollectedInSession
-            );
-            OnSessionResultSubmitted?.Invoke(res.alreadyProcessed, res.currency, res.maxScore);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[GameplayLogicApplier] SubmitSessionResultAsync failed: {ex.Message}");
-            OnSessionResultFailed?.Invoke(ex.Message);
-            return false;
-        }
-    }
 
     /// <summary>
     /// Reset per-run trackers used when submitting session result to server.

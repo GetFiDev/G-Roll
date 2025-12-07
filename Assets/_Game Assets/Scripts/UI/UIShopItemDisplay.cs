@@ -246,7 +246,10 @@ public class UIShopItemDisplay : MonoBehaviour
             {
                 // Threshold karşılandı → normal item gibi owned/equipped state kullanalım
                 if (equipped) return ShopVisualState.Normal_Equipped;
-                return ShopVisualState.Normal_Owned;
+                if (owned) return ShopVisualState.Normal_Owned;
+                
+                // Threshold met BUT not owned -> Show as NotOwned (which will trigger "Claim" button)
+                return ShopVisualState.Normal_NotOwned;
             }
         }
 
@@ -405,6 +408,13 @@ public class UIShopItemDisplay : MonoBehaviour
                     // GET fiyat
                     if (d != null) label = d.getPrice.ToString("F2");
                     icon = iconCurrency;
+                }
+                
+                // Override for Referral items that are unlocked but not owned
+                if (Category == ShopCategory.Referral)
+                {
+                    label = "Claim";
+                    icon = null; // Or use iconReferral if desired, but usually "Claim" implies free/action
                 }
                 break;
 
@@ -588,20 +598,34 @@ public class UIShopItemDisplay : MonoBehaviour
         {
             if (!owned)
             {
-                Debug.Log("[UIShopItemDisplay] Referral item is locked. Unlock via referrals.");
-                
-                var mainMenu = FindObjectOfType<UIMainMenu>();
-                if (mainMenu != null)
-                {
-                    mainMenu.ShowPanel(UIMainMenu.PanelType.Referral);
-                }
+               // Check if locked
+               var currentRefCount = _cachedReferralCount;
+               if (currentRefCount < Data.referralThreshold)
+               {
+                   Debug.Log("[UIShopItemDisplay] Referral item is locked. Unlock via referrals.");
+                   
+                   var mainMenu = FindObjectOfType<UIMainMenu>();
+                   if (mainMenu != null)
+                   {
+                       mainMenu.ShowPanel(UIMainMenu.PanelType.Referral);
+                   }
 
-                if (fetchingPanel != null) fetchingPanel.SetActive(false);
-                return;
+                   if (fetchingPanel != null) fetchingPanel.SetActive(false);
+                   return;
+               }
+               
+               // If unlocked (referral count met) but not owned, proceed to claiming (BuyRoutine)
             }
 
             // Referral item zaten envanterdeyse normal toggle davranışı uygula
-            StartCoroutine(ToggleEquipRoutine(inv, nid, equipped));
+            if (owned)
+            {
+                StartCoroutine(ToggleEquipRoutine(inv, nid, equipped));
+                return;
+            }
+            
+            // Unlocked but not owned -> Claim it via BuyRoutine
+            StartCoroutine(BuyRoutine());
             return;
         }
 

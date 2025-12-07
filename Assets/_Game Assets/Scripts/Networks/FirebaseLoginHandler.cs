@@ -256,6 +256,16 @@ public class FirebaseLoginHandler : MonoBehaviour
         Log("Login success");
         _authReady = true;
 
+        // Ensure fresh inventory state for new user
+        if (UserInventoryManager.Instance != null)
+        {
+            UserInventoryManager.Instance.Reset();
+        }
+
+        // Reset Referral Cache
+        var refMgr = FindObjectOfType<ReferralManager>();
+        if (refMgr != null) refMgr.Reset();
+
         // Son kullanılan login bilgilerini kaydet
         if (loginEmailInput != null && loginPasswordInput != null)
             SaveCredentials(loginEmailInput.text, loginPasswordInput.text);

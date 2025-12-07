@@ -45,6 +45,12 @@ public class UserDatabaseManager : MonoBehaviour
         "referralKey", "referredByKey", "referredByUid", "referralAppliedAt"
     };
 
+
+    // --- Caching for Optimistic Updates ---
+    private UserData _cachedUserData;
+    private float _lastOptimisticUpdateTimestamp = -999f;
+    private const float OPTIMISTIC_CACHE_DURATION = 15f; // Duration to prefer local cache over server stale data
+
     private static void StripServerOnlyKeys(System.Collections.Generic.Dictionary<string, object> dict)
     {
         if (dict == null) return;
@@ -66,6 +72,17 @@ public class UserDatabaseManager : MonoBehaviour
         DontDestroyOnLoad(gameObject); // İstersen kaldır
     }
     void Start() => InitializeFirebase();
+
+    public void Reset()
+    {
+        if (auth != null)
+        {
+            try { auth.SignOut(); } catch { }
+        }
+        currentUser = null;
+        currentLoggedUserID = null;
+        EmitLog("✅ UserDatabaseManager Reset (Signed Out)");
+    }
 
     private void InitializeFirebase()
     {
@@ -148,6 +165,7 @@ public class UserDatabaseManager : MonoBehaviour
     // --- REGISTER ---
     public async void Register(string email, string password, string referralCode)
     {
+        Reset(); // Ensure clean state before new auth
         if (auth == null) { EmitLog("❌ Auth null"); return; }
 
         try
@@ -182,6 +200,7 @@ public class UserDatabaseManager : MonoBehaviour
     // --- LOGIN ---
     public async void Login(string email, string password)
     {
+        Reset(); // Ensure clean state before new auth
         if (auth == null) { EmitLog("❌ Auth null"); return; }
 
         try
@@ -218,6 +237,14 @@ public class UserDatabaseManager : MonoBehaviour
     {
         if (currentUser == null) { EmitLog("❌ No Login"); return null; }
 
+        // --- Fast Path: If we just updated optimistically, return cache immediately ---
+        // This makes the UI instant after Game Loop -> Menu transition
+        if (_cachedUserData != null && (Time.time - _lastOptimisticUpdateTimestamp) < 5f)
+        {
+            EmitLog("⚡ LoadUserData: Returning fresh optimistic cache (skipping fetch).");
+            return _cachedUserData;
+        }
+
         try
         {
             var snap = await UserDoc().GetSnapshotAsync();
@@ -228,6 +255,22 @@ public class UserDatabaseManager : MonoBehaviour
             }
 
             var data = snap.ConvertTo<UserData>(); // Eksikler property defaultlarına düşer
+            
+            // --- Optimistic Merge Strategy ---
+            if (_cachedUserData != null && (Time.time - _lastOptimisticUpdateTimestamp) < OPTIMISTIC_CACHE_DURATION)
+            {
+                // If local cache has MORE currency than server, assume server is stale
+                if (_cachedUserData.currency > data.currency)
+                {
+                    EmitLog($"⚠️ Optimistic Merge: Override server currency ({data.currency}) with local ({_cachedUserData.currency})");
+                    data.currency = _cachedUserData.currency;
+                    data.maxScore = Mathf.Max((float)data.maxScore, (float)_cachedUserData.maxScore);
+                }
+            }
+            
+            // Update cache with the (potentially merged) fresh data
+            _cachedUserData = data; 
+            
             EmitLog("✅ User data loaded");
             return data;
         }
@@ -792,13 +835,12 @@ public class UserDatabaseManager : MonoBehaviour
             var snap = await UserDoc().GetSnapshotAsync();
             if (!snap.Exists)
             {
-                EmitLog("⚠️ GetReferralCountAsync: user doc not found");
+                EmitLog($"⚠️ GetReferralCountAsync: user doc not found for {currentUser.UserId}");
                 return 0;
             }
 
             if (snap.TryGetValue("referrals", out object val))
             {
-                // Try to convert to int
                 if (val is int i) return i;
                 if (val is long l) return (int)l;
                 if (val is double d) return (int)d;
@@ -806,17 +848,55 @@ public class UserDatabaseManager : MonoBehaviour
                 if (val is string s && int.TryParse(s, out var parsed)) return parsed;
                 EmitLog($"ℹ️ GetReferralCountAsync: 'referrals' field type unexpected ({val?.GetType()})");
             }
-            else
-            {
-                EmitLog("ℹ️ GetReferralCountAsync: 'referrals' field not set, returning 0");
-            }
+            return 0;
         }
         catch (Exception e)
         {
             EmitLog("❌ GetReferralCountAsync error: " + e.Message);
+            return 0;
         }
-        return 0;
     }
+
+    // --- GAMEPLAY SESSION SUBMISSION (Persistent) ---
+    public async Task SubmitGameplaySessionAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected)
+    {
+        EmitLog($"[UserDatabaseManager] Submitting session: {sessionId} Cur:{earnedCurrency} Score:{earnedScore}");
+
+        try
+        {
+            var resp = await SessionResultRemoteService.SubmitAsync(sessionId, earnedCurrency, earnedScore, maxCombo, playtimeSec, powerUpsCollected);
+            
+            // Success! Update local cache immediately
+            if (_cachedUserData != null)
+            {
+                // OPTIMISTIC MATH:
+                // Server response 'currency' field seems unreliable (returns 0 often).
+                // So we trust our local 'earnedCurrency' and add it to the cached total.
+                _cachedUserData.currency += earnedCurrency;
+                
+                // For maxScore, we can trust the response if it's there, or just take the max
+                if (resp.maxScore > _cachedUserData.maxScore)
+                    _cachedUserData.maxScore = resp.maxScore;
+                else if (earnedScore > _cachedUserData.maxScore) // Fallback local check
+                    _cachedUserData.maxScore = (float)earnedScore;
+
+                _lastOptimisticUpdateTimestamp = Time.time;
+                EmitLog($"✅ Session Submitted! Optimistic Cache Updated: Currency={_cachedUserData.currency}");
+
+                // Trigger UI refresh immediately
+                EnqueueMain(() => OnUserDataSaved?.Invoke(_cachedUserData));
+            }
+            else
+            {
+                EmitLog("⚠️ SubmitGameplaySessionAsync: _cachedUserData is null, skipping optimistic update.");
+            }
+        }
+        catch (Exception e)
+        {
+            EmitLog($"❌ SubmitGameplaySessionAsync Failed: {e.Message}");
+        }
+    }
+
 }
 
 // ===== Helpers to read IDictionary safely (top-level extension class) =====
@@ -850,4 +930,3 @@ public static class DictReadHelpers
         return def;
     }
 }
-

@@ -59,7 +59,7 @@ public class AchievementLevelRow : MonoBehaviour
             if (canClaim)
             {
                 // Statik metin
-                if (claimButtonTMP) claimButtonTMP.text = "Claim";
+                if (claimButtonTMP) claimButtonTMP.text = reward.ToString();
 
                 // Sprite
                 if (claimButtonImage && claimActiveSprite)

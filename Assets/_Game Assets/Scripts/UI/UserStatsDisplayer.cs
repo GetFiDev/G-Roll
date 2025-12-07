@@ -23,6 +23,10 @@ public class UserStatsDisplayer : MonoBehaviour
     [Header("Persistence")]
     public bool persistLastCurrency = true;
     public string lastCurrencyPrefsKey = "UserStatsDisplayer.LastCurrency";
+    
+    // New keys for Rank and Streak
+    public string lastRankPrefsKey = "UserStatsDisplayer.LastRank";
+    public string lastStreakPrefsKey = "UserStatsDisplayer.LastStreak";
 
     [Header("Options")] public int leaderboardProbeLimit = 100; // callable snapshot limit
 
@@ -30,7 +34,13 @@ public class UserStatsDisplayer : MonoBehaviour
     private Coroutine _currencyPulseRoutine;
     private Coroutine _rankPulseRoutine;
     private Coroutine _streakPulseRoutine;
-    private Coroutine _referralPulseRoutine;
+    
+    // Animation Coroutines
+    private Coroutine _currencyAnimRoutine;
+    private Coroutine _rankAnimRoutine;
+    private Coroutine _streakAnimRoutine;
+
+    #region Persistence Helpers
 
     private double LoadLastCurrency()
     {
@@ -47,9 +57,34 @@ public class UserStatsDisplayer : MonoBehaviour
     private void SaveLastCurrency(double value)
     {
         if (!persistLastCurrency) return;
-        PlayerPrefs.SetString(lastCurrencyPrefsKey, value.ToString("F4", CultureInfo.InvariantCulture));
+        // Use "R" or "G17" for round-trip double precision to avoid "0.01" drift
+        PlayerPrefs.SetString(lastCurrencyPrefsKey, value.ToString("G17", CultureInfo.InvariantCulture));
         PlayerPrefs.Save();
     }
+
+    private float LoadLastRank()
+    {
+        return PlayerPrefs.GetFloat(lastRankPrefsKey, 0f); // Default to 0 if not found
+    }
+
+    private void SaveLastRank(float value)
+    {
+        PlayerPrefs.SetFloat(lastRankPrefsKey, value);
+        PlayerPrefs.Save();
+    }
+
+    private float LoadLastStreak()
+    {
+        return PlayerPrefs.GetFloat(lastStreakPrefsKey, 0f); // Default to 0 if not found
+    }
+
+    private void SaveLastStreak(float value)
+    {
+        PlayerPrefs.SetFloat(lastStreakPrefsKey, value);
+        PlayerPrefs.Save();
+    }
+    
+    #endregion
 
     private void MaybePlayCurrencyFx(double previous, double current)
     {
@@ -66,15 +101,16 @@ public class UserStatsDisplayer : MonoBehaviour
     /// </summary>
     public void RefreshUserStats()
     {
-        // 1. Reset values to "0" (or previous known for currency if desired, but request implies 0 base for fetch)
-        // Request says: "fetch olurken 0 görünecek... rakamlar fetchlendiğinde 0'dan hedef değere... yükselecekler"
-        // So we reset to 0 visually and start pulse.
+        // 1. Initialize text with LAST KNOWN values (Persistence) instead of 0
+        double lastCurrency = LoadLastCurrency();
+        float lastRank = LoadLastRank();
+        float lastStreak = LoadLastStreak();
         
-        SetText(currencyTMP, "0.00");
-        SetText(rankTMP, "0");
-        SetText(streakTMP, "0");
+        SetText(currencyTMP, lastCurrency.ToString("F2", CultureInfo.InvariantCulture));
+        SetText(rankTMP, lastRank.ToString("0", CultureInfo.InvariantCulture));
+        SetText(streakTMP, lastStreak.ToString("0", CultureInfo.InvariantCulture));
 
-        // 2. Start Pulse Animations
+        // 2. Start Pulse Animations to indicate "Fetching/Updating"
         StartPulse(currencyTMP, ref _currencyPulseRoutine);
         StartPulse(rankTMP, ref _rankPulseRoutine);
         StartPulse(streakTMP, ref _streakPulseRoutine);
@@ -112,15 +148,22 @@ public class UserStatsDisplayer : MonoBehaviour
             // --- Handling Currency ---
             if (data != null)
             {
-                var prev = LoadLastCurrency(); // We might use this for FX, but visual anim starts from 0 as requested
-                var curr = (double)data.currency;
+                double prev = LoadLastCurrency(); 
+                double curr = (double)data.currency;
                 
-                // FX check logic remains based on PREVIOUS session value for consistency
+                // Only animate if changed. 
+                // Delay: 0.75s if currency increased (to sync with potential FX), else 0.
+                bool increased = curr > prev;
+                float delay = increased ? 0.75f : 0f;
+
+                // FX logic
                 MaybePlayCurrencyFx(prev, curr);
                 SaveLastCurrency(curr);
 
                 StopPulse(currencyTMP, ref _currencyPulseRoutine);
-                StartCoroutine(AnimateCountUp(currencyTMP, 0f, (float)curr, 0.5f, "F2"));
+                
+                // Start animation from 'prev' to 'curr' - Use DOUBLE to avoid precision issues
+                StartAnim(currencyTMP, prev, curr, 0.5f, delay, "F2", ref _currencyAnimRoutine);
             }
             else
             {
@@ -129,7 +172,7 @@ public class UserStatsDisplayer : MonoBehaviour
             }
 
             // --- Handling Streak ---
-            double targetStreak = 0;
+            float targetStreak = 0;
             if (streakSnap.ok)
             {
                 targetStreak = streakSnap.totalDays;
@@ -139,8 +182,12 @@ public class UserStatsDisplayer : MonoBehaviour
                 targetStreak = data.streak;
             }
             
+            float prevStreak = LoadLastStreak();
+            SaveLastStreak(targetStreak);
+            
             StopPulse(streakTMP, ref _streakPulseRoutine);
-            StartCoroutine(AnimateCountUp(streakTMP, 0f, (float)targetStreak, 0.5f, "0"));
+            // No extra delay for streak
+            StartAnim(streakTMP, (double)prevStreak, (double)targetStreak, 0.5f, 0f, "0", ref _streakAnimRoutine);
         }
         catch (Exception e)
         {
@@ -158,16 +205,20 @@ public class UserStatsDisplayer : MonoBehaviour
             var page = await userDB.GetLeaderboardsSnapshotAsync(limit: limit, startAfterScore: null, includeSelf: true);
 
             string myUid = userDB.currentLoggedUserID;
-            int rank = 0;
+            float rank = 0;
 
             if (!string.IsNullOrEmpty(myUid) && page != null && page.items != null)
             {
                 int idx = page.items.FindIndex(e => e.uid == myUid);
                 if (idx >= 0) rank = idx + 1; 
             }
+            
+            float prevRank = LoadLastRank();
+            SaveLastRank(rank);
 
             StopPulse(rankTMP, ref _rankPulseRoutine);
-            StartCoroutine(AnimateCountUp(rankTMP, 0f, (float)rank, 0.5f, "0"));
+            // No extra delay for rank
+            StartAnim(rankTMP, (double)prevRank, (double)rank, 0.5f, 0f, "0", ref _rankAnimRoutine);
         }
         catch (Exception ex)
         {
@@ -189,7 +240,10 @@ public class UserStatsDisplayer : MonoBehaviour
     {
         if (tmp == null) return;
         if (routine != null) StopCoroutine(routine);
-        routine = StartCoroutine(Co_PulseAlpha(tmp));
+        if (this.isActiveAndEnabled)
+        {
+            routine = StartCoroutine(Co_PulseAlpha(tmp));
+        }
     }
 
     private void StopPulse(TextMeshProUGUI tmp, ref Coroutine routine)
@@ -205,21 +259,37 @@ public class UserStatsDisplayer : MonoBehaviour
 
     private IEnumerator Co_PulseAlpha(TextMeshProUGUI tmp)
     {
-        // "alfları 0.25, 1 arasında hızlıca gidip gelecek"
-        float speed = 5f; // Adjust for "hızlıca" feel
+        float speed = 5f; 
         while (true)
         {
             float val = Mathf.PingPong(Time.time * speed, 1f); 
-            // PingPong returns 0..1. Map 0..1 to 0.25..1.0
-            // Lerp(0.25, 1.0, val)
             if (tmp) tmp.alpha = Mathf.Lerp(0.25f, 1f, val);
             yield return null;
         }
     }
+    
+    private void StartAnim(TextMeshProUGUI tmp, double startVal, double endVal, float duration, float delay, string format, ref Coroutine currRoutine)
+    {
+        if(tmp == null) return;
+        if (currRoutine != null) StopCoroutine(currRoutine);
+        if (this.isActiveAndEnabled)
+        {
+            currRoutine = StartCoroutine(AnimateCountUp(tmp, startVal, endVal, duration, delay, format));
+        }
+        else
+        {
+            // If inactive, just set the text immediately so it's correct when enabled
+            tmp.text = endVal.ToString(format, CultureInfo.InvariantCulture);
+        }
+    }
 
-    private IEnumerator AnimateCountUp(TextMeshProUGUI tmp, float startVal, float endVal, float duration, string format)
+    private IEnumerator AnimateCountUp(TextMeshProUGUI tmp, double startVal, double endVal, float duration, float delay, string format)
     {
         if (tmp == null) yield break;
+
+        // Wait for delay if any
+        if (delay > 0f)
+            yield return new WaitForSeconds(delay);
 
         float t = 0f;
         while (t < duration)
@@ -227,10 +297,8 @@ public class UserStatsDisplayer : MonoBehaviour
             t += Time.deltaTime;
             float progress = Mathf.Clamp01(t / duration);
             
-            // Optional: EaseOut
-            // progress = Mathf.Sin(progress * Mathf.PI * 0.5f);
-
-            float current = Mathf.Lerp(startVal, endVal, progress);
+            // Double interpolation: start + (end - start) * t
+            double current = startVal + (endVal - startVal) * progress;
             tmp.text = current.ToString(format, CultureInfo.InvariantCulture);
             yield return null;
         }

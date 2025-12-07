@@ -479,6 +479,13 @@ public class EquippedItemDisplay : MonoBehaviour
         if (success)
         {
             Debug.Log($"[EquippedItemDisplay] Successfully unequipped {_itemId}");
+            
+            // Refresh the entire Home Panel (and HUD)
+            var homePanel = FindObjectOfType<UIHomePanel>();
+            if (homePanel != null)
+            {
+                homePanel.Initialize();
+            }
             // Bind will be refreshed by parent (e.g., UIHomePanel) via OnInventoryChanged event
         }
         else

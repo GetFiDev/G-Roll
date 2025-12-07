@@ -420,15 +420,28 @@ public class GameplayManager : MonoBehaviour
         }
         try
         {
-            // Collect extended session metrics for visibility (LogicApplier also sends these to server)
+            // Collect extended session metrics for visibility
+            double maxComboInSession = 0;
+            int playtimeSec = 0;
+            int powerUpsCollectedInSession = 0;
+
             if (logicApplier != null)
             {
-                double maxComboInSession = logicApplier.GetMaxComboInSession();
-                int playtimeSec = logicApplier.GetPlaytimeSec();
-                int powerUpsCollectedInSession = logicApplier.GetPowerUpsCollectedInSession();
+                maxComboInSession = logicApplier.GetMaxComboInSession();
+                playtimeSec = logicApplier.GetPlaytimeSec();
+                powerUpsCollectedInSession = logicApplier.GetPowerUpsCollectedInSession();
                 Debug.Log($"[GameplayManager] Submit extras: combo={maxComboInSession:F2} playtimeSec={playtimeSec} powerUps={powerUpsCollectedInSession}");
             }
-            await logicApplier.SubmitSessionResultAsync(_currentSessionId, earnedCurrency, earnedScore);
+
+            // Use PERMANENT UserDatabaseManager submission instead of logicApplier
+            if (UserDatabaseManager.Instance != null)
+            {
+               await UserDatabaseManager.Instance.SubmitGameplaySessionAsync(_currentSessionId, earnedCurrency, earnedScore, maxComboInSession, playtimeSec, powerUpsCollectedInSession);
+            }
+            else
+            {
+                 Debug.LogError("[GameplayManager] UserDatabaseManager missing! Cannot submit session.");
+            }
         }
         catch (Exception ex)
         {

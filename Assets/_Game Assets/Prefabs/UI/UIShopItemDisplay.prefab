@@ -425,7 +425,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4278233855
-  m_fontColor: {r: 1, g: 0.66526496, b: 0, a: 1}
+  m_fontColor: {r: 1, g: 0.66526496, b: 0, a: 0}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -757,8 +757,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -56.7, y: -1.3009}
-  m_SizeDelta: {x: 43.3657, y: 43.3652}
+  m_AnchoredPosition: {x: -81.53078, y: -1.3009}
+  m_SizeDelta: {x: 39.8766, y: 39.8758}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6846045199833595969
 CanvasRenderer:
@@ -864,8 +864,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 72.22935, y: -2.6579}
-  m_SizeDelta: {x: 183.6133, y: 46.1274}
+  m_AnchoredPosition: {x: -0.000026703, y: 0.080189}
+  m_SizeDelta: {x: 123.1842, y: 46.1274}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &9095096453843275121
 CanvasRenderer:
@@ -930,7 +930,7 @@ MonoBehaviour:
   m_fontSizeMin: 18
   m_fontSizeMax: 64
   m_fontStyle: 0
-  m_HorizontalAlignment: 1
+  m_HorizontalAlignment: 2
   m_VerticalAlignment: 8192
   m_textAlignment: 65535
   m_characterSpacing: 0
@@ -1189,7 +1189,6 @@ MonoBehaviour:
   iconReferral: {fileID: 21300000, guid: 4eb4671ab8b1343bfb34aa8f2b87f210, type: 3}
   iconAd: {fileID: 21300000, guid: 50206ef5faf094c7fa8cb15a083f1e5e, type: 3}
   fetchingPanel: {fileID: 3099583370969961130}
-  setNativeSizeOnLoad: 0
   bgNormalNotOwned: {fileID: 21300000, guid: f49bd97113dc54fbcba2875d2dc686e2, type: 3}
   bgNormalOwned: {fileID: 21300000, guid: b87cc19f0031b413fa2dd14cce5090f0, type: 3}
   bgNormalEquipped: {fileID: 21300000, guid: 2589accdac67e4ac2b17fa4892b2dff2, type: 3}

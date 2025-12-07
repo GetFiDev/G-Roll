@@ -141,6 +141,20 @@ public class UserInventoryManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Resets the local inventory state. Call this on logout or before a new login.
+    /// </summary>
+    public void Reset()
+    {
+        Debug.Log("[UserInventoryManager] Resetting local state.");
+        _inventory.Clear();
+        _equipped.Clear();
+        _activeConsumables.Clear();
+        IsInitialized = false;
+        OnInventoryChanged?.Invoke();
+        OnActiveConsumablesChanged?.Invoke();
+    }
+
+    /// <summary>
     /// Returns true if player owns this item.
     /// </summary>
     public bool Owns(string itemId)
@@ -187,16 +201,16 @@ public class UserInventoryManager : MonoBehaviour
                 if (!_inventory.TryGetValue(id, out var entry) || entry == null)
                     entry = new InventoryRemoteService.InventoryEntry();
 
-                entry.owned = true; // quantity will be reconciled by server in RefreshAsync()
+                entry.owned = true;
                 _inventory[id] = entry;
 
                 // UI'ya hemen yansıt
                 OnInventoryChanged?.Invoke();
 
-                // --- Server truth ile arkaplanda senkronize et ---
-                _ = RefreshAsync(); // fire-and-forget; UI zaten yukarıda güncellendi
+                // REMOVED REFRESH: Trusting the transaction result to avoid race conditions.
+                // Do not call RefreshAsync() here!
 
-                Debug.Log($"[UserInventoryManager] Purchase success (optimistic) for {id}");
+                Debug.Log($"[UserInventoryManager] Purchase success (server-confirmed) for {id}");
                 return result;
             }
 

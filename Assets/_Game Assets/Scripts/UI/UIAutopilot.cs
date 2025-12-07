@@ -59,7 +59,7 @@ public class UIAutoPilot : MonoBehaviour
     [SerializeField] private string normalHeaderString   = "Autopilot";
     [SerializeField] private string eliteHeaderString    = "Elite Autopilot";
     [SerializeField] private string normalSubheaderString = "Earn passively up to cap";
-    [SerializeField] private string eliteSubheaderString  = "Claim anytime while working";
+    [SerializeField] private string eliteSubheaderString  = "Claim anytime while rolling";
 
     // ---- internal state ----
     private CancellationTokenSource? _cts;
@@ -177,7 +177,7 @@ public class UIAutoPilot : MonoBehaviour
             case Mode.Normal_NotStarted:
                 SetProgress(0f);
                 SetProgressLabel("Waiting to start...");
-                SetupButton(startButtonSprite, true, "Start");
+                SetupButton(startButtonSprite, true, "Roll");
                 break;
 
             case Mode.Normal_InProgress:
@@ -208,12 +208,12 @@ public class UIAutoPilot : MonoBehaviour
             case Mode.Elite_NotStarted:
                 SetProgress(0f);
                 SetProgressLabel("Waiting to start...");
-                SetupButton(startButtonSprite, true, "Start");
+                SetupButton(startButtonSprite, true, "Roll");
                 break;
 
             case Mode.Elite_Working:
                 SetProgress(1f);
-                SetProgressLabel("Working...");
+                SetProgressLabel("Rolling...");
                 if (elitePassProcessBarAnimationObject)
                     elitePassProcessBarAnimationObject.SetActive(true);
                 SetupButton(claimActiveSprite, true, "Claim");
@@ -398,7 +398,7 @@ public class UIAutoPilot : MonoBehaviour
             actionButtonText.text = label ?? "";
 
             // Claim edilebilir durumda text'i yukarı kaydır
-            float targetY = (interactable && label == "Claim") ? 21.468f : 1f;
+            float targetY = (interactable && label == "Claim") ? 1f : 1f;
 
             var rt = actionButtonText.rectTransform;
             Vector3 pos = rt.localPosition;
