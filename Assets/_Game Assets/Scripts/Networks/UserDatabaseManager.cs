@@ -25,6 +25,7 @@ public class UserDatabaseManager : MonoBehaviour
 
     // Capability flag for leaderboard all-rows fetch
     public bool HasMethod_FetchLeaderboardAll => true;
+    public bool IsFirebaseReady { get; private set; } = false;
 
 
     // Main-thread güvenli dispatch için
@@ -112,6 +113,7 @@ public class UserDatabaseManager : MonoBehaviour
                 EmitLog("✅ Firebase ready");
                 _funcs = FirebaseFunctions.GetInstance("us-central1");
                 EmitLog("✅ Functions bound to us-central1");
+                IsFirebaseReady = true;
             }
             else
             {

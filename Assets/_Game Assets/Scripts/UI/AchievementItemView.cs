@@ -95,31 +95,34 @@ public class AchievementItemView : MonoBehaviour
                 break;
         }
 
-        iconImage.sprite = null;
-        var c = iconImage.color;
-        c.a = 0f;
-        iconImage.color = c;
+        if (iconImage)
+        {
+            iconImage.sprite = null;
+            iconImage.gameObject.SetActive(false);
+        }
 
         var sp = await AchievementIconCache.LoadSpriteAsync(def.iconUrl);
         
-        // Fix: Check if object is still active before starting coroutine
-        if (!gameObject.activeInHierarchy)
+        // Fix: Check if object is still active before continuing
+        if (this == null || !gameObject.activeInHierarchy) return;
+
+        if (sp != null && iconImage != null)
         {
-            if (sp) 
-            {
-                iconImage.sprite = sp;
-                var cFinal = iconImage.color;
-                cFinal.a = 1f;
-                iconImage.color = cFinal;
-            }
-            return;
+            iconImage.sprite = sp;
+            iconImage.gameObject.SetActive(true);
+            
+            // Set alpha to 0 and fade in
+            var c = iconImage.color;
+            c.a = 0f;
+            iconImage.color = c;
+
+            if (_iconFadeRoutine != null) StopCoroutine(_iconFadeRoutine);
+            _iconFadeRoutine = StartCoroutine(FadeInIcon());
         }
-
-        if (sp) iconImage.sprite = sp;
-
-        if (_iconFadeRoutine != null)
-            StopCoroutine(_iconFadeRoutine);
-        _iconFadeRoutine = StartCoroutine(FadeInIcon());
+        else if (iconImage != null)
+        {
+            iconImage.gameObject.SetActive(false);
+        }
 
         button.onClick.RemoveAllListeners();
         button.onClick.AddListener(() => _onClick?.Invoke(_def, _state));
@@ -127,6 +130,8 @@ public class AchievementItemView : MonoBehaviour
 
     private IEnumerator FadeInIcon()
     {
+        if (iconImage == null) yield break;
+        
         float duration = 0.25f;
         float t = 0f;
         Color c = iconImage.color;

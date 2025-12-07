@@ -89,6 +89,16 @@ public class FirebaseLoginHandler : MonoBehaviour
         // Başlangıçta loader kapalı
         SetLoading(false);
         LoadCredentialsToInputs();
+
+        // Auto-login check
+        if (rememberCredentials)
+        {
+            if (loginEmailInput != null && !string.IsNullOrEmpty(loginEmailInput.text) &&
+                loginPasswordInput != null && !string.IsNullOrEmpty(loginPasswordInput.text))
+            {
+                StartCoroutine(WaitForFirebaseAndLogin());
+            }
+        }
         // ÖNEMLİ: Burada artık isim kontrolü YAPMIYORUZ.
         // Panel yalnızca login/register başarıdan sonra kontrol edilecek.
 
@@ -413,6 +423,8 @@ public class FirebaseLoginHandler : MonoBehaviour
         SetButtonState(loginActionButton, ready, loginEnabledSprite, loginDisabledSprite);
     }
 
+
+
     private void UpdateRegisterButtonState()
     {
         bool ready = !string.IsNullOrEmpty(registerEmailInput ? registerEmailInput.text : null)
@@ -420,5 +432,23 @@ public class FirebaseLoginHandler : MonoBehaviour
                   && !string.IsNullOrEmpty(registerSecondPasswordInput ? registerSecondPasswordInput.text : null)
                   && (registerPasswordInput != null && registerSecondPasswordInput != null && registerPasswordInput.text == registerSecondPasswordInput.text);
         SetButtonState(registerActionButton, ready, registerEnabledSprite, registerDisabledSprite);
+    }
+
+    private System.Collections.IEnumerator WaitForFirebaseAndLogin()
+    {
+        SetLoading(true);
+        // Wait until manager exists
+        while (manager == null)
+        {
+            yield return null;
+        }
+
+        // Wait until manager is ready
+        while (!manager.IsFirebaseReady)
+        {
+            yield return null;
+        }
+
+        OnLoginButton();
     }
 }

@@ -207,6 +207,9 @@ public class UserInventoryManager : MonoBehaviour
                 // UI'ya hemen yansıt
                 OnInventoryChanged?.Invoke();
 
+                // Bull Market items like to auto-activate on purchase, ensuring UI reflects this immediately (e.g. countdowns)
+                await RefreshActiveConsumablesAsync();
+
                 // REMOVED REFRESH: Trusting the transaction result to avoid race conditions.
                 // Do not call RefreshAsync() here!
 

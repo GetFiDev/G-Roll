@@ -82,9 +82,12 @@ public class EquippedItemDisplay : MonoBehaviour
             else
             {
                 iconImage.sprite = null;
-                iconImage.gameObject.SetActive(true);
-                if (_blinkCoroutine != null) StopCoroutine(_blinkCoroutine);
-                _blinkCoroutine = StartCoroutine(BlinkWhileNoIcon());
+                iconImage.gameObject.SetActive(false);
+                if (_blinkCoroutine != null)
+                {
+                    StopCoroutine(_blinkCoroutine);
+                    _blinkCoroutine = null;
+                }
             }
         }
 

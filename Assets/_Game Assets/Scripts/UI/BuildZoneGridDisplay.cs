@@ -7,7 +7,8 @@ public class BuildZoneGridDisplay : MonoBehaviour
 {
     [Header("UI Refs")]
     [SerializeField] private Transform gridRoot;                  // GridLayoutGroup bu objede olmalı
-    [SerializeField] private GameObject fetchingPanel;            // “Loading…” gibi
+
+
     [SerializeField] private EquippedItemDisplay itemPrefab;  // Her slot bir EquippedItemDisplay (root'ta Button olmalı)
 
     [Header("Behavior")]
@@ -64,15 +65,18 @@ public class BuildZoneGridDisplay : MonoBehaviour
 
     private IEnumerator RefreshCoroutine()
     {
-        if (fetchingPanel) fetchingPanel.SetActive(true);
+
+        // fetchingPanel removed due to user request
+
 
         // Ensure manager ready
         var inv = UserInventoryManager.Instance;
         if (inv == null)
         {
             Debug.LogWarning("[BuildZoneGridDisplay] UserInventoryManager.Instance is null");
-            if (fetchingPanel) fetchingPanel.SetActive(false);
             yield break;
+
+
         }
 
         if (!inv.IsInitialized)
@@ -135,8 +139,10 @@ public class BuildZoneGridDisplay : MonoBehaviour
             display.gameObject.name = hasItem ? $"Slot_{i}_Item_{itemId}" : $"Slot_{i}_Empty";
         }
 
-        if (fetchingPanel) fetchingPanel.SetActive(false);
+
+
         yield return null;
+
     }
 
     // --- Click handlers (İÇLERİNİ SEN DOLDURACAKSIN) ---

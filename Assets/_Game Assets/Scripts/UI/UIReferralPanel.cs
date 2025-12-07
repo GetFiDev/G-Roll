@@ -282,6 +282,10 @@ public class UIReferralPanel : MonoBehaviour
 
     #endregion
     // ================== Share Button ==================
+    
+    [Header("Sharing")]
+    public Sprite referralShareImage;
+
     /// <summary>
     /// Copies given text and opens native share sheet on mobile.
     /// Call this from your UI Button.
@@ -291,6 +295,25 @@ public class UIReferralPanel : MonoBehaviour
         var msg = BuildReferralShareMessage();
         ShareReferralText(msg);
     }
+
+    /// <summary>
+    /// Shares ONLY the referral code (e.g. "ABC1234").
+    /// </summary>
+    public void OnShareCodeOnlyButtonClick()
+    {
+        if (manager == null) return;
+        string key = manager.MyReferralKey;
+        if (string.IsNullOrWhiteSpace(key) || key == "-")
+        {
+            // fallback if code is missing, maybe show a toast or nothing?
+            // for now, just share empty or log warning
+            Debug.LogWarning("[UIReferralPanel] No referral code to share.");
+            return;
+        }
+
+        ShareReferralText(key, false); // false = do not attach image
+    }
+
     public void OnCopyReferralKeyClick()
     {
         var msg = BuildReferralShareMessage();
@@ -312,7 +335,8 @@ public class UIReferralPanel : MonoBehaviour
 
         return $"Join G‑Roll using my referral code: {key}";
     }
-    public async void ShareReferralText(string text)
+
+    public async void ShareReferralText(string text, bool canAttachImage = true)
     {
         if (string.IsNullOrWhiteSpace(text))
             return;
@@ -321,53 +345,86 @@ public class UIReferralPanel : MonoBehaviour
         GUIUtility.systemCopyBuffer = text;
         Debug.Log("[UIReferralPanel] Copied to clipboard: " + text);
 
+        string imagePath = null;
+        if (canAttachImage && referralShareImage != null && referralShareImage.texture != null)
+        {
+            try 
+            {
+                // Save texture to temporary file to share it
+                // Note: Texture MUST be Read/Write enabled in import settings
+                var tex = referralShareImage.texture;
+                // If it's a sprite atlas or non-readable, this might fail or need a blit copy.
+                // Assuming simple sprite texture for now.
+                // To be safe against "Texture not readable", we can use a Render Texture blit approach if needed,
+                // but let's try direct Encode first (simpler).
+                
+                // If texture is not readable, we may need a detour. 
+                // Let's implement a safer "GetReadableTexture" helper locally or just try/catch.
+                
+                byte[] bytes = null;
+                if (tex.isReadable)
+                {
+                    bytes = tex.EncodeToPNG();
+                }
+                else
+                {
+                    // Fallback: Create a readable copy via RenderTexture
+                    var rt = RenderTexture.GetTemporary(tex.width, tex.height, 0);
+                    Graphics.Blit(tex, rt);
+                    var prev = RenderTexture.active;
+                    RenderTexture.active = rt;
+                    var readable = new Texture2D(tex.width, tex.height);
+                    readable.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
+                    readable.Apply();
+                    RenderTexture.active = prev;
+                    RenderTexture.ReleaseTemporary(rt);
+                    bytes = readable.EncodeToPNG();
+                    Destroy(readable); 
+                }
+
+                if (bytes != null)
+                {
+                    imagePath = System.IO.Path.Combine(Application.temporaryCachePath, "invite_image.png");
+                    System.IO.File.WriteAllBytes(imagePath, bytes);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[UIReferralPanel] Failed to prepare image for sharing: {ex.Message}");
+                imagePath = null;
+            }
+        }
+
 #if UNITY_ANDROID || UNITY_IOS
         try
         {
-            var payload = new List<string> { text };
-
-            // Prefer new API: ShareAsync(string)
-            var shareType = typeof(Share);
-            var shareAsync = shareType.GetMethod("ShareAsync", new Type[] { typeof(string) });
-            if (shareAsync != null)
+            // If we have an image, we MUST use ItemsAsync (list of strings/paths) or similar.
+            // Share.ItemAsync(string) is usually for text/url only?
+            // Share.ItemsAsync(List<string>) supports paths. 
+            
+            var payload = new List<string>();
+            payload.Add(text);
+            if (!string.IsNullOrEmpty(imagePath))
             {
-                var task = shareAsync.Invoke(null, new object[] { text }) as System.Threading.Tasks.Task;
-                if (task != null) await task;
-                else Debug.LogWarning("[UIReferralPanel] ShareAsync returned null Task; assuming opened.");
-                return;
+                payload.Add(imagePath);
             }
 
-            // Fallback 1: ItemsAsync(List<string>)
-            var itemsAsync = shareType.GetMethod("ItemsAsync", new Type[] { typeof(List<string>) });
-            if (itemsAsync != null)
-            {
-                var t = itemsAsync.Invoke(null, new object[] { payload }) as System.Threading.Tasks.Task;
-                if (t != null) await t;
-                else Debug.LogWarning("[UIReferralPanel] ItemsAsync returned null Task; assuming opened.");
-                return;
-            }
-
-            // Fallback 2 (legacy/obsolete): Items(List<string>, Action<bool>)
-            var items = shareType.GetMethod("Items", new Type[] { typeof(List<string>), typeof(Action<bool>) });
-            if (items != null)
-            {
-                Action<bool> cb = success =>
-                {
-                    if (success) Debug.Log("[UIReferralPanel] Share window opened and returned.");
-                    else Debug.LogWarning("[UIReferralPanel] Failed to open share window.");
-                };
-                items.Invoke(null, new object[] { payload, cb });
-                return;
-            }
-
-            Debug.LogWarning("[UIReferralPanel] No compatible Share method found in plugin.");
+            // Using ItemsAsync for text+image or just text
+            // Prefer new API: ShareAsync(string) if logic was simple, but for multiple items (text+img) we use ItemsAsync
+            
+            // Note: The library wrapper 'Share.ItemsAsync' takes List<string>. 
+            // It handles checking if string is a file path or text.
+            
+            bool success = await Share.ItemsAsync(payload);
+            if (success) Debug.Log("[UIReferralPanel] Share success.");
+            else Debug.LogWarning("[UIReferralPanel] Share failed or user cancelled.");
         }
         catch (Exception ex)
         {
             Debug.LogError("[UIReferralPanel] Share invoke error: " + ex.Message);
         }
 #else
-        Debug.Log("Sharing is only supported on mobile devices.");
+        Debug.Log($"Sharing (simulated): {text} " + (imagePath != null ? $"[Image: {imagePath}]" : ""));
 #endif
     }
 }

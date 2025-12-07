@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using System.Linq;
 
 public enum ShopCategory
 {
@@ -78,7 +79,29 @@ public class UIShopItemDisplay : MonoBehaviour
     [Header("Status Feedback")]
     [SerializeField] private TMP_Text statusLabel;    // (opsiyonel) buton yakınında küçük metin
     [SerializeField] private float statusDuration = 1.8f; // saniye
+
     private Coroutine _statusRoutine;                 // çalışan status coroutine
+
+    private void Awake()
+    {
+        // Runtime fix: If statChipsRoot points to a prefab asset (not a child of this instance),
+        // try to find the correct child by name within this instance.
+        if (statChipsRoot != null && !statChipsRoot.IsChildOf(transform))
+        {
+            var found = GetComponentsInChildren<Transform>(true)
+                .FirstOrDefault(t => t.name == statChipsRoot.name && t.IsChildOf(transform));
+
+            if (found != null)
+            {
+                Debug.LogWarning($"[UIShopItemDisplay] Auto-fixed broken 'statChipsRoot' reference on '{name}'.");
+                statChipsRoot = found;
+            }
+            else
+            {
+                Debug.LogError($"[UIShopItemDisplay] 'statChipsRoot' on '{name}' points to an asset/external object and could not be auto-fixed!");
+            }
+        }
+    }
 
     private void OnEnable()
     {

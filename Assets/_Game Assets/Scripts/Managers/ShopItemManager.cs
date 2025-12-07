@@ -8,6 +8,7 @@ public class ShopItemManager : MonoBehaviour
 {
     [Header("Item Prefab")]
     [SerializeField] private UIShopItemDisplay itemPrefab;
+    [SerializeField] private UIShopItemDisplay bullMarketItemPrefab;
 
     [Header("Tab Roots (assign in Inspector)")]
     [SerializeField] private Transform myItemsRoot;
@@ -116,7 +117,7 @@ public class ShopItemManager : MonoBehaviour
                                       .OrderBy(i => i.getPrice).ToList();
             var bullDollar   = bullAll.Where(i => !i.isRewardedAd && i.dollarPrice > 0)
                                       .OrderBy(i => i.dollarPrice).ToList();
-            var bullItemsOrdered = bullRewarded.Concat(bullInGame).Concat(bullDollar).ToList();
+            var bullItemsOrdered = bullDollar.Concat(bullInGame).Concat(bullRewarded).ToList();
             SpawnList(bullItemsOrdered, ShopCategory.BullMarket);
 
             // --- MY ITEMS --- sadece sahip olunan item'ları listele
@@ -269,9 +270,17 @@ public class ShopItemManager : MonoBehaviour
             Debug.LogWarning($"[ShopItemManager] No root for category {cat}");
             return;
         }
+
+        // Determine which prefab to use
+        UIShopItemDisplay prefabToUse = itemPrefab;
+        if (cat == ShopCategory.BullMarket && bullMarketItemPrefab != null)
+        {
+            prefabToUse = bullMarketItemPrefab;
+        }
+
         foreach (var item in list)
         {
-            var inst = Instantiate(itemPrefab, parent);
+            var inst = Instantiate(prefabToUse, parent);
             if (!inst.gameObject.activeSelf) inst.gameObject.SetActive(true);
             // Normalize id at bind-time for consistent naming and optional SetItemId()
             var nid = IdUtil.NormalizeId(item.id);

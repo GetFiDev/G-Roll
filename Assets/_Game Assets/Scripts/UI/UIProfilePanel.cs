@@ -337,6 +337,8 @@ public class UIProfilePanel : MonoBehaviour
     /// </summary>
     public void OnClickLogout()
     {
+        PlayerPrefs.DeleteAll();
+        PlayerPrefs.Save();
         Application.Quit();
     }
 }

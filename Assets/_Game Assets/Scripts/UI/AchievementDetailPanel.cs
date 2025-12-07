@@ -27,9 +27,18 @@ public class AchievementDetailPanel : MonoBehaviour
     {
         _def = def; _state = state; _onAnyClaim = onAnyClaim;
 
-        iconImage.sprite = null;
+        if (iconImage)
+        {
+            iconImage.sprite = null;
+            iconImage.gameObject.SetActive(false);
+        }
+
         var sp = await AchievementIconCache.LoadSpriteAsync(def.iconUrl);
-        if (sp) iconImage.sprite = sp;
+        if (sp != null && iconImage != null)
+        {
+            iconImage.sprite = sp;
+            iconImage.gameObject.SetActive(true);
+        }
 
         titleTMP.text = def.displayName;
         descTMP.text  = def.description;
