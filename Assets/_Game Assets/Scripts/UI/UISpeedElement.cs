@@ -52,7 +52,7 @@ public class UISpeedElement : MonoBehaviour
             return;
         }
 
-        float targetSpeed = _cachedPlayerMovement.Speed;
+        float targetSpeed = _cachedPlayerMovement.Speed * 10f;
         
         // 1. Value Smoothing
         float newSpeed = Mathf.SmoothDamp(_currentDisplaySpeed, targetSpeed, ref _velocity, smoothTime);

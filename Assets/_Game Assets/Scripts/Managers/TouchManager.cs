@@ -14,7 +14,7 @@ public class TouchManager : MonoBehaviour
     [Header("Double Tap")] [Range(0.05f, 0.5f)] public float doubleTapDuration = 0.25f;
     public float doubleTapMaxDistancePx = 40f;
 
-    [Header("Swipe")] public float swipeThresholdPx = 60f;
+    [Header("Swipe")] public float swipeThresholdPx = 5f;
 
     public Action<Vector2> OnTouchBegin;
     public Action<Vector2> OnTouchMoveScreen;

@@ -82,9 +82,10 @@ public class UIPlayerStatsHandler : MonoBehaviour
             switch (key)
             {
                 case KEY_COMBO_POWER:
-                    valueStr = dto.comboPower.ToString(CultureInfo.InvariantCulture);
-                    isPercent = true;
-                    isDecimal = false; // integer göster
+                    // Base 25 + upgrades
+                    valueStr = (25 + dto.comboPower).ToString(CultureInfo.InvariantCulture);
+                    isPercent = false; // User requested int, no percent
+                    isDecimal = false;
                     break;
                 case KEY_COIN_MULTIPLIER_PERCENT:
                     valueStr = dto.coinMultiplierPercent.ToString(CultureInfo.InvariantCulture);
@@ -102,7 +103,9 @@ public class UIPlayerStatsHandler : MonoBehaviour
                     isDecimal = true; // tek ondalık
                     break;
                 case KEY_PLAYER_SPEED_ADD:
-                    valueStr = dto.playerSpeed.ToString(CultureInfo.InvariantCulture);
+                    // Base Display 20 + Upgrade Value (assuming dto.playerSpeed is in Display Units)
+                    // If dto.playerSpeed = 0, default is 20.0
+                    valueStr = ((20f + dto.playerSpeed)).ToString(CultureInfo.InvariantCulture);
                     isPercent = false;
                     isDecimal = true; // tek ondalık
                     break;

@@ -7,7 +7,8 @@ public class UIEnergyDisplay : MonoBehaviour
 {
     [Header("Refs")]
 
-    [SerializeField] private TMP_Text energyText;   // “1/6”
+    [SerializeField] private TMP_Text currentEnergyText;   // “1”
+    [SerializeField] private TMP_Text maxEnergyText;       // “/6”
     [SerializeField] private TMP_Text timerText;    // “03:59:59” veya “--:--”
     [SerializeField] private GameObject timerParent;
     [SerializeField] private GameObject livesParent;
@@ -37,7 +38,8 @@ public class UIEnergyDisplay : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogWarning($"[UIEnergyDisplay] Refresh error: {ex.Message}");
-            if (energyText) energyText.text = "--/--";
+            if (currentEnergyText) currentEnergyText.text = "-";
+            if (maxEnergyText) maxEnergyText.text = "/-";
             if (timerText)  timerText.text  = "--:--";
         }
     }
@@ -47,7 +49,8 @@ public class UIEnergyDisplay : MonoBehaviour
         _snap = snap;
         _hasSnap = true;
 
-        if (energyText) energyText.text = $"{Mathf.Clamp(snap.current, 0, snap.max)}/{snap.max}";
+        if (currentEnergyText) currentEnergyText.text = $"{Mathf.Clamp(snap.current, 0, snap.max)}";
+        if (maxEnergyText) maxEnergyText.text = $"/{snap.max}";
 
         StartTickerIfNeeded();
     }

@@ -6,12 +6,13 @@ public class UIMainMenu : MonoBehaviour
 {
     [Header("Panels")]
     [SerializeField] private UIHomePanel homePanel;
-    [SerializeField] private UIMetaSettingsPanel settingsPanel;
+
     [SerializeField] private UIShopPanel shopPanel;
     [SerializeField] private UIReferralPanel referralPanel;
     [SerializeField] private UIRankingPanel rankingPanel;
     [SerializeField] private UITaskPanel TaskPanel;
-    [SerializeField] private UIProfilePanel profilePanel;
+
+    [SerializeField] private ProfileAndSettingsPanel profileAndSettingsPanel;
     [SerializeField] private UIAutoPilotPanel autoPilotpanel;
     [SerializeField] private UIElitePassPanel elitePassPanel;
 
@@ -23,7 +24,7 @@ public class UIMainMenu : MonoBehaviour
 
     public enum PanelType
     {
-        Home, Settings, Shop, Referral, Customization, Ranking, Task, Profile, ElitePass, AutoPilot
+        Home, Shop, Referral, Customization, Ranking, Task, ProfileAndSettings, ElitePass, AutoPilot
     }
 
     private Dictionary<PanelType, UIFadePanel> panels;
@@ -42,12 +43,11 @@ public class UIMainMenu : MonoBehaviour
         panels = new Dictionary<PanelType, UIFadePanel>
         {
             { PanelType.Home, GetOrAdd(homePanel.gameObject) },
-            { PanelType.Settings, GetOrAdd(settingsPanel.gameObject) },
             { PanelType.Shop, GetOrAdd(shopPanel.gameObject) },
             { PanelType.Referral, GetOrAdd(referralPanel.gameObject) },
             { PanelType.Ranking, GetOrAdd(rankingPanel.gameObject) },
             { PanelType.Task, GetOrAdd(TaskPanel.gameObject) },
-            { PanelType.Profile, GetOrAdd(profilePanel.gameObject) },
+            { PanelType.ProfileAndSettings, GetOrAdd(profileAndSettingsPanel.gameObject) },
             { PanelType.ElitePass, GetOrAdd(elitePassPanel.gameObject) },
             { PanelType.AutoPilot, GetOrAdd(autoPilotpanel.gameObject) }
         };

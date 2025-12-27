@@ -1,14 +1,14 @@
 import * as admin from "firebase-admin";
 import * as functionsV1 from "firebase-functions/v1";
-import {onDocumentWritten} from "firebase-functions/v2/firestore";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {setGlobalOptions} from "firebase-functions/v2/options";
-import {Firestore, Timestamp, FieldValue} from "@google-cloud/firestore";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { setGlobalOptions } from "firebase-functions/v2/options";
+import { Firestore, Timestamp, FieldValue } from "@google-cloud/firestore";
 
 admin.initializeApp();
 // nam5 -> us-central1
 
-setGlobalOptions({region:"us-central1"});
+setGlobalOptions({ region: "us-central1" });
 
 // --- ID Normalization Helper (use everywhere for itemId) ---
 const normId = (s?: string) => (s || "").trim().toLowerCase();
@@ -32,8 +32,10 @@ async function acquireRankLock(dbNow: Timestamp, holdMs = 2 * 60 * 1000): Promis
       if (!unlocked) {
         throw new Error("locked");
       }
-      tx.set(ref, {lockedUntil: Timestamp.fromMillis(dbNow.toMillis() + holdMs),
-        updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+      tx.set(ref, {
+        lockedUntil: Timestamp.fromMillis(dbNow.toMillis() + holdMs),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
     });
     return true;
   } catch (e) {
@@ -43,16 +45,20 @@ async function acquireRankLock(dbNow: Timestamp, holdMs = 2 * 60 * 1000): Promis
 
 async function releaseRankLock() {
   const ref = db.doc(RANK_LOCK_DOC);
-  try { await ref.set({lockedUntil: Timestamp.fromMillis(0),
-    updatedAt: FieldValue.serverTimestamp()}, {merge: true}); } catch {}
+  try {
+    await ref.set({
+      lockedUntil: Timestamp.fromMillis(0),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch { }
 }
 
-async function recomputeAllRanks(): Promise<{count:number}> {
+async function recomputeAllRanks(): Promise<{ count: number }> {
   const now = Timestamp.now();
   const got = await acquireRankLock(now);
   if (!got) {
     console.log("[ranks] another job is running; skip");
-    return {count: 0};
+    return { count: 0 };
   }
 
   let ranked = 0;
@@ -71,7 +77,7 @@ async function recomputeAllRanks(): Promise<{count:number}> {
       const batch = db.batch();
       snap.docs.forEach((doc, i) => {
         const rank = ranked + i + 1; // 1-based
-        batch.set(doc.ref, {rank, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+        batch.set(doc.ref, { rank, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       });
       await batch.commit();
 
@@ -80,12 +86,14 @@ async function recomputeAllRanks(): Promise<{count:number}> {
       lastScore = Number(last.get("maxScore") ?? 0) || 0;
 
       // extend lock while we are still working
-      await db.doc(RANK_LOCK_DOC).set({lockedUntil: Timestamp.fromMillis(Timestamp.now().toMillis() + 2 * 60 * 1000),
-        updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+      await db.doc(RANK_LOCK_DOC).set({
+        lockedUntil: Timestamp.fromMillis(Timestamp.now().toMillis() + 2 * 60 * 1000),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
     }
 
     console.log(`[ranks] recomputed for ${ranked} users`);
-    return {count: ranked};
+    return { count: ranked };
   } finally {
     await releaseRankLock();
   }
@@ -99,7 +107,7 @@ function utcDateString(ts: Timestamp): string {
 }
 
 
-const db = new Firestore({databaseId:DB_ID});
+const db = new Firestore({ databaseId: DB_ID });
 
 // ========================= Streak System (server-side only) =========================
 // Doc layout:
@@ -110,14 +118,14 @@ const db = new Firestore({databaseId:DB_ID});
 //   }
 
 const streakConfigRef = db.collection("appdata").doc("streakdata");
-const userStreakRef = (uid:string) => db.collection("users").doc(uid).collection("meta").doc("streak");
+const userStreakRef = (uid: string) => db.collection("users").doc(uid).collection("meta").doc("streak");
 
 // recordLogin: DEPRECATED. Kept as a thin wrapper to the new updateDailyStreak core.
 export const recordLogin = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await applyDailyStreakIncrement(uid);
-  return {ok: true, ...res, deprecated: true};
+  return { ok: true, ...res, deprecated: true };
 });
 
 // claimStreak: Grants accumulated unclaimedDays * reward to user currency and resets unclaimedDays.
@@ -137,7 +145,7 @@ export const claimStreak = onCall(async (req) => {
     if (unclaimed <= 0) {
       const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
       const rewardPerDay = cfgSnap.exists ? Number(cfgSnap.get("reward") ?? 0) || 0 : 0;
-      return {granted: 0, rewardPerDay: Math.max(0, rewardPerDay), unclaimedDays: 0, newCurrency: curCurrency};
+      return { granted: 0, rewardPerDay: Math.max(0, rewardPerDay), unclaimedDays: 0, newCurrency: curCurrency };
     }
 
     const rewardPerDay = cfgSnap.exists ? Number(cfgSnap.get("reward") ?? 0) || 0 : 0;
@@ -146,8 +154,8 @@ export const claimStreak = onCall(async (req) => {
     const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
     const newCurrency = curCurrency + grant;
 
-    tx.set(uRef, {currency: newCurrency, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
-    tx.set(sRef, {unclaimedDays: 0, lastClaimAt: now, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(uRef, { currency: newCurrency, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(sRef, { unclaimedDays: 0, lastClaimAt: now, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
     // optional: audit log
     const logRef = uRef.collection("streakClaims").doc();
@@ -159,10 +167,10 @@ export const claimStreak = onCall(async (req) => {
       currencyAfter: newCurrency,
     });
 
-    return {granted: grant, rewardPerDay, unclaimedDays: 0, newCurrency};
+    return { granted: grant, rewardPerDay, unclaimedDays: 0, newCurrency };
   });
 
-  return {ok: true, ...res};
+  return { ok: true, ...res };
 });
 
 // getStreakStatus: For UI — shows whether a claim is available and the next UTC midnight countdown.
@@ -170,11 +178,11 @@ export const getStreakStatus = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await applyDailyStreakIncrement(uid);
-  return {ok: true, ...res};
+  return { ok: true, ...res };
 });
 
 // small numeric helper for safe casting
-function snapNum(v:any): number {
+function snapNum(v: any): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
@@ -184,13 +192,13 @@ function snapNum(v:any): number {
 const ACH_TYPES = {
   ENDLESS_ROLLER: "endless_roller",        // sessionsPlayed
   SCORE_CHAMPION: "score_champion",         // maxScore
-  TOKEN_HUNTER:   "token_hunter",           // cumulativeCurrencyEarned
-  COMBO_GOD:      "combo_god",              // maxCombo
+  TOKEN_HUNTER: "token_hunter",           // cumulativeCurrencyEarned
+  COMBO_GOD: "combo_god",              // maxCombo
   MARKET_WHISPER: "market_whisperer",       // itemsPurchasedCount
-  TIME_DRIFTER:   "time_drifter",           // totalPlaytimeMinutes
-  HABIT_MAKER:    "habit_maker",            // streak (daily login)
-  POWERUP_EXP:    "powerup_explorer",       // powerUpsCollected
-  SIGNAL_BOOST:   "signal_booster",         // referrals
+  TIME_DRIFTER: "time_drifter",           // totalPlaytimeMinutes
+  HABIT_MAKER: "habit_maker",            // streak (daily login)
+  POWERUP_EXP: "powerup_explorer",       // powerUpsCollected
+  SIGNAL_BOOST: "signal_booster",         // referrals
 } as const;
 
 type AchType = typeof ACH_TYPES[keyof typeof ACH_TYPES];
@@ -205,8 +213,8 @@ type AchDoc = {
   order?: number;
 };
 
-const achDefRef = (typeId:AchType) => db.collection("appdata").doc("achievements").collection("types").doc(typeId);
-const achUserRef = (uid:string, typeId:AchType) => db.collection("users").doc(uid).collection("achievements").doc(typeId);
+const achDefRef = (typeId: AchType) => db.collection("appdata").doc("achievements").collection("types").doc(typeId);
+const achUserRef = (uid: string, typeId: AchType) => db.collection("users").doc(uid).collection("achievements").doc(typeId);
 
 async function readAchDef(typeId: AchType): Promise<AchDoc> {
   const snap = await achDefRef(typeId).get();
@@ -226,7 +234,7 @@ async function readAchDef(typeId: AchType): Promise<AchDoc> {
   };
 }
 
-function computeLevel(progress:number, levels:AchLevel[]): number {
+function computeLevel(progress: number, levels: AchLevel[]): number {
   let lvl = 0;
   for (let i = 0; i < levels.length; i++) {
     if (progress >= levels[i].threshold) lvl = i + 1; else break;
@@ -234,7 +242,7 @@ function computeLevel(progress:number, levels:AchLevel[]): number {
   return lvl; // 0..5
 }
 
-async function upsertUserAch(uid:string, typeId:AchType, progress:number) {
+async function upsertUserAch(uid: string, typeId: AchType, progress: number) {
   const def = await readAchDef(typeId);
   const level = computeLevel(progress, def.levels);
   const nextThreshold = level < def.levels.length ? def.levels[level].threshold : null;
@@ -244,13 +252,13 @@ async function upsertUserAch(uid:string, typeId:AchType, progress:number) {
     level,
     nextThreshold,
     updatedAt: FieldValue.serverTimestamp(),
-  }, {merge:true});
+  }, { merge: true });
 }
 
-async function grantAchReward(uid:string, typeId:AchType, level:number) {
+async function grantAchReward(uid: string, typeId: AchType, level: number) {
   const def = await readAchDef(typeId);
   if (level < 1 || level > def.levels.length) throw new HttpsError("invalid-argument", "Invalid level");
-  const reward = def.levels[level-1].rewardGet;
+  const reward = def.levels[level - 1].rewardGet;
   const uRef = db.collection("users").doc(uid);
   const aRef = achUserRef(uid, typeId);
 
@@ -263,9 +271,9 @@ async function grantAchReward(uid:string, typeId:AchType, level:number) {
     if (claimed.includes(level)) throw new HttpsError("already-exists", "Already claimed");
 
     const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
-    tx.set(uRef, {currency: curCurrency + reward, updatedAt: FieldValue.serverTimestamp()}, {merge:true});
-    tx.set(aRef, {claimedLevels: FieldValue.arrayUnion(level), lastClaimedAt: Timestamp.now()}, {merge:true});
-    return {reward, newCurrency: curCurrency + reward};
+    tx.set(uRef, { currency: curCurrency + reward, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(aRef, { claimedLevels: FieldValue.arrayUnion(level), lastClaimedAt: Timestamp.now() }, { merge: true });
+    return { reward, newCurrency: curCurrency + reward };
   });
 }
 
@@ -322,18 +330,18 @@ export const getAchievementsSnapshot = onCall(async (req) => {
   const aCol = db.collection("users").doc(uid).collection("achievements");
   const stateSnaps = await Promise.all(defs.map(d => aCol.doc(d.typeId).get()));
 
-  type StatePayload = 
-  { typeId: string; progress: number; level: number; claimedLevels: number[]; nextThreshold: number | null };
+  type StatePayload =
+    { typeId: string; progress: number; level: number; claimedLevels: number[]; nextThreshold: number | null };
   const states: StatePayload[] = defs.map((d, i) => {
     const s = stateSnaps[i];
     const progress = s.exists ? Number(s.get("progress") ?? 0) || 0 : 0;
     const level = s.exists ? Number(s.get("level") ?? 0) || 0 : 0;
     const claimed = s.exists && Array.isArray(s.get("claimedLevels")) ? (s.get("claimedLevels") as number[]) : [];
     const nextThreshold = s.exists ? ((s.get("nextThreshold") ?? null) as number | null) : (d.thresholds[level] ?? null);
-    return {typeId: d.typeId, progress, level, claimedLevels: claimed, nextThreshold};
+    return { typeId: d.typeId, progress, level, claimedLevels: claimed, nextThreshold };
   });
 
-  return {ok: true, defs, states};
+  return { ok: true, defs, states };
 });
 
 // -------- claimAchievementReward (callable) --------
@@ -344,7 +352,7 @@ export const claimAchievementReward = onCall(async (req) => {
   const level = Number(req.data?.level ?? 0);
   if (!typeId || !level) throw new HttpsError("invalid-argument", "typeId and level required");
   const res = await grantAchReward(uid, typeId, level);
-  return {ok:true, rewardGet: res.reward, newCurrency: res.newCurrency};
+  return { ok: true, rewardGet: res.reward, newCurrency: res.newCurrency };
 });
 
 // ---- Stats helpers for equip/unequip merging ----
@@ -360,7 +368,7 @@ function parseStatsJson(s: any): Record<string, number> {
 }
 
 function mergeStats(base: Record<string, number>, delta: Record<string, number>, sign: 1 | -1) {
-  const out: Record<string, number> = {...base};
+  const out: Record<string, number> = { ...base };
   for (const k of Object.keys(delta)) {
     const v = Number(delta[k]);
     if (!Number.isFinite(v)) continue;
@@ -434,7 +442,7 @@ async function cleanupExpiredConsumablesInTx(
 
 // ---------------- Leaderboard Sync ----------------
 export const syncLeaderboard = onDocumentWritten(
-  {document: "users/{uid}", database: DB_ID},
+  { document: "users/{uid}", database: DB_ID },
   async (event) => {
     const uid = event.params.uid;
     const after = event.data?.after?.data();
@@ -458,7 +466,7 @@ export const syncLeaderboard = onDocumentWritten(
         elitePassExpiresAt, // carry expiry to leaderboard entry for client-side active check
         updatedAt: FieldValue.serverTimestamp(),
       },
-      {merge: true}
+      { merge: true }
     );
     // NOTE: Removed materialization of topN and background rank recomputation.
   }
@@ -495,15 +503,15 @@ export const getLeaderboardsSnapshot = onCall(async (req) => {
     const updatedAt = (data.updatedAt as Timestamp | undefined)?.toDate()?.toISOString() ?? null;
     const eliteTs = (data.elitePassExpiresAt as Timestamp | undefined) || undefined;
     const elitePassExpiresAtMillis = eliteTs ? eliteTs.toMillis() : null;
-    return {uid: d.id, username, score, updatedAt, elitePassExpiresAtMillis};
+    return { uid: d.id, username, score, updatedAt, elitePassExpiresAtMillis };
   });
 
   const hasMore = snap.size >= limit;
   const next = hasMore && snap.docs.length > 0
-    ? {startAfterScore: (typeof snap.docs[snap.docs.length - 1].get("score") === 'number' ? snap.docs[snap.docs.length - 1].get("score") : 0)}
+    ? { startAfterScore: (typeof snap.docs[snap.docs.length - 1].get("score") === 'number' ? snap.docs[snap.docs.length - 1].get("score") : 0) }
     : null;
 
-  let me: { uid:string; username:string; score:number } | null = null;
+  let me: { uid: string; username: string; score: number } | null = null;
   if (includeSelf) {
     // Prefer leaderboard entry; fallback to users doc
     const [myEntrySnap, userSnap] = await Promise.all([
@@ -527,7 +535,7 @@ export const getLeaderboardsSnapshot = onCall(async (req) => {
     }
   }
 
-  return {ok: true, season: SEASON, serverNowMillis: now.toMillis(), count: items.length, hasMore, next, items, me};
+  return { ok: true, season: SEASON, serverNowMillis: now.toMillis(), count: items.length, hasMore, next, items, me };
 });
 
 // ---------------- Elite Pass ----------------
@@ -573,18 +581,18 @@ export const purchaseElitePass = onCall(async (req) => {
     tx.set(
       userRef,
       {
-        hasElitePass:true,
-        elitePassExpiresAt:newExpiry,
-        updatedAt:FieldValue.serverTimestamp()
+        hasElitePass: true,
+        elitePassExpiresAt: newExpiry,
+        updatedAt: FieldValue.serverTimestamp()
       },
-      {merge:true}
+      { merge: true }
     );
 
     if (purchaseId) {
       tx.set(
         userRef.collection("elitePassPurchases").doc(purchaseId),
-        {processedAt:now, newExpiry},
-        {merge:true}
+        { processedAt: now, newExpiry },
+        { merge: true }
       );
     }
   });
@@ -630,13 +638,13 @@ function randomReferralKey(len = 12): string {
   return s;
 }
 
-async function reserveUniqueReferralKey(uid:string): Promise<string> {
+async function reserveUniqueReferralKey(uid: string): Promise<string> {
   for (let i = 0; i < 6; i++) {
     const k = randomReferralKey(12);
     const ref = db.collection("referralKeys").doc(k);
     const snap = await ref.get();
     if (!snap.exists) {
-      await ref.set({ownerUid:uid, createdAt:Timestamp.now()});
+      await ref.set({ ownerUid: uid, createdAt: Timestamp.now() });
       return k;
     }
   }
@@ -644,7 +652,7 @@ async function reserveUniqueReferralKey(uid:string): Promise<string> {
 }
 
 
-async function ensureReferralKeyFor(uid:string): Promise<string> {
+async function ensureReferralKeyFor(uid: string): Promise<string> {
   const userRef = db.collection("users").doc(uid);
   return await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
@@ -656,8 +664,8 @@ async function ensureReferralKeyFor(uid:string): Promise<string> {
     const key = await reserveUniqueReferralKey(uid);
     tx.set(
       userRef,
-      {referralKey:key, updatedAt:FieldValue.serverTimestamp()},
-      {merge:true}
+      { referralKey: key, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
     );
     return key;
   });
@@ -666,7 +674,7 @@ async function ensureReferralKeyFor(uid:string): Promise<string> {
 // Grant referral reward items to ownerUid if their referrals reach new thresholds
 async function grantReferralThresholdItems(ownerUid: string, referrals: number): Promise<void> {
   if (!ownerUid || !Number.isFinite(referrals) || referrals <= 0) return;
-  console.log("[referralItems] START", {ownerUid, referrals});
+  console.log("[referralItems] START", { ownerUid, referrals });
 
   // Root for appdata/items/...
   const itemsRoot = db.collection("appdata").doc("items");
@@ -681,16 +689,16 @@ async function grantReferralThresholdItems(ownerUid: string, referrals: number):
     const docSnap = await subCol.doc("itemdata").get();
     if (!docSnap.exists) continue;
     const data = (docSnap.data() || {}) as any;
-    console.log("[referralItems] ITEMDATA", {itemId: subCol.id, data});
+    console.log("[referralItems] ITEMDATA", { itemId: subCol.id, data });
 
     const threshold = Number(data.itemReferralThreshold ?? 0) || 0;
     if (threshold <= 0) continue;
     if (referrals < threshold) continue; // not yet eligible
-    console.log("[referralItems] CANDIDATE", {itemId: subCol.id, threshold});
+    console.log("[referralItems] CANDIDATE", { itemId: subCol.id, threshold });
 
     const isConsumable = !!data.itemIsConsumable;
     const itemId = normId(subCol.id);
-    candidates.push({itemId, threshold, isConsumable});
+    candidates.push({ itemId, threshold, isConsumable });
   }
 
   console.log("[referralItems] CANDIDATES_FINAL", candidates);
@@ -709,7 +717,7 @@ async function grantReferralThresholdItems(ownerUid: string, referrals: number):
     const invStates = invSnaps.map((snap) => {
       const exists = snap.exists;
       const data = exists ? (snap.data() || {}) : {};
-      return {exists, data: data as any};
+      return { exists, data: data as any };
     });
 
     // === WRITE PHASE: only tx.set calls, no more tx.get ===
@@ -751,16 +759,16 @@ async function grantReferralThresholdItems(ownerUid: string, referrals: number):
         base.quantity = prevQty > 0 ? prevQty : 1;
       }
 
-      console.log("[referralItems] TX_SET", {itemId: c.itemId, base});
-      tx.set(invRef, base, {merge: true});
+      console.log("[referralItems] TX_SET", { itemId: c.itemId, base });
+      tx.set(invRef, base, { merge: true });
     });
   });
 }
 
 async function applyReferralCodeToUser(
-  uid:string,
-  codeRaw:string
-): Promise<{applied:boolean; referredByUid?:string}> {
+  uid: string,
+  codeRaw: string
+): Promise<{ applied: boolean; referredByUid?: string }> {
   const code = (codeRaw || "").toUpperCase().trim();
   if (!/^[A-Z0-9]{12}$/.test(code)) {
     throw new HttpsError("invalid-argument", "Invalid referral code");
@@ -792,19 +800,21 @@ async function applyReferralCodeToUser(
     tx.set(
       userRef,
       {
-        referredByKey:code,
-        referredByUid:ownerUid,
-        referralAppliedAt:Timestamp.now(),
-        updatedAt:FieldValue.serverTimestamp()
+        referredByKey: code,
+        referredByUid: ownerUid,
+        referralAppliedAt: Timestamp.now(),
+        updatedAt: FieldValue.serverTimestamp()
       },
-      {merge:true}
+      { merge: true }
     );
 
     tx.set(
       ownerRef,
-      {referrals:FieldValue.increment(1),
-       updatedAt:FieldValue.serverTimestamp()},
-      {merge:true}
+      {
+        referrals: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp()
+      },
+      { merge: true }
     );
   });
 
@@ -818,7 +828,7 @@ async function applyReferralCodeToUser(
     console.warn("[ach/referral] post-referral processing failed", e);
   }
 
-  return {applied:true, referredByUid:ownerUid};
+  return { applied: true, referredByUid: ownerUid };
 }
 
 // -------- profile create (Auth trigger) --------
@@ -838,6 +848,7 @@ export const createUserProfile = functionsV1
         mail: email,
         username: "",
         currency: 0,
+        premiumCurrency: 0,
         energyCurrent: 6,
         energyMax: 6,
         energyRegenPeriodSec: 14400,
@@ -860,7 +871,7 @@ export const createUserProfile = functionsV1
         maxScore: 0,
         hasElitePass: false,
         // init as expired (avoid nulls for Unity deserialization)
-        elitePassExpiresAt: Timestamp.fromMillis(Date.now() - 24*60*60*1000),
+        elitePassExpiresAt: Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000),
         lastLogin: Timestamp.now(),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -885,7 +896,7 @@ export const createUserProfile = functionsV1
           createdAt: nowTs,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        {merge: true}
+        { merge: true }
       );
     });
 
@@ -907,6 +918,7 @@ export const ensureUserProfile = onCall(async (req) => {
         mail: email,
         username: "",
         currency: 0,
+        premiumCurrency: 0,
         energyCurrent: 6,
         energyMax: 6,
         energyRegenPeriodSec: 14400,
@@ -956,18 +968,18 @@ export const ensureUserProfile = onCall(async (req) => {
           createdAt: nowTs,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        {merge: true}
+        { merge: true }
       );
     } else {
       const needInit = !snap.get("elitePassExpiresAt");
-      const patch:any = {
+      const patch: any = {
         lastLogin: Timestamp.now(),
         updatedAt: FieldValue.serverTimestamp(),
       };
       if (needInit) {
         // backfill as expired if missing/null
-        patch.elitePassExpiresAt = 
-          Timestamp.fromMillis(Date.now() - 24*60*60*1000);
+        patch.elitePassExpiresAt =
+          Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
       }
       // Backfill missing progress counters for legacy users
       for (const k of [
@@ -985,6 +997,7 @@ export const ensureUserProfile = onCall(async (req) => {
       ]) {
         if (snap.get(k) === undefined) patch[k] = 0;
       }
+      if (snap.get("premiumCurrency") === undefined) patch.premiumCurrency = 0;
       // Ensure streak subdoc exists without clobbering existing values
       const sRef = userStreakRef(uid);
       const sSnap2 = await tx.get(sRef);
@@ -998,17 +1011,17 @@ export const ensureUserProfile = onCall(async (req) => {
             createdAt: Timestamp.now(),
             updatedAt: FieldValue.serverTimestamp(),
           },
-          {merge: true}
+          { merge: true }
         );
       } else {
         // just touch updatedAt to keep a heartbeat; don't reset counters
         tx.set(
           sRef,
-          {updatedAt: FieldValue.serverTimestamp()},
-          {merge: true}
+          { updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
         );
       }
-      tx.set(userRef, patch, {merge:true});
+      tx.set(userRef, patch, { merge: true });
     }
   });
 
@@ -1039,7 +1052,7 @@ async function applyDailyStreakIncrement(uid: string): Promise<{
   const userRef = db.collection("users").doc(uid);
   const sRef = userStreakRef(uid);
 
-  const {totalDays, unclaimedDays, rewardPerDay, todayCounted} = await db.runTransaction(async (tx) => {
+  const { totalDays, unclaimedDays, rewardPerDay, todayCounted } = await db.runTransaction(async (tx) => {
     const [uSnap, sSnap, cfgSnap] = await Promise.all([
       tx.get(userRef),
       tx.get(sRef),
@@ -1075,12 +1088,12 @@ async function applyDailyStreakIncrement(uid: string): Promise<{
         createdAt: sSnap.exists ? (sSnap.get("createdAt") as Timestamp) ?? now : now,
         updatedAt: FieldValue.serverTimestamp(),
       },
-      {merge: true}
+      { merge: true }
     );
 
-    tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(userRef, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
-    return {totalDays, unclaimedDays, rewardPerDay, todayCounted};
+    return { totalDays, unclaimedDays, rewardPerDay, todayCounted };
   });
 
   const d = new Date(now.toMillis());
@@ -1107,7 +1120,7 @@ export const updateDailyStreak = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await applyDailyStreakIncrement(uid);
-  return {ok: true, ...res};
+  return { ok: true, ...res };
 });
 
 // -------- apply referral later (optional) --------
@@ -1125,55 +1138,37 @@ export const submitSessionResult = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-  const sessionId = String(req.data?.sessionId || "").trim();
-  const earnedCurrency = Number(req.data?.earnedCurrency ?? 0);
-  const earnedScore = Number(req.data?.earnedScore ?? 0);
-  const maxComboInSession = Number(req.data?.maxComboInSession ?? 0);
-  const playtimeSec = Number(req.data?.playtimeSec ?? 0);
-  const powerUpsCollectedInSession = Number(req.data?.powerUpsCollectedInSession ?? 0);
+  const p = (req.data as Record<string, any>) || {};
+  const sessionId = (p.sessionId || "").toString().trim();
+  const earnedCurrency = Number(p.earnedCurrency) || 0;
+  const earnedScore = Number(p.earnedScore) || 0;
 
-  if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required.");
-  if (!isFinite(earnedCurrency) || !isFinite(earnedScore)) {
-    throw new HttpsError("invalid-argument", "Numeric inputs required.");
-  }
-  if (earnedCurrency < 0 || earnedScore < 0) {
-    throw new HttpsError("invalid-argument", "Negative values are not allowed.");
-  }
+  // NEW: Game Mode & Result (for energy refund logic)
+  const mode = (p.mode || "endless").toString().trim().toLowerCase();
+  const success = !!p.success;
 
+  if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required");
+
+  // Session doc ref
   const userRef = db.collection("users").doc(uid);
   const sessRef = userRef.collection("sessions").doc(sessionId);
 
-  const result = await db.runTransaction(async (tx) => {
-    // session must exist and be granted by requestSession
+  // Transaction for safe write
+  const res = await db.runTransaction(async (tx) => {
+    // 1) Session state check
     const sSnap = await tx.get(sessRef);
     if (!sSnap.exists) {
-      throw new HttpsError("failed-precondition", "Unknown sessionId");
+      // Session yoksa (belki cok eski veya creation fail oldu)
+      return { alreadyProcessed: false, valid: false };
+    }
+    const sData = sSnap.data() || {};
+    if (sData.state === "completed" || sData.processedAt) {
+      // Already processed
+      return { alreadyProcessed: true, valid: true };
     }
 
-    const alreadyDone = !!sSnap.get("processedAt");
-    if (alreadyDone) {
-      // idempotent: return current totals from user
-      const uSnap = await tx.get(userRef);
-      const uData = uSnap.data() || {};
-      return {alreadyProcessed:true, currency:Number(uData.currency ?? 0),
-        maxScore:Number(uData.maxScore ?? 0)};
-    }
-
-    // update user totals
+    // 2) User data read (for currency update & maxScore check)
     const uSnap = await tx.get(userRef);
-    if (!uSnap.exists) {
-      tx.set(userRef, {mail:"", username:"", currency:0, maxScore:0, createdAt:FieldValue.serverTimestamp(), updatedAt:FieldValue.serverTimestamp()}, {merge:true});
-    }
-
-    const currentCurrency = Number(uSnap.get("currency") ?? 0) || 0;
-    const currentBest = Number(uSnap.get("maxScore") ?? 0) || 0;
-    const newCurrency = currentCurrency + earnedCurrency;
-    const newBest = Math.max(currentBest, earnedScore);
-
-    const prevSessions = Number(uSnap.get("sessionsPlayed") ?? 0) || 0;
-    const prevCumEarn = Number(uSnap.get("cumulativeCurrencyEarned") ?? 0) || 0;
-    const prevPlaySec = Number(uSnap.get("totalPlaytimeSec") ?? 0) || 0;
-    const prevPups = Number(uSnap.get("powerUpsCollected") ?? 0) || 0;
     const prevMaxCombo = Number(uSnap.get("maxCombo") ?? 0) || 0;
 
     const newSessions = prevSessions + 1;
@@ -1195,30 +1190,30 @@ export const submitSessionResult = onCall(async (req) => {
       powerUpsCollected: newPups,
       maxCombo: newMaxCombo,
       updatedAt: FieldValue.serverTimestamp()
-    }, {merge:true});
+    }, { merge: true });
 
     // mark session as processed
-    tx.set(sessRef, {state:"completed", earnedCurrency, earnedScore, processedAt:Timestamp.now()}, {merge:true});
+    tx.set(sessRef, { state: "completed", earnedCurrency, earnedScore, processedAt: Timestamp.now() }, { merge: true });
 
-    return {alreadyProcessed:false, currency:newCurrency, maxScore:newBest};
-    });
-      try {
-      const u = await db.collection("users").doc(uid).get();
-      await Promise.all([
-        upsertUserAch(uid, ACH_TYPES.ENDLESS_ROLLER, Number(u.get("sessionsPlayed") ?? 0) || 0),
-        upsertUserAch(uid, ACH_TYPES.SCORE_CHAMPION, Number(u.get("maxScore") ?? 0) || 0),
-        upsertUserAch(uid, ACH_TYPES.TOKEN_HUNTER, Number(u.get("cumulativeCurrencyEarned") ?? 0) || 0),
-        upsertUserAch(uid, ACH_TYPES.COMBO_GOD, Number(u.get("maxCombo") ?? 0) || 0),
-        upsertUserAch(
-          uid,
-          ACH_TYPES.TIME_DRIFTER,
-          Number(u.get("totalPlaytimeMinutesFloat") ?? u.get("totalPlaytimeMinutes") ?? 0) || 0
-        ),
-        upsertUserAch(uid, ACH_TYPES.POWERUP_EXP, Number(u.get("powerUpsCollected") ?? 0) || 0),
-      ]);
-    } catch (e) {
-      console.warn("[ach] post-session evaluate failed", e);
-    }
+    return { alreadyProcessed: false, currency: newCurrency, maxScore: newBest };
+  });
+  try {
+    const u = await db.collection("users").doc(uid).get();
+    await Promise.all([
+      upsertUserAch(uid, ACH_TYPES.ENDLESS_ROLLER, Number(u.get("sessionsPlayed") ?? 0) || 0),
+      upsertUserAch(uid, ACH_TYPES.SCORE_CHAMPION, Number(u.get("maxScore") ?? 0) || 0),
+      upsertUserAch(uid, ACH_TYPES.TOKEN_HUNTER, Number(u.get("cumulativeCurrencyEarned") ?? 0) || 0),
+      upsertUserAch(uid, ACH_TYPES.COMBO_GOD, Number(u.get("maxCombo") ?? 0) || 0),
+      upsertUserAch(
+        uid,
+        ACH_TYPES.TIME_DRIFTER,
+        Number(u.get("totalPlaytimeMinutesFloat") ?? u.get("totalPlaytimeMinutes") ?? 0) || 0
+      ),
+      upsertUserAch(uid, ACH_TYPES.POWERUP_EXP, Number(u.get("powerUpsCollected") ?? 0) || 0),
+    ]);
+  } catch (e) {
+    console.warn("[ach] post-session evaluate failed", e);
+  }
   return result;
 });
 
@@ -1227,7 +1222,7 @@ async function lazyRegenInTx(
   tx: FirebaseFirestore.Transaction,
   userRef: FirebaseFirestore.DocumentReference,
   now: Timestamp
-): Promise<{cur:number; max:number; period:number; nextAt:Timestamp|null}> {
+): Promise<{ cur: number; max: number; period: number; nextAt: Timestamp | null }> {
   const snap = await tx.get(userRef);
   if (!snap.exists) throw new HttpsError("failed-precondition", "User doc missing");
 
@@ -1241,10 +1236,12 @@ async function lazyRegenInTx(
     const ticks = Math.floor(elapsedMs / (period * 1000));
     if (ticks > 0) {
       const newCur = Math.min(max, cur + ticks);
-      const newUpdated = 
+      const newUpdated =
         Timestamp.fromMillis(updatedAt.toMillis() + ticks * period * 1000);
-      tx.set(userRef, {energyCurrent:newCur, energyUpdatedAt:newUpdated, 
-        updatedAt:FieldValue.serverTimestamp()}, {merge:true});
+      tx.set(userRef, {
+        energyCurrent: newCur, energyUpdatedAt: newUpdated,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
       cur = newCur;
       updatedAt = newUpdated;
     }
@@ -1254,7 +1251,7 @@ async function lazyRegenInTx(
     ? Timestamp.fromMillis(updatedAt.toMillis() + (period * 1000))
     : null;
 
-  return {cur, max, period, nextAt};
+  return { cur, max, period, nextAt };
 }
 
 // -------- getEnergySnapshot (callable, preferred by clients) --------
@@ -1264,7 +1261,7 @@ export const getEnergySnapshot = onCall(async (req) => {
 
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
-    // Pre-clean expired consumables in a separate transaction
+  // Pre-clean expired consumables in a separate transaction
   await db.runTransaction(async (tx) => {
     await cleanupExpiredConsumablesInTx(tx, userRef, now);
   });
@@ -1275,8 +1272,8 @@ export const getEnergySnapshot = onCall(async (req) => {
 
   const nextMs = st.cur < st.max
     ? st.nextAt ? st.nextAt.toMillis() : (Timestamp.fromMillis(
-        now.toMillis() + st.period * 1000
-      ).toMillis())
+      now.toMillis() + st.period * 1000
+    ).toMillis())
     : null;
 
   return {
@@ -1295,7 +1292,7 @@ export const getEnergyStatus = onCall(async (req) => {
 
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
-    // Pre-clean expired consumables in a separate transaction
+  // Pre-clean expired consumables in a separate transaction
   await db.runTransaction(async (tx) => {
     await cleanupExpiredConsumablesInTx(tx, userRef, now);
   });
@@ -1321,7 +1318,7 @@ export const spendEnergy = onCall(async (req) => {
   const sessionId = String(req.data?.sessionId || "").trim();
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
-    // Pre-clean expired consumables in a separate transaction
+  // Pre-clean expired consumables in a separate transaction
   await db.runTransaction(async (tx) => {
     await cleanupExpiredConsumablesInTx(tx, userRef, now);
   });
@@ -1333,8 +1330,10 @@ export const spendEnergy = onCall(async (req) => {
       const sSnap = await tx.get(sRef);
       if (sSnap.exists) {
         const st0 = await lazyRegenInTx(tx, userRef, now);
-        return {alreadyProcessed:true, cur:st0.cur, max:st0.max,
-          period:st0.period, nextAt:st0.nextAt};
+        return {
+          alreadyProcessed: true, cur: st0.cur, max: st0.max,
+          period: st0.period, nextAt: st0.nextAt
+        };
       }
     }
 
@@ -1345,20 +1344,24 @@ export const spendEnergy = onCall(async (req) => {
 
     const newCur = st.cur - 1;
     // spending resets the timer to now for a clean 4h window
-    tx.set(userRef, {energyCurrent:newCur, energyUpdatedAt:now,
-      updatedAt:FieldValue.serverTimestamp()}, {merge:true});
+    tx.set(userRef, {
+      energyCurrent: newCur, energyUpdatedAt: now,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
 
     if (sessionId) {
-      tx.set(userRef.collection("energySpends").doc(sessionId), {spentAt:now}, {merge:true});
+      tx.set(userRef.collection("energySpends").doc(sessionId), { spentAt: now }, { merge: true });
     }
 
     const nextAt = Timestamp.fromMillis(now.toMillis() + st.period * 1000);
-    return {alreadyProcessed:false, cur:newCur, max:st.max,
-      period:st.period, nextAt};
+    return {
+      alreadyProcessed: false, cur: newCur, max: st.max,
+      period: st.period, nextAt
+    };
   });
 
   return {
-    ok:true,
+    ok: true,
     alreadyProcessed: !!(res as any).alreadyProcessed,
     energyCurrent: (res as any).cur,
     energyMax: (res as any).max,
@@ -1410,17 +1413,17 @@ export const grantBonusEnergy = onCall(async (req) => {
         energyCurrent: newCur,
         updatedAt: FieldValue.serverTimestamp(),
       },
-      {merge: true}
+      { merge: true }
     ); // WRITE
 
     // nextAt: lazyRegenInTx zaten hesapladı; full olduysa null olabilir
     const nextAt =
       newCur < st.max
         ? st.nextAt ||
-          Timestamp.fromMillis(now.toMillis() + st.period * 1000)
+        Timestamp.fromMillis(now.toMillis() + st.period * 1000)
         : null;
 
-    return {granted, cur: newCur, max: st.max, period: st.period, nextAt};
+    return { granted, cur: newCur, max: st.max, period: st.period, nextAt };
   });
 
   const nextMs = res.nextAt ? res.nextAt.toMillis() : null;
@@ -1449,15 +1452,15 @@ export const grantBonusEnergy = onCall(async (req) => {
 //  - updatedAt:serverTimestamp
 
 const autopilotConfigRef = db.collection("appdata").doc("autopilotconfig");
-const userAutopilotRef = (uid:string) => db.collection("users").doc(uid).collection("autopilot").doc("state");
+const userAutopilotRef = (uid: string) => db.collection("users").doc(uid).collection("autopilot").doc("state");
 
-function clampNum(n:any, def=0): number {
+function clampNum(n: any, def = 0): number {
   const v = Number(n);
   return Number.isFinite(v) ? v : def;
 }
 
 
-function eliteActive(userSnap: FirebaseFirestore.DocumentSnapshot, nowMs:number): boolean {
+function eliteActive(userSnap: FirebaseFirestore.DocumentSnapshot, nowMs: number): boolean {
   const ts = userSnap.get("elitePassExpiresAt") as Timestamp | null;
   return !!ts && ts.toMillis() > nowMs;
 }
@@ -1477,7 +1480,7 @@ async function settleAutopilotInTx(
   autoRef: FirebaseFirestore.DocumentReference,
   userData: Record<string, any>,
   auto: Record<string, any>,
-  config: {normalRate:number; eliteRate:number; maxHours:number},
+  config: { normalRate: number; eliteRate: number; maxHours: number },
   isElite: boolean,
 }> {
   const userRef = db.collection("users").doc(uid);
@@ -1513,7 +1516,7 @@ async function settleAutopilotInTx(
       totalEarnedViaAutopilot: 0,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    tx.set(autoRef, auto, {merge:true});
+    tx.set(autoRef, auto, { merge: true });
   }
 
   let gained = 0;
@@ -1524,7 +1527,7 @@ async function settleAutopilotInTx(
       activation = lastClaim;
     } else {
       activation = auto.autopilotActivationDate === null ? lastClaim : clampNum(auto.autopilotActivationDate,
-         lastClaim);
+        lastClaim);
     }
     const windowStart = Math.max(lastClaim, activation);
     const elapsedMs = Math.max(0, nowMs - windowStart);
@@ -1550,11 +1553,11 @@ async function settleAutopilotInTx(
       auto.totalEarnedViaAutopilot = clampNum(auto.totalEarnedViaAutopilot, 0) + gained;
       auto.updatedAt = FieldValue.serverTimestamp();
       // We do NOT advance autopilotLastClaimedAt here; it only moves on claim.
-      tx.set(autoRef, auto, {merge:true});
+      tx.set(autoRef, auto, { merge: true });
     }
   }
 
-  return {userRef, autoRef, userData: {...userData, currency: curCurrency}, auto, config, isElite};
+  return { userRef, autoRef, userData: { ...userData, currency: curCurrency }, auto, config, isElite };
 }
 
 // -------- getAutopilotStatus (callable) --------
@@ -1602,7 +1605,7 @@ export const getAutopilotStatus = onCall(async (req) => {
     };
   });
 
-  return {ok:true, serverNowMillis: now.toMillis(), ...out};
+  return { ok: true, serverNowMillis: now.toMillis(), ...out };
 });
 
 // -------- toggleAutopilot (callable) --------
@@ -1624,21 +1627,21 @@ export const toggleAutopilot = onCall(async (req) => {
         isAutopilotOn: true,
         autopilotActivationDate: now.toMillis(),
         updatedAt: FieldValue.serverTimestamp(),
-      }, {merge:true});
+      }, { merge: true });
     } else {
       // Turning OFF: close the window by simply disabling and clearing activation
       tx.set(autoRef, {
         isAutopilotOn: false,
         autopilotActivationDate: null,
         updatedAt: FieldValue.serverTimestamp(),
-      }, {merge:true});
+      }, { merge: true });
     }
 
     // Touch user updatedAt for visibility
-    tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge:true});
+    tx.set(userRef, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   });
 
-  return {ok:true, isAutopilotOn: on};
+  return { ok: true, isAutopilotOn: on };
 });
 
 // -------- claimAutopilot (callable) --------
@@ -1704,8 +1707,8 @@ export const claimAutopilot = onCall(async (req) => {
     if (wallet > 0) {
       tx.set(
         userRef,
-        {currency: curCurrency + wallet, updatedAt: FieldValue.serverTimestamp()},
-        {merge: true}
+        { currency: curCurrency + wallet, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true }
       );
 
       const baseUpdate: any = {
@@ -1719,7 +1722,7 @@ export const claimAutopilot = onCall(async (req) => {
         baseUpdate.autopilotActivationDate = null;
       }
 
-      tx.set(autoRef, baseUpdate, {merge: true});
+      tx.set(autoRef, baseUpdate, { merge: true });
     } else {
       const baseUpdate: any = {
         autopilotLastClaimedAt: now.toMillis(),
@@ -1731,13 +1734,13 @@ export const claimAutopilot = onCall(async (req) => {
         baseUpdate.autopilotActivationDate = null;
       }
 
-      tx.set(autoRef, baseUpdate, {merge: true});
+      tx.set(autoRef, baseUpdate, { merge: true });
     }
 
-    return {claimed: wallet, currencyAfter: curCurrency + wallet};
+    return { claimed: wallet, currencyAfter: curCurrency + wallet };
   });
 
-  return {ok: true, claimed: res.claimed, currencyAfter: res.currencyAfter};
+  return { ok: true, claimed: res.claimed, currencyAfter: res.currencyAfter };
 });
 
 export const listReferredUsers = onCall(async (req) => {
@@ -1794,7 +1797,7 @@ export const listReferredUsers = onCall(async (req) => {
 
     const snap = await q.get();
     const items = await Promise.all(snap.docs.map(mapDoc));
-    return {ok: true, sorted: true, items};
+    return { ok: true, sorted: true, items };
   } catch (err: any) {
     const msg = String(err?.message ?? "");
     const needsIndex = err?.code === 9 || /index/i.test(msg);
@@ -1890,8 +1893,8 @@ export const getGalleryItems = onCall(async (req) => {
         };
       });
 
-    return {ok: true, items};
-    
+    return { ok: true, items };
+
   } catch (e) {
     console.error("getGalleryItems error:", e);
     throw new HttpsError("internal", "Failed to fetch gallery items.");
@@ -1899,7 +1902,7 @@ export const getGalleryItems = onCall(async (req) => {
 });
 
 export const indexMapMeta = onDocumentWritten(
-  {document:"appdata/maps/{mapId}/raw", database:DB_ID},
+  { document: "appdata/maps/{mapId}/raw", database: DB_ID },
   async (event) => {
     const mapId = event.params.mapId as string;
 
@@ -1919,7 +1922,7 @@ export const indexMapMeta = onDocumentWritten(
               ids: FieldValue.arrayRemove(mapId),
               updatedAt: FieldValue.serverTimestamp(),
             },
-            {merge:true}
+            { merge: true }
           );
         }
       });
@@ -1977,9 +1980,9 @@ export const indexMapMeta = onDocumentWritten(
         {
           difficultyTag,
           updatedAt: FieldValue.serverTimestamp(),
-          ...(prev.exists ? {} : {createdAt: now}),
+          ...(prev.exists ? {} : { createdAt: now }),
         },
-        {merge:true}
+        { merge: true }
       );
 
       // Maintain pools/{1|2|3}.ids arrays
@@ -1992,7 +1995,7 @@ export const indexMapMeta = onDocumentWritten(
               ids: FieldValue.arrayUnion(mapId),
               updatedAt: FieldValue.serverTimestamp(),
             },
-            {merge:true}
+            { merge: true }
           );
         } else if (prevDiff && d === prevDiff) {
           tx.set(
@@ -2001,7 +2004,7 @@ export const indexMapMeta = onDocumentWritten(
               ids: FieldValue.arrayRemove(mapId),
               updatedAt: FieldValue.serverTimestamp(),
             },
-            {merge:true}
+            { merge: true }
           );
         } else {
           // no-op
@@ -2019,12 +2022,12 @@ export const getSequencedMaps = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-  const clamp = (n:number, a:number, b:number) => Math.max(a, Math.min(b, n));
+  const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
   const count = clamp(Number(req.data?.count ?? 24), 1, 50);
   const seedIn = String(req.data?.seed ?? "");
 
   // tiny deterministic RNG (xorshift32-like) from a seed string
-  const makeRng = (s:string) => {
+  const makeRng = (s: string) => {
     let h = 2166136261 >>> 0;
     for (let i = 0; i < s.length; i++) {
       h ^= s.charCodeAt(i);
@@ -2033,7 +2036,7 @@ export const getSequencedMaps = onCall(async (req) => {
     return () => {
       h ^= h << 13; h >>>= 0;
       h ^= h >>> 17; h >>>= 0;
-      h ^= h << 5;  h >>>= 0;
+      h ^= h << 5; h >>>= 0;
       return (h >>> 0) / 4294967296;
     };
   };
@@ -2047,7 +2050,7 @@ export const getSequencedMaps = onCall(async (req) => {
   const medium = clamp(Number(curve.medium ?? 2), 0, 24);
   const hard = clamp(Number(curve.hard ?? 1), 0, 24);
 
-  const cycle:number[] = [
+  const cycle: number[] = [
     ...Array(easy).fill(1),
     ...Array(medium).fill(2),
     ...Array(hard).fill(3),
@@ -2056,7 +2059,7 @@ export const getSequencedMaps = onCall(async (req) => {
     throw new HttpsError("failed-precondition", "Empty pattern");
   }
 
-  const pattern:number[] = [];
+  const pattern: number[] = [];
   while (pattern.length < count) {
     for (const d of cycle) {
       if (pattern.length >= count) break;
@@ -2069,25 +2072,25 @@ export const getSequencedMaps = onCall(async (req) => {
     .doc("maps_meta").collection("pools");
 
   const [p1, p2, p3] = await Promise.all(
-    [1,2,3].map(async (d) => {
+    [1, 2, 3].map(async (d) => {
       const s = await poolsCol.doc(String(d)).get();
-      const ids = (s.exists ? (s.get("ids") as string[]|undefined) : [])||[];
+      const ids = (s.exists ? (s.get("ids") as string[] | undefined) : []) || [];
       // copy and shallow-shuffle for variety
       const arr = ids.slice();
       for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor((rng() || Math.random()) * (i + 1));
         const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
       }
-      return {d, ids, bag:arr};
+      return { d, ids, bag: arr };
     })
   );
 
-  const poolByDiff:Record<number,{d:number;ids:string[];bag:string[]}> = {
-    1:p1, 2:p2, 3:p3
+  const poolByDiff: Record<number, { d: number; ids: string[]; bag: string[] }> = {
+    1: p1, 2: p2, 3: p3
   };
 
   // helper to take one id from pool; allows repeats if exhausted
-  const takeFrom = (d:number):string => {
+  const takeFrom = (d: number): string => {
     const p = poolByDiff[d];
     if (!p) throw new HttpsError("not-found", `Pool ${d} missing`);
     if (p.bag.length === 0) {
@@ -2101,10 +2104,10 @@ export const getSequencedMaps = onCall(async (req) => {
   };
 
   // 3) pick ids by pattern
-  const chosen:{mapId:string;difficultyTag:number}[] = [];
+  const chosen: { mapId: string; difficultyTag: number }[] = [];
   for (const d of pattern) {
     const id = takeFrom(d);
-    chosen.push({mapId:id, difficultyTag:d});
+    chosen.push({ mapId: id, difficultyTag: d });
   }
 
   // 4) fetch raw jsons in parallel (dedup reads)
@@ -2113,7 +2116,7 @@ export const getSequencedMaps = onCall(async (req) => {
   const snaps = await Promise.all(
     uniqueIds.map(id => rawCol.collection(id).doc("raw").get())
   );
-  const byId:Record<string,string> = {};
+  const byId: Record<string, string> = {};
   for (let i = 0; i < uniqueIds.length; i++) {
     const id = uniqueIds[i];
     const s = snaps[i];
@@ -2122,11 +2125,11 @@ export const getSequencedMaps = onCall(async (req) => {
     }
     const d = s.data() ?? {};
     let jsonStr = "";
-    if (typeof(d as any).json === "string") {
+    if (typeof (d as any).json === "string") {
       jsonStr = (d as any).json as string;
     } else {
       const ks = Object.keys(d);
-      if (ks.length === 1 && typeof(d as any)[ks[0]] === "string") {
+      if (ks.length === 1 && typeof (d as any)[ks[0]] === "string") {
         jsonStr = (d as any)[ks[0]] as string;
       }
     }
@@ -2142,7 +2145,7 @@ export const getSequencedMaps = onCall(async (req) => {
     if (typeof js !== "string") {
       throw new HttpsError("data-loss", `json not string for ${x.mapId}`);
     }
-    return {mapId:x.mapId, difficultyTag:x.difficultyTag, json:js};
+    return { mapId: x.mapId, difficultyTag: x.difficultyTag, json: js };
   });
 
   console.log(
@@ -2150,7 +2153,7 @@ export const getSequencedMaps = onCall(async (req) => {
   );
 
   return {
-    ok:true,
+    ok: true,
     count,
     pattern,
     entries
@@ -2163,7 +2166,7 @@ export const requestSession = onCall(async (req) => {
 
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
-    // Pre-clean expired consumables in a separate transaction
+  // Pre-clean expired consumables in a separate transaction
   await db.runTransaction(async (tx) => {
     await cleanupExpiredConsumablesInTx(tx, userRef, now);
   });
@@ -2177,17 +2180,21 @@ export const requestSession = onCall(async (req) => {
 
     // 2) spend 1 energy and reset timer window to now
     const newCur = st.cur - 1;
-    tx.set(userRef, {energyCurrent:newCur, energyUpdatedAt:now,
-      updatedAt:FieldValue.serverTimestamp()}, {merge:true});
+    tx.set(userRef, {
+      energyCurrent: newCur, energyUpdatedAt: now,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
 
     // 3) create server-owned session doc
-    const sessionId = `${now.toMillis()}_${Math.random().toString(36).slice(2,10)}`;
+    const sessionId = `${now.toMillis()}_${Math.random().toString(36).slice(2, 10)}`;
     const sessRef = userRef.collection("sessions").doc(sessionId);
-    tx.set(sessRef, {state:"granted", startedAt:now}, {merge:true});
+    tx.set(sessRef, { state: "granted", startedAt: now }, { merge: true });
 
     const nextAt = Timestamp.fromMillis(now.toMillis() + st.period * 1000);
-    return {sessionId, energyCurrent:newCur, energyMax:st.max,
-      regenPeriodSec:st.period, nextEnergyAt:nextAt};
+    return {
+      sessionId, energyCurrent: newCur, energyMax: st.max,
+      regenPeriodSec: st.period, nextEnergyAt: nextAt
+    };
   });
 
   const nextMs = out.nextEnergyAt ? out.nextEnergyAt.toMillis() : null;
@@ -2266,6 +2273,7 @@ export const createItem = onCall(async (req) => {
     itemDescription: str(p.itemDescription, "item description demo"),
     itemDollarPrice: num(p.itemDollarPrice, 0),
     itemGetPrice: num(p.itemGetPrice, 0.05),
+    itemPremiumPrice: num(p.itemPremiumPrice, 0),
     itemIconUrl: str(
       p.itemIconUrl,
       "https://cdn-icons-png.freepik.com/256/4957/4957671.png"
@@ -2297,7 +2305,7 @@ export const createItem = onCall(async (req) => {
     const ref = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
     const snap = await ref.get();
     if (!snap.exists) {
-      await ref.set(docData, {merge: false});
+      await ref.set(docData, { merge: false });
       return {
         ok: true,
         itemId,
@@ -2372,12 +2380,12 @@ export const getInventorySnapshot = onCall(async (req) => {
   invSnap.forEach((d) => {
     const id = normId(d.id);
     // include normalized id in payload for clients if needed
-    inventory[id] = {id, ...d.data()};
+    inventory[id] = { id, ...d.data() };
   });
   const equippedItemIds: string[] = loadSnap.exists
     ? (loadSnap.get("equippedItemIds") || []).map((x: string) => normId(x))
     : [];
-  return {ok: true, inventory, equippedItemIds};
+  return { ok: true, inventory, equippedItemIds };
 });
 
 // ---------------- purchaseItem ----------------
@@ -2385,7 +2393,7 @@ export const purchaseItem = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-  // method: "GET" | "IAP" | "AD"
+  // method: "GET" | "IAP" | "AD" | "PREMIUM"
   const {
     itemId: rawItemId,
     method,
@@ -2405,14 +2413,14 @@ export const purchaseItem = onCall(async (req) => {
   const itemId = normId(rawItemId);
   if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
   const m = String(method || "").toUpperCase();
-  if (!["GET", "IAP", "AD"].includes(m)) {
-    throw new HttpsError("invalid-argument", "Invalid method. Use GET | IAP | AD.");
+  if (!["GET", "IAP", "AD", "PREMIUM"].includes(m)) {
+    throw new HttpsError("invalid-argument", "Invalid method. Use GET | IAP | AD | PREMIUM.");
   }
 
   const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
   const userRef = db.collection("users").doc(uid);
-  const invRef  = userRef.collection("inventory").doc(itemId);
-  const acRef   = userRef.collection("activeConsumables").doc(itemId);
+  const invRef = userRef.collection("inventory").doc(itemId);
+  const acRef = userRef.collection("activeConsumables").doc(itemId);
   const now = Timestamp.now();
 
   // ---- Pre-verify tokens outside transaction to avoid granting on failed verification ----
@@ -2425,7 +2433,7 @@ export const purchaseItem = onCall(async (req) => {
     if (existing.exists) {
       throw new HttpsError("already-exists", "This purchase receipt was already processed.");
     }
-    await lockRef.set({usedAt: now, platform, previewHash: String(receipt).slice(0, 32)}, {merge: true});
+    await lockRef.set({ usedAt: now, platform, previewHash: String(receipt).slice(0, 32) }, { merge: true });
   };
   const verifyAdGrant = async (adToken?: string) => {
     if (!adToken) throw new HttpsError("invalid-argument", "adToken required for AD method.");
@@ -2434,7 +2442,7 @@ export const purchaseItem = onCall(async (req) => {
     if (g.exists) {
       throw new HttpsError("already-exists", "This ad grant token was already used.");
     }
-    await grantRef.set({usedAt: now}, {merge: true});
+    await grantRef.set({ usedAt: now }, { merge: true });
   };
 
   if (m === "IAP") {
@@ -2462,6 +2470,7 @@ export const purchaseItem = onCall(async (req) => {
 
     const isConsumable = !!item.itemIsConsumable;
     const priceGet = Number(item.itemGetPrice ?? 0) || 0;      // in-game currency
+    const pricePremium = Number(item.itemPremiumPrice ?? 0) || 0;      // premium currency
     const priceUsd = Number(item.itemDollarPrice ?? 0) || 0;   // real money price hint
     const isAd = !!item.itemIsRewardedAd;
 
@@ -2474,6 +2483,9 @@ export const purchaseItem = onCall(async (req) => {
     }
     if (m === "AD" && !isAd) {
       throw new HttpsError("failed-precondition", "This item is not ad-reward purchasable.");
+    }
+    if (m === "PREMIUM" && pricePremium <= 0) {
+      throw new HttpsError("failed-precondition", "This item is not purchasable with premium currency.");
     }
 
     // Ownership check (non-consumables cannot be purchased twice)
@@ -2489,17 +2501,23 @@ export const purchaseItem = onCall(async (req) => {
       if (curBalance < priceGet) {
         throw new HttpsError("failed-precondition", "Not enough currency.");
       }
-      tx.update(userRef, {currency: curBalance - priceGet, updatedAt: FieldValue.serverTimestamp()});
+      tx.update(userRef, { currency: curBalance - priceGet, updatedAt: FieldValue.serverTimestamp() });
+    } else if (m === "PREMIUM") {
+      const curPremium = Number(userSnap.get("premiumCurrency") ?? 0) || 0;
+      if (curPremium < pricePremium) {
+        throw new HttpsError("failed-precondition", "Not enough premium currency.");
+      }
+      tx.update(userRef, { premiumCurrency: curPremium - pricePremium, updatedAt: FieldValue.serverTimestamp() });
     } else {
       // touch the user doc for bookkeeping
-      tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+      tx.set(userRef, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
 
     // Prepare audit expiry holder
     let newExpiry: Timestamp | null = null;
 
     // Upsert inventory / Activate consumable
-        // Upsert inventory / Activate consumable
+    // Upsert inventory / Activate consumable
     if (isConsumable) {
       // Determine previous active state from existing activeConsumables doc
       const prevExpiry: Timestamp | null = acSnap.exists
@@ -2521,7 +2539,7 @@ export const purchaseItem = onCall(async (req) => {
           lastActivatedAt: now,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        {merge: true}
+        { merge: true }
       );
 
       // On first activation only, add stats to user
@@ -2548,7 +2566,7 @@ export const purchaseItem = onCall(async (req) => {
         lastChangedAt: FieldValue.serverTimestamp(),
         acquiredAt: invSnap.exists ? invSnap.get("acquiredAt") ?? now : now,
       };
-      tx.set(invRef, invData, {merge: true});
+      tx.set(invRef, invData, { merge: true });
     }
 
     // Audit trail (use exact newExpiry when consumable)
@@ -2557,6 +2575,7 @@ export const purchaseItem = onCall(async (req) => {
       itemId,
       method: m,
       priceGet: m === "GET" ? priceGet : 0,
+      pricePremium: m === "PREMIUM" ? pricePremium : 0,
       priceUsd: m === "IAP" ? priceUsd : 0,
       isConsumable,
       expiresAt: newExpiry, // precise expiry if consumable
@@ -2564,13 +2583,19 @@ export const purchaseItem = onCall(async (req) => {
     });
 
     // Increment purchased items counter atomically
-    tx.set(userRef, {itemsPurchasedCount: FieldValue.increment(1),
-      updatedAt: FieldValue.serverTimestamp()}, {merge:true});
+    tx.set(userRef, {
+      itemsPurchasedCount: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
 
     // Build response snapshot
     const currencyLeft = m === "GET"
       ? Math.max(0, (Number(userSnap.get("currency") ?? 0) || 0) - priceGet)
       : Number(userSnap.get("currency") ?? 0) || 0;
+
+    const premiumCurrencyLeft = m === "PREMIUM"
+      ? Math.max(0, (Number(userSnap.get("premiumCurrency") ?? 0) || 0) - pricePremium)
+      : Number(userSnap.get("premiumCurrency") ?? 0) || 0;
 
     return {
       ok: true,
@@ -2578,6 +2603,7 @@ export const purchaseItem = onCall(async (req) => {
       owned: !isConsumable,
       isConsumable,
       currencyLeft,
+      premiumCurrencyLeft,
       expiresAt: newExpiry ? newExpiry.toDate().toISOString() : null,
       expiresAtMillis: newExpiry ? newExpiry.toMillis() : null,
     };
@@ -2600,7 +2626,7 @@ export const getActiveConsumables = onCall(async (req) => {
 
   const userRef = db.collection("users").doc(uid);
   const now = Timestamp.now();
-    // Pre-clean expired consumables in a separate transaction
+  // Pre-clean expired consumables in a separate transaction
   await db.runTransaction(async (tx) => {
     await cleanupExpiredConsumablesInTx(tx, userRef, now);
   });
@@ -2621,7 +2647,7 @@ export const getActiveConsumables = onCall(async (req) => {
     };
   });
 
-  return {ok: true, serverNowMillis: now.toMillis(), items};
+  return { ok: true, serverNowMillis: now.toMillis(), items };
 });
 
 // ---------------- equipItem ----------------
@@ -2670,13 +2696,13 @@ export const equipItem = onCall(async (req) => {
     // ---- WRITES AFTER ALL READS ----
     tx.set(
       loadRef,
-      {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()},
-      {merge: true}
+      { equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
     );
     tx.set(
       invRef,
-      {equipped: true, lastChangedAt: FieldValue.serverTimestamp()},
-      {merge: true}
+      { equipped: true, lastChangedAt: FieldValue.serverTimestamp() },
+      { merge: true }
     );
 
     // Merge item stats into user's stats only on first-time equip
@@ -2691,7 +2717,7 @@ export const equipItem = onCall(async (req) => {
     }
   });
 
-  return {ok: true, itemId};
+  return { ok: true, itemId };
 });
 
 // ---------------- unequipItem ----------------
@@ -2724,13 +2750,13 @@ export const unequipItem = onCall(async (req) => {
     // ---- WRITES AFTER ALL READS ----
     tx.set(
       loadRef,
-      {equippedItemIds: afterEquipped, updatedAt: FieldValue.serverTimestamp()},
-      {merge: true}
+      { equippedItemIds: afterEquipped, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
     );
     tx.set(
       invRef,
-      {equipped: false, lastChangedAt: FieldValue.serverTimestamp()},
-      {merge: true}
+      { equipped: false, lastChangedAt: FieldValue.serverTimestamp() },
+      { merge: true }
     );
 
     // Subtract item stats from user's stats only if it was previously equipped
@@ -2746,7 +2772,7 @@ export const unequipItem = onCall(async (req) => {
     }
   });
 
-  return {ok: true, itemId};
+  return { ok: true, itemId };
 });
 
 // -------- recomputeRanks (callable) --------
@@ -2754,7 +2780,7 @@ export const recomputeRanks = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await recomputeAllRanks();
-  return {ok: true, updated: res.count};
+  return { ok: true, updated: res.count };
 });
 
 // ========================= Change Username =========================
@@ -2804,7 +2830,7 @@ export const changeUsername = onCall(async (req) => {
           .map((x) => String(x || "").toLowerCase().trim())
           .filter((s) => s.length > 0);
 
-      // CASE 2: A raw string → attempt JSON parse first
+        // CASE 2: A raw string → attempt JSON parse first
       } else if (typeof fromField === "string" && fromField.trim().length > 0) {
         const raw = fromField.trim();
         let parsedOk = false;
@@ -2818,7 +2844,7 @@ export const changeUsername = onCall(async (req) => {
               .filter((s: string) => s.length > 0);
             parsedOk = true;
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // Fallback: split by comma/whitespace
         if (!parsedOk) {
@@ -2884,8 +2910,8 @@ export const changeUsername = onCall(async (req) => {
     // Yeni username'i rezerve et
     tx.set(
       nameRef,
-      {uid, updatedAt: now},
-      {merge: true}
+      { uid, updatedAt: now },
+      { merge: true }
     );
 
     // User doc'u güncelle
@@ -2896,9 +2922,9 @@ export const changeUsername = onCall(async (req) => {
         usernameLastChangedAt: now,
         updatedAt: FieldValue.serverTimestamp(),
       },
-      {merge: true}
+      { merge: true }
     );
   });
 
-  return {ok: true, newName: newNameRaw};
+  return { ok: true, newName: newNameRaw };
 });

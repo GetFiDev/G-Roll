@@ -11,7 +11,6 @@ public class UIHomePanel : MonoBehaviour
     [Header("Autopilot Preview")]
     [SerializeField] private Image autopilotFillImage;   // progress bar fill
     [SerializeField] private TextMeshProUGUI autopilotTimerText; // optional UI text
-    [SerializeField] private Image elitePassBadgeImage;
     [Header("Play Button Overlay")]
     [SerializeField] private GameObject playButtonLoadingOverlay;
 
@@ -22,6 +21,11 @@ public class UIHomePanel : MonoBehaviour
     {
         Initialize();
     }
+
+    [Header("Game Modes")]
+    [SerializeField] private Button endlessButton;
+    [SerializeField] private Button chapterButton;
+    [SerializeField] private TextMeshProUGUI chapterButtonText;
 
     public void Initialize()
     {
@@ -53,7 +57,68 @@ public class UIHomePanel : MonoBehaviour
 
         // 5. Refresh Autopilot Preview (local async)
         _ = RefreshAutopilotPreviewAsync();
+
+        // 6. Update Chapter Button state
+        _ = UpdateChapterButtonStateAsync();
     }
+
+    private async Task UpdateChapterButtonStateAsync()
+    {
+        if (chapterButton == null) return;
+        
+        // Default safe state
+        chapterButton.interactable = false;
+        if (chapterButtonText) chapterButtonText.text = "Loading...";
+
+        if (UserDatabaseManager.Instance == null) return;
+
+        // Ensure user data is loaded
+        var userData = await UserDatabaseManager.Instance.LoadUserData();
+        if (userData == null)
+        {
+            if (chapterButtonText) chapterButtonText.text = "Error";
+            return;
+        }
+
+        int currentChapter = userData.chapterProgress;
+        bool exists = await UserDatabaseManager.Instance.CheckIfChapterExists(currentChapter);
+
+        if (exists)
+        {
+            chapterButton.interactable = true;
+            if (chapterButtonText) chapterButtonText.text = $"Chapter {currentChapter}";
+        }
+        else
+        {
+            chapterButton.interactable = false;
+            // "Chapter X - Coming Soon" might be too long for button, maybe just "Coming Soon" or multiline
+            if (chapterButtonText) chapterButtonText.text = $"Chapter {currentChapter}\nComing Soon";
+        }
+    }
+
+    // Retained for backward compatibility or direct linking if needed, but redirects to endless
+    public void OnPlayButtonClicked() => OnEndlessButtonClicked();
+
+    public async void OnEndlessButtonClicked()
+    {
+        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(true);
+        if (GameManager.Instance)
+        {
+            await GameManager.Instance.RequestSessionAndStartAsync(GameMode.Endless);
+        }
+        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(false);
+    }
+
+    public async void OnChapterButtonClicked()
+    {
+        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(true);
+        if (GameManager.Instance)
+        {
+            await GameManager.Instance.RequestSessionAndStartAsync(GameMode.Chapter);
+        }
+        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(false);
+    }
+
 
     private void OnDisable()
     {
@@ -81,11 +146,8 @@ public class UIHomePanel : MonoBehaviour
                 status.timeToCapSeconds = null;
             }
 
-            // Elite pass badge visibility
-            if (elitePassBadgeImage != null)
-            {
-                elitePassBadgeImage.gameObject.SetActive(status.isElite);
-            }
+            // Elite pass badge logic removed as requested
+
 
             double perHour = status.isElite ? status.eliteUserEarningPerHour : status.normalUserEarningPerHour;
             double maxHours = status.normalUserMaxAutopilotDurationInHours;
@@ -188,16 +250,5 @@ public class UIHomePanel : MonoBehaviour
         }
     }
 
-    public async void OnPlayButtonClicked()
-    {
-        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(true);
-        if (GameManager.Instance)
-        {
-            await GameManager.Instance.RequestSessionAndStartAsync();
-        }
-        // Whether success or fail, hide the local overlay.
-        // If success -> Game Phase changes, loading screen appears.
-        // If fail -> Toast appears (handled by GameManager/SessionGate), we stay here.
-        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(false);
-    }
+
 }

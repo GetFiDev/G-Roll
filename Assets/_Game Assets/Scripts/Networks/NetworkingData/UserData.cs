@@ -8,6 +8,7 @@ namespace NetworkingData
         [FirestoreProperty] public string mail { get; set; } = "";
         [FirestoreProperty] public string username { get; set; } = "";
         [FirestoreProperty] public double currency { get; set; } = 0;
+        [FirestoreProperty] public double premiumCurrency { get; set; } = 0; // New premium currency
 
         // Yeni eklenenler:
         [FirestoreProperty] public string statsJson { get; set; } = "";   // string
@@ -17,6 +18,7 @@ namespace NetworkingData
         [FirestoreProperty] public double maxScore { get; set; } = 0;     // number
         [FirestoreProperty] public string referralKey { get; set; } = ""; // string
         [FirestoreProperty] public int referrals { get; set; } = 0;  //  int
+        [FirestoreProperty] public int chapterProgress { get; set; } = 1;
 
         // Energy system (added to match Firestore document)
         [FirestoreProperty] public int energyCurrent { get; set; } = 0;          // current energy

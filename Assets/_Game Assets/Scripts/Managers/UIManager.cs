@@ -9,7 +9,7 @@ public class UIManager : MonoSingleton<UIManager>
     public UIGamePlay gamePlay;
     public UILevelEnd levelEnd;
     public UIOverlay overlay;
-    public UIMetaSettingsPanel metaSettingsPanel;
+    public ProfileAndSettingsPanel profileAndSettingsPanel;
     public UINewHighScorePanel newHighScorePanel;
 
     public UIGameplayLoading gameplayLoading;

@@ -47,8 +47,11 @@ namespace RemoteApp
         public event Action OnReady;
         public event Action OnDeinitialized;
 
-        public async Task Initialize()
+        private GameMode currentMode;
+
+        public async Task Initialize(GameMode mode)
         {
+            currentMode = mode;
             isReady = false;
             mapJsonList.Clear();
             mapIds.Clear();
@@ -62,33 +65,58 @@ namespace RemoteApp
 
             try
             {
-                // Ask the gateway for sequenced maps (no Firebase calls here).
-                var seed = string.IsNullOrWhiteSpace(seedOverride) ? null : seedOverride.Trim();
-                var resp = await remoteService.GetSequencedMapsAsync(count, seed);
+                if (mode == GameMode.Chapter)
+                {
+                    // --- CHAPTER MODE FETCH ---
+                    int chapterIndex = 1;
+                    if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.currentUserData != null)
+                    {
+                        chapterIndex = UserDatabaseManager.Instance.currentUserData.chapterProgress;
+                    }
 
-                if (resp == null)
-                {
-                    Debug.LogError("[MapManager] GetSequencedMapsAsync returned null.");
-                    return;
+                    Debug.Log($"[MapManager] Fetching Chapter {chapterIndex}...");
+                    
+                    // Fetch directly using the helper we added to UserDatabaseManager
+                    string json = null;
+                    if (UserDatabaseManager.Instance != null)
+                    {
+                        json = await UserDatabaseManager.Instance.FetchChapterMapJsonAsync(chapterIndex);
+                    }
+                    
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        mapJsonList.Add(json);
+                        mapIds.Add($"chapter_{chapterIndex}");
+                        difficulties.Add(1);
+                    }
+                    else
+                    {
+                        Debug.LogError($"[MapManager] Chapter {chapterIndex} map not found!");
+                    }
                 }
-                if (!resp.ok || resp.entries == null)
+                else
                 {
-                    Debug.LogWarning("[MapManager] Response not ok or entries missing.");
-                    return;
-                }
+                    // --- ENDLESS MODE FETCH (Existing Logic) ---
+                    var seed = string.IsNullOrWhiteSpace(seedOverride) ? null : seedOverride.Trim();
+                    int fetchCount = 24; // Keep standard count or increase for endless pool
+                    var resp = await remoteService.GetSequencedMapsAsync(fetchCount, seed);
 
-                // Fill local state in the exact order returned
-                foreach (var e in resp.entries)
-                {
-                    if (e == null) continue;
-                    mapIds.Add(e.mapId ?? "");
-                    difficulties.Add(e.difficultyTag);
-                    mapJsonList.Add(e.json ?? "");
+                    if (resp != null && resp.ok && resp.entries != null)
+                    {
+                        foreach (var e in resp.entries)
+                        {
+                            if (e == null) continue;
+                            mapIds.Add(e.mapId ?? "");
+                            difficulties.Add(e.difficultyTag);
+                            mapJsonList.Add(e.json ?? "");
+                        }
+                    }
                 }
 
                 isReady = true;
-                Debug.Log($"[MapManager] Ready. Loaded {mapJsonList.Count} maps.");
-                // Auto-build a row of maps using the fetched JSONs
+                Debug.Log($"[MapManager] Ready. Loaded {mapJsonList.Count} maps for mode {mode}.");
+                
+                // Build maps
                 BuildSequenceFromJsons();
                 OnReady?.Invoke();
 
@@ -142,6 +170,37 @@ namespace RemoteApp
                 Destroy(parent.GetChild(i).gameObject);
         }
 
+        private Transform playerTransform;
+
+        private void Update()
+        {
+            if (!isReady || currentMode != GameMode.Endless) return;
+            
+            // Allow player ref to be found lazily
+            if (playerTransform == null)
+            {
+                var player = GameObject.FindGameObjectWithTag("Player");
+                if (player) playerTransform = player.transform;
+                else return;
+            }
+
+            // Endless Spawning Logic
+            float playerZ = playerTransform.position.z;
+            
+            // Despawn behind
+            RecycleMapsBehind(playerZ);
+
+            // Spawn ahead (ensure we always have maps ahead)
+            // Example: Keep 3 maps ahead (~150m if step is 50)
+            // Check the Z of the last spawned map
+            // mapIds/mapJsonList are just the *pool* or *fetched list*
+            // We need to track *instantiated* maps to know where the "end" is.
+        }
+
+        // Track active map instances to manage the world window
+        private LinkedList<Map> activeMaps = new LinkedList<Map>();
+        private Vector3 nextSpawnPos;
+
         private void BuildSequenceFromJsons()
         {
             if (mapPrefab == null)
@@ -152,69 +211,118 @@ namespace RemoteApp
   
             var parent = mapsParent != null ? mapsParent : this.transform;
             if (clearBeforeBuild) ClearBuiltMaps();
-  
-            var pos = startPosition;
-            int built = 0;
-  
-            // 0) Starter map (opsiyonel ama öncelikli)
-            if (useStarterMap && !string.IsNullOrWhiteSpace(starterMapJson))
+            
+            activeMaps.Clear();
+            nextSpawnPos = startPosition;
+
+            // Common Starter Map Logic (applies to both, or only Endless?)
+            // Usually Chapter 1 starts directly with the Chapter map.
+            // Endless starts with a generic starter.
+            // Let's adhere to: Chapter -> Direct Chapter Map. Endless -> Starter + Pool.
+            if (currentMode == GameMode.Endless && useStarterMap && !string.IsNullOrWhiteSpace(starterMapJson))
             {
-                var inst = Instantiate(mapPrefab, pos, Quaternion.identity, parent);
-                var map = inst.GetComponent<Map>();
-  
-                // İsim: "01_name"
-                string mapName = null;
-                try { mapName = JsonUtility.FromJson<MapNameDto>(starterMapJson)?.mapName; }
-                catch { /* ignore parse errors */ }
-                string fallback = string.IsNullOrWhiteSpace(starterMapDisplayName) ? "starter" : starterMapDisplayName;
-                string safe = ToSafeName(string.IsNullOrWhiteSpace(mapName) ? fallback : mapName);
-                inst.name = $"{(built + 1):00}_{safe}";
-  
-                if (map == null)
+                SpawnMap(starterMapJson, "starter");
+            }
+
+            // 1) Build Initial Set
+            if (currentMode == GameMode.Chapter)
+            {
+                // Build all fetched (should be just 1 for chapter)
+                foreach (var json in mapJsonList)
                 {
-                    Debug.LogError("[MapManager] mapPrefab has no Map component (starter).");
-                    Destroy(inst);
-                    return;
+                    if (string.IsNullOrWhiteSpace(json)) continue;
+                    SpawnMap(json, "chapter_map");
                 }
-  
-                map.mapJson = starterMapJson;
-                map.Initialize();
-  
-                pos += step;
-                built++;
+            }
+            else // Endless
+            {
+                // Build initial buffer (e.g. 2 maps from pool)
+                for (int i = 0; i < 3; i++)
+                {
+                    SpawnRandomFromPool();
+                }
             }
   
-            // 1) Fetched sequence
-            for (int i = 0; i < mapJsonList.Count; i++)
-            {
-                var json = mapJsonList[i] ?? string.Empty;
-                var inst = Instantiate(mapPrefab, pos, Quaternion.identity, parent);
-                var map = inst.GetComponent<Map>();
-  
-                // İsim: "index_mapname" (starter varsa index starter'dan sonra devam eder)
-                string mapName = null;
-                try { mapName = JsonUtility.FromJson<MapNameDto>(json)?.mapName; }
-                catch { /* ignore parse errors */ }
-                string safe = ToSafeName(mapName);
-                inst.name = $"{(built + 1):00}_{safe}";
-  
-                if (map == null)
-                {
-                    Debug.LogError("[MapManager] mapPrefab has no Map component.");
-                    Destroy(inst);
-                    return;
-                }
-  
-                map.mapJson = json;
-                map.Initialize(); // build immediately
-  
-                pos += step;
-                built++;
-            }
-  
-            Debug.Log($"[MapManager] Built {built} maps in sequence. (Starter first: {useStarterMap && !string.IsNullOrWhiteSpace(starterMapJson)})");
+            Debug.Log($"[MapManager] Built {activeMaps.Count} maps. Mode: {currentMode}");
         }
 
+        private void SpawnRandomFromPool()
+        {
+            if (mapJsonList.Count == 0) return;
+            int idx = UnityEngine.Random.Range(0, mapJsonList.Count);
+            SpawnMap(mapJsonList[idx], $"endless_{idx}");
+        }
+
+        private void SpawnMap(string json, string nameContext)
+        {
+             var parent = mapsParent != null ? mapsParent : this.transform;
+             var inst = Instantiate(mapPrefab, nextSpawnPos, Quaternion.identity, parent);
+             var map = inst.GetComponent<Map>();
+             
+             // Name
+             string mapName = null;
+             try { mapName = JsonUtility.FromJson<MapNameDto>(json)?.mapName; } catch {}
+             string safe = ToSafeName(mapName ?? nameContext);
+             inst.name = $"{activeMaps.Count:00}_{safe}";
+
+             if (map)
+             {
+                 map.mapJson = json;
+                 map.Initialize();
+                 activeMaps.AddLast(map);
+             }
+             else Destroy(inst);
+
+             nextSpawnPos += step;
+        }
+
+        private void RecycleMapsBehind(float playerZ)
+        {
+            // Destroy maps that are sufficiently behind the player
+            // Step is 50. Let's keep 1 map behind (safe zone).
+            // So if map.Z + 50 < playerZ - 100 ...
+            
+            while (activeMaps.Count > 0)
+            {
+                var first = activeMaps.First.Value;
+                // Assuming pivot is at Z start of map, and map length is roughly 'step.z'
+                // Or safely: if player is > mapStart + 150
+                if (first == null) 
+                {
+                    activeMaps.RemoveFirst(); 
+                    continue; 
+                }
+
+                float mapEndZ = first.transform.position.z + step.z;
+                if (playerZ > mapEndZ + 20f) // 20m buffer behind
+                {
+                    // Despawn
+                    Destroy(first.gameObject);
+                    activeMaps.RemoveFirst();
+                }
+                else
+                {
+                    break; // Oldest map is still close enough
+                }
+            }
+            
+            // Ensure we maintain lookahead
+            // If last map start Z is < playerZ + 200, spawn more
+            if (activeMaps.Count > 0)
+            {
+                var last = activeMaps.Last.Value;
+                if (last.transform.position.z < playerZ + 200f)
+                {
+                    SpawnRandomFromPool();
+                }
+            }
+            else if (currentMode == GameMode.Endless)
+            {
+                 // Failsafe: if no maps, spawn one at next
+                 SpawnRandomFromPool();
+            }
+        }
+        
         /// <summary>
         /// Destroys all built map instances and resets runtime state.
         /// Call this when the run ends to return to meta scene cleanly.
@@ -223,6 +331,8 @@ namespace RemoteApp
         {
             // Remove any instantiated maps from hierarchy
             ClearBuiltMaps();
+            activeMaps.Clear();
+            playerTransform = null;
   
             // Reset runtime state
             isReady = false;

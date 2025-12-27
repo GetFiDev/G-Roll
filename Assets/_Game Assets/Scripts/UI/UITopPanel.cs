@@ -25,14 +25,14 @@ public class UITopPanel : MonoBehaviour
     {
         bottomPanel.ChangeAllColorToDefault();
 
-        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Settings);
+        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.ProfileAndSettings);
     }
 
     public void OnProfileButtonClick()
     {
         bottomPanel.ChangeAllColorToDefault();
 
-        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.Profile);
+        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.ProfileAndSettings);
     }
 
 }

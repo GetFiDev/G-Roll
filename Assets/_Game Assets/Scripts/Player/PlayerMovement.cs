@@ -23,7 +23,7 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 _spawnScale;            // başlangıç ölçeği (SetPlayerSize için referans)
     private float _spawnWorldScaleY = 1f;   // scale=1 iken yer teması 0.225 referansı için dünya ölçeği (Y)
 
-    [SerializeField] private float movementSpeed = 5f;
+    [SerializeField] private float movementSpeed = 2f;
 
     [Header("Jump Options")]
     [SerializeField] private float doubleTapJumpForce = 3f;
@@ -222,11 +222,7 @@ public class PlayerMovement : MonoBehaviour
         if (fwd.sqrMagnitude < 0.0001f) return;
 
         Quaternion targetRot = Quaternion.LookRotation(fwd, Vector3.up);
-        transform.rotation = Quaternion.RotateTowards(
-            transform.rotation,
-            targetRot,
-            _currentTurnSpeed * Time.deltaTime
-        );
+        transform.rotation = targetRot;
     }
 
     private bool IsAlive() => this != null && isActiveAndEnabled;
@@ -312,10 +308,12 @@ public class PlayerMovement : MonoBehaviour
 
     private void StartTurnBoost()
     {
-        if (!IsAlive() || _isFrozen) return;
+        // Instant turn, no boost needed
         if (_turnBoostRoutine != null)
+        {
             StopCoroutine(_turnBoostRoutine);
-        _turnBoostRoutine = StartCoroutine(TurnBoostUntilAligned());
+            _turnBoostRoutine = null;
+        }
     }
 
     private IEnumerator TurnBoostUntilAligned()

@@ -1174,15 +1174,15 @@ MonoBehaviour:
   statChipsRoot: {fileID: 3570327192444832601}
   statChipPrefab: {fileID: 3876159670642962221, guid: b3cc25d1144c943ceab17ddadca4e59b,
     type: 3}
-  iconCoinPercent: {fileID: 21300000, guid: 18130fbe8e8b34982892fcbde51e66c7, type: 3}
-  iconComboPower: {fileID: 21300000, guid: 601247de45e6f4ed5875c80d3b89cb3e, type: 3}
+  iconCoinPercent: {fileID: 21300000, guid: 7de9694d23a83469d8d510b60d87aa41, type: 3}
+  iconComboPower: {fileID: 21300000, guid: 29518fffb048f458093fcad3a32cc6aa, type: 3}
   iconGameplaySpeedPercent: {fileID: 21300000, guid: 1b8d73bd78b484eb786f7de2d5df51e0,
     type: 3}
-  iconMagnetPercent: {fileID: 21300000, guid: b9d0102ba44444ce789a0b395d82a518, type: 3}
+  iconMagnetPercent: {fileID: 21300000, guid: 3e68d10e1692d46f4951f1c7b483668b, type: 3}
   iconAcceleration: {fileID: 21300000, guid: 7bce77614b4254c4ca080b4c88049909, type: 3}
-  iconPlayerSizePercent: {fileID: 21300000, guid: e68c966c9499842a996103a2f3b3d88f,
+  iconPlayerSizePercent: {fileID: 21300000, guid: dba330d73b9a8419780a2728e9f1132a,
     type: 3}
-  iconPlayerSpeed: {fileID: 21300000, guid: 4adceacce2b864766a36b1eaa0f7d7aa, type: 3}
+  iconPlayerSpeed: {fileID: 21300000, guid: c0184d819a3214cc292d6deef7402ebd, type: 3}
   iconCurrency: {fileID: 21300000, guid: 6f31b924caa594131841c95ff8b4e16d, type: 3}
   iconEquip: {fileID: 21300000, guid: 9961dfa31e2b846189df0053d468c25a, type: 3}
   iconUnequip: {fileID: 21300000, guid: a833e24be9812467ca04cadb330e2ad9, type: 3}

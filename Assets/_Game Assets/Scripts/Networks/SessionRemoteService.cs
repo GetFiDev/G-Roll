@@ -74,13 +74,17 @@ public static class SessionRemoteService
         public long nextEnergyAtMillis; // optional
     }
 
-    public static async Task<RequestSessionResponse> RequestSessionAsync()
+    public static async Task<RequestSessionResponse> RequestSessionAsync(GameMode mode)
     {
         try
         {
-            Debug.Log("[SessionRemoteService] requestSession → call (region=us-central1)");
+            string modeStr = mode.ToString().ToLower();
+            Debug.Log($"[SessionRemoteService] requestSession → call (region=us-central1, mode={modeStr})");
             var call = Fn.GetHttpsCallable("requestSession");
-            var res = await call.CallAsync(new Dictionary<string, object>()); // <-- boş payload gönder
+            var res = await call.CallAsync(new Dictionary<string, object>
+            {
+                { "mode", modeStr }
+            });
             var dataObj = res.Data;
             Debug.Log($"[SessionRemoteService] requestSession raw type: {(dataObj==null?"<null>":dataObj.GetType().FullName)}");
             var dict = NormalizeToStringKeyDict(dataObj);
@@ -128,17 +132,19 @@ public static class SessionRemoteService
         public double maxScore;
     }
 
-    public static async Task<SubmitResultResponse> SubmitResultAsync(string sessionId, double earnedCurrency, double earnedScore)
+    public static async Task<SubmitResultResponse> SubmitResultAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected, string mode = "endless", bool success = false)
     {
         try
         {
-            Debug.Log($"[SessionRemoteService] submitSessionResult → call sessionId={sessionId} currency={earnedCurrency} score={earnedScore}");
+            Debug.Log($"[SessionRemoteService] submitSessionResult → call sessionId={sessionId} currency={earnedCurrency} score={earnedScore} mode={mode} suc={success}");
             var call = Fn.GetHttpsCallable("submitSessionResult");
             var res = await call.CallAsync(new Dictionary<string, object>
             {
                 { "sessionId", sessionId },
                 { "earnedCurrency", earnedCurrency },
-                { "earnedScore", earnedScore }
+                { "earnedScore", earnedScore },
+                { "mode", mode },
+                { "success", success }
             });
             var dict = NormalizeToStringKeyDict(res.Data);
             Debug.Log($"[SessionRemoteService] submitSessionResult ← ok payload: {DumpDict(dict)}");

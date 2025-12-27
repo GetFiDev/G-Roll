@@ -217,7 +217,7 @@ public class GameplayVisualApplier : MonoBehaviour
         playerTransformForCoinFX = null;
     }
 
-    private void HandleComboChanged(float newCombo)
+    private void HandleComboChanged(int newCombo)
     {
         if (!comboText) return;
         float dur = newCombo < displayedCombo ? comboDecreaseDuration : comboIncreaseDuration;
@@ -227,8 +227,8 @@ public class GameplayVisualApplier : MonoBehaviour
         comboTween = DOTween.To(() => start, v => {
             start = v;
             displayedCombo = v;
-            comboText.text = $"x{v:0.00}";
-        }, newCombo, Mathf.Max(0.01f, dur));
+            comboText.text = $"{Mathf.RoundToInt(v)}"; // just number
+        }, (float)newCombo, Mathf.Max(0.01f, dur));
 
         // bounce
         var t = comboText.transform;
@@ -242,8 +242,7 @@ public class GameplayVisualApplier : MonoBehaviour
     {
         if (!comboText) return;
 
-        // Smooth to 1.00
-        HandleComboChanged(1f);
+        // Value update comes via OnComboMultiplierChanged event from logic
 
         // flash red briefly then back to base color
         comboColorTween?.Kill();

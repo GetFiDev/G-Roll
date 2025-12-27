@@ -5,7 +5,7 @@ using UnityEngine;
 public class PlayerStatHandler : MonoBehaviour
 {
     [Header("Base Stats (Inspector defaults)")]
-    [SerializeField] private int   baseComboPower = 1;                 // integer, default 1
+    [SerializeField] private int   baseComboPower = 25;                 // integer, default 25
     [SerializeField] private int   baseCoinMultiplierPercent = 0;      // integer percent, default 0
     [SerializeField] private int   baseMagnetPowerPercent = 0;         // integer percent, default 0
     [SerializeField] private int   baseGameplaySpeedBonusPercent = 0;  // integer percent, default 0
@@ -88,7 +88,7 @@ public class PlayerStatHandler : MonoBehaviour
         FinalMagnetPowerPct        = magBase + magExtra;   // integer result
         FinalGameplaySpeedPct      = gspBase + gspExtra;   // integer result
         FinalPlayerAcceleration    = accBase + accExtra;   // float result
-        FinalPlayerSpeedAdd        = spdBase + spdExtra;   // float result
+        FinalPlayerSpeedAdd        = spdBase + (spdExtra * 0.1f);   // float result, scaled for display mapping (1 unit item = 0.1 unit internal)
         FinalPlayerSizePct         = sizeBase + sizeExtra; // integer result
     }
 
@@ -110,6 +110,9 @@ public class PlayerStatHandler : MonoBehaviour
         {
             logic.ApplyGameplaySpeedPercent((float)FinalGameplaySpeedPct / 100f);
         }
+
+        // Pass calculated Base Combo Power to logic
+        logic.SetBaseComboPower((int)FinalComboPowerFactor);
 
         // PlayerStatHandler.cs - ApplyOnRunStart
         if (!Mathf.Approximately(FinalPlayerSpeedAdd, 0f))

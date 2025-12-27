@@ -1,6 +1,8 @@
 using System.Collections;
 using UnityEngine;
 using System;
+// Re-adding correct usings if any were lost or just ensuring file start match
+
 
 public class GameplayManager : MonoBehaviour
 {
@@ -87,11 +89,19 @@ public class GameplayManager : MonoBehaviour
     /// <summary>
     /// GameManager sunucudan sessionId aldığında çağırır. Faz zaten Gameplay'e alınmış olmalı.
     /// </summary>
-    public void BeginSessionWithServerGrant(string sessionId)
+    public GameMode CurrentMode { get; private set; } = GameMode.Endless;
+
+    /// <summary>
+    /// GameManager sunucudan sessionId aldığında çağırır. Faz zaten Gameplay'e alınmış olmalı.
+    /// </summary>
+    public void BeginSessionWithServerGrant(string sessionId, GameMode mode)
     {
         _currentSessionId = sessionId;
+        CurrentMode = mode;
         StartCoroutine(BeginSessionWhenInGameplay());
     }
+
+
 
     private IEnumerator BeginSessionWhenInGameplay()
     {
@@ -186,9 +196,6 @@ public class GameplayManager : MonoBehaviour
         if (logicApplier != null)
         {
             logicApplier.ResetCombo();
-            // Stat handler şu anda faktör (1x, 2x ...) veriyor; yüzdeye çevir: (factor-1)*100
-            int comboPowerPercent = Mathf.Max(0, (_comboPowerFactor - 1) * 100);
-            logicApplier.SetComboPowerPercent(comboPowerPercent);
         }
 
         _sessionCurrencyTotal = 0d; // reset session currency accumulator
@@ -257,7 +264,7 @@ public class GameplayManager : MonoBehaviour
         
         Debug.Log($"[GameplayManager] EndSession. EarnedScore: {earnedScore}, InitialMaxScore: {_initialMaxScore}");
 
-        SubmitSessionToServer(earnedCurrency, earnedScore);
+        SubmitSessionToServer(earnedCurrency, earnedScore, success);
 
         // Check for New High Score
         if (earnedScore > _initialMaxScore)
@@ -410,7 +417,7 @@ public class GameplayManager : MonoBehaviour
         }
     }
 
-    private async void SubmitSessionToServer(double earnedCurrency, double earnedScore)
+    private async void SubmitSessionToServer(double earnedCurrency, double earnedScore, bool success)
     {
         if (logicApplier == null) return;
         if (string.IsNullOrEmpty(_currentSessionId))
@@ -436,7 +443,7 @@ public class GameplayManager : MonoBehaviour
             // Use PERMANENT UserDatabaseManager submission instead of logicApplier
             if (UserDatabaseManager.Instance != null)
             {
-               await UserDatabaseManager.Instance.SubmitGameplaySessionAsync(_currentSessionId, earnedCurrency, earnedScore, maxComboInSession, playtimeSec, powerUpsCollectedInSession);
+                await UserDatabaseManager.Instance.SubmitGameplaySessionAsync(_currentSessionId, earnedCurrency, earnedScore, maxComboInSession, playtimeSec, powerUpsCollectedInSession, CurrentMode, success);
             }
             else
             {

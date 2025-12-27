@@ -84,21 +84,17 @@ public class GameplayLogicApplier : MonoBehaviour
     public event Action<bool, double, double> OnSessionResultSubmitted; // (alreadyProcessed, currencyTotal, maxScore)
     public event Action<string> OnSessionResultFailed;                  // error message
 
-    public event Action<float> OnComboMultiplierChanged; // emits current combo multiplier (e.g., 1.00, 1.15, ...)
+    public event Action<int> OnComboMultiplierChanged; // emits current Combo Power (reused event name but sends power value)
     public event Action OnComboReset;                    // fires when combo is reset to baseline
     
         // --- Combo Score System ---
-    [SerializeField] private float scorePerSecond = 1f;    // her saniye kazanılan taban skor
-    [SerializeField] private float baseIncPerCoin = 0.01f; // coin başına taban artış
+    [SerializeField] private float scorePerSecond = 0f;    // Legacy unused, overridden by ComboPower per minute logic
     [SerializeField] private float comboTimeout = 10f;     // coin toplanmazsa şu sürede sıfırla (sn)
 
-    private int   comboStreak = 0;      // ardışık coin adedi
-    private float comboMultiplier = 1f; // 1 + comboStreak * (incPerCoin)
-    private float timeSinceLastCoin = 0f;
+    public int CurrentComboPower { get; private set; }
+    private int _baseComboPower = 25; // Default base if not set via Stats
 
-    // stat'tan gelen bonus (%). Manager set edecek.
-    private int comboPowerPercent = 0; // ör: 50 => +%50, yani 0.01 -> 0.015
-    private float IncPerCoin => baseIncPerCoin * (1f + comboPowerPercent / 100f);
+    private float timeSinceLastCoin = 0f;
 
     /// <summary>
     /// Reset both gameplay & player speed multipliers to their defaults (1x) and refresh CurrentSpeed.
@@ -351,8 +347,17 @@ public class GameplayLogicApplier : MonoBehaviour
         if (boosterFillPerCollectedCoin > 0f)
             SetBoosterFill(BoosterFill + boosterFillPerCollectedCoin);
 
-        // 3) Combo increments by exactly 1 per coin pickup (independent of value)
-        RegisterCoinForCombo();
+        // 3) Combo Logic: 
+        // a) Increase Combo Power by Base Amount (simulated as delta if needed, but per specs: "Her coin toplamada combo power +25 artacak (if base 25)")
+        // The spec said: "oyuncu 50 combo power ile girseydi 50 artacaktı." -> Increase by BaseComboPower.
+        CurrentComboPower += _baseComboPower;
+        
+        // b) Score Gain: "Her coin toplamada o anki combo power kadar score kazanılacak."
+        Score += CurrentComboPower;
+
+        // Reset timeout
+        timeSinceLastCoin = 0f;
+        OnComboMultiplierChanged?.Invoke(CurrentComboPower); // Update UI
 
         // 4) Optional FX (default 1 burst)
         if (worldFxAt.HasValue)
@@ -364,14 +369,15 @@ public class GameplayLogicApplier : MonoBehaviour
     {
         if (!isRunning || targetCamera == null) return;
 
-        // 1) Skor birikimi: saniye * comboMultiplier
-        Score += scorePerSecond * comboMultiplier * Time.deltaTime;
+        // 1) Score Time-based: "oyuncu o anki combo power kadar dakikalık score kazanıcak."
+        // Score per second = CurrentComboPower / 60f;
+        Score += (CurrentComboPower / 60f) * Time.deltaTime;
 
-        // 2) Combo zaman aşımı
+        // 2) Combo Timeout
         timeSinceLastCoin += Time.deltaTime;
-        if (timeSinceLastCoin >= comboTimeout && comboStreak > 0)
+        if (timeSinceLastCoin >= comboTimeout && CurrentComboPower > _baseComboPower)
         {
-            ResetCombo(); // 10 sn coin yoksa 1x'e sıfırla
+            ResetCombo(); // Reset to base power
         }
         OnScoreChanged?.Invoke(Score);
 
@@ -472,35 +478,26 @@ public class GameplayLogicApplier : MonoBehaviour
         boosterRoutine = null;
     }
 
-    public void SetComboPowerPercent(int percent)
+    public void SetBaseComboPower(int power)
     {
-        comboPowerPercent = percent;
-        RecomputeComboMultiplier(); // mevcut comboStreak için anlık güncelle
+        _baseComboPower = Mathf.Max(1, power);
+        // If we are resetting or just starting, sync current power
+        if (!isRunning || CurrentComboPower < _baseComboPower)
+            CurrentComboPower = _baseComboPower;
     }
 
     public void ResetCombo()
     {
-        comboStreak = 0;
-        comboMultiplier = 1f;
+        CurrentComboPower = _baseComboPower;
         timeSinceLastCoin = 0f;
         OnComboReset?.Invoke();
-        OnComboMultiplierChanged?.Invoke(comboMultiplier);
+        OnComboMultiplierChanged?.Invoke(CurrentComboPower);
+        
+        // Track stats for session if needed (max power reached?)
+        if (_sessionMaxComboMultiplier < CurrentComboPower)
+            _sessionMaxComboMultiplier = CurrentComboPower;
     }
-    private void RecomputeComboMultiplier()
-    {
-        float prev = comboMultiplier;
-        comboMultiplier = 1f + comboStreak * IncPerCoin;
-        if (comboMultiplier < 0.0001f) comboMultiplier = 0.0001f; // güvence
-        if (!Mathf.Approximately(prev, comboMultiplier))
-            OnComboMultiplierChanged?.Invoke(comboMultiplier);
-        // Track session max combo for submit
-        if (_sessionMaxComboMultiplier < comboMultiplier)
-            _sessionMaxComboMultiplier = comboMultiplier;
-    }
-    private void RegisterCoinForCombo()
-    {
-        comboStreak += 1;
-        timeSinceLastCoin = 0f;
-        RecomputeComboMultiplier();
-    }
+
+    // Unused helper removed: RecomputeComboMultiplier
+    // Unused helper removed: RegisterCoinForCombo
 }

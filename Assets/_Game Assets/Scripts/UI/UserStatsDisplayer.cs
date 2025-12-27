@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 using System.Threading.Tasks;
 using NetworkingData;
 using System.Globalization;
@@ -15,8 +16,35 @@ public class UserStatsDisplayer : MonoBehaviour
 
     [Header("UI: Stat Texts")]
     public TextMeshProUGUI currencyTMP;
-    public TextMeshProUGUI rankTMP;
+    public TextMeshProUGUI premiumCurrencyTMP;
     public TextMeshProUGUI streakTMP;
+
+    [Header("UI: Premium Visuals")]
+    [Tooltip("Sürükle: Currency plater Image")]
+    public Image currencyPlaterImage;
+    [Tooltip("Sürükle: Streak plater Image")]
+    public Image streakPlaterImage;
+    [Tooltip("Sürükle: Gem (Premium) plater Image")]
+    public Image gemPlaterImage;
+    [Tooltip("Sürükle: Profile Picture plater Image")]
+    public Image profilePicturePlaterImage;
+    
+    [Space(10)]
+    [Tooltip("Sürükle: Pro Badge Image (Açılıp kapanacak)")]
+    public Image proBadgeImage;
+
+    [Header("Sprites: Normal vs Premium")]
+    public Sprite currencyPlaterNormal;
+    public Sprite currencyPlaterPremium;
+    
+    public Sprite streakPlaterNormal;
+    public Sprite streakPlaterPremium;
+    
+    public Sprite gemPlaterNormal;
+    public Sprite gemPlaterPremium;
+    
+    public Sprite profilePicturePlaterNormal;
+    public Sprite profilePicturePlaterPremium;
 
     [Header("FX")] public ParticleImage currencyGainFx;
 
@@ -24,20 +52,20 @@ public class UserStatsDisplayer : MonoBehaviour
     public bool persistLastCurrency = true;
     public string lastCurrencyPrefsKey = "UserStatsDisplayer.LastCurrency";
     
-    // New keys for Rank and Streak
-    public string lastRankPrefsKey = "UserStatsDisplayer.LastRank";
+    // New keys for Premium Currency and Streak
+    public string lastPremiumCurrencyPrefsKey = "UserStatsDisplayer.LastPremiumCurrency";
     public string lastStreakPrefsKey = "UserStatsDisplayer.LastStreak";
 
     [Header("Options")] public int leaderboardProbeLimit = 100; // callable snapshot limit
 
     // Coroutine references to manage animations cleanly
     private Coroutine _currencyPulseRoutine;
-    private Coroutine _rankPulseRoutine;
+    private Coroutine _premiumCurrencyPulseRoutine;
     private Coroutine _streakPulseRoutine;
     
     // Animation Coroutines
     private Coroutine _currencyAnimRoutine;
-    private Coroutine _rankAnimRoutine;
+    private Coroutine _premiumCurrencyAnimRoutine;
     private Coroutine _streakAnimRoutine;
 
     #region Persistence Helpers
@@ -62,14 +90,14 @@ public class UserStatsDisplayer : MonoBehaviour
         PlayerPrefs.Save();
     }
 
-    private float LoadLastRank()
+    private float LoadLastPremiumCurrency()
     {
-        return PlayerPrefs.GetFloat(lastRankPrefsKey, 0f); // Default to 0 if not found
+        return PlayerPrefs.GetFloat(lastPremiumCurrencyPrefsKey, 0f); // Default to 0 if not found
     }
 
-    private void SaveLastRank(float value)
+    private void SaveLastPremiumCurrency(float value)
     {
-        PlayerPrefs.SetFloat(lastRankPrefsKey, value);
+        PlayerPrefs.SetFloat(lastPremiumCurrencyPrefsKey, value);
         PlayerPrefs.Save();
     }
 
@@ -103,16 +131,16 @@ public class UserStatsDisplayer : MonoBehaviour
     {
         // 1. Initialize text with LAST KNOWN values (Persistence) instead of 0
         double lastCurrency = LoadLastCurrency();
-        float lastRank = LoadLastRank();
+        float lastPremiumCurrency = LoadLastPremiumCurrency();
         float lastStreak = LoadLastStreak();
         
         SetText(currencyTMP, lastCurrency.ToString("F2", CultureInfo.InvariantCulture));
-        SetText(rankTMP, lastRank.ToString("0", CultureInfo.InvariantCulture));
+        SetText(premiumCurrencyTMP, lastPremiumCurrency.ToString("0", CultureInfo.InvariantCulture));
         SetText(streakTMP, lastStreak.ToString("0", CultureInfo.InvariantCulture));
 
         // 2. Start Pulse Animations to indicate "Fetching/Updating"
         StartPulse(currencyTMP, ref _currencyPulseRoutine);
-        StartPulse(rankTMP, ref _rankPulseRoutine);
+        StartPulse(premiumCurrencyTMP, ref _premiumCurrencyPulseRoutine);
         StartPulse(streakTMP, ref _streakPulseRoutine);
 
         if (userDB == null)
@@ -123,13 +151,13 @@ public class UserStatsDisplayer : MonoBehaviour
 
         // 3. Fire Fetches (Fire-and-forget logic handles completion internally)
         _ = RefreshCurrencyAndStreak();
-        _ = RefreshRankFromSnapshot();
+        // Rank fetch removed as it is replaced by Premium Currency which is in UserData
     }
 
     private void StopAllPulses()
     {
         StopPulse(currencyTMP, ref _currencyPulseRoutine);
-        StopPulse(rankTMP, ref _rankPulseRoutine);
+        StopPulse(premiumCurrencyTMP, ref _premiumCurrencyPulseRoutine);
         StopPulse(streakTMP, ref _streakPulseRoutine);
     }
 
@@ -144,6 +172,12 @@ public class UserStatsDisplayer : MonoBehaviour
 
             var data = userDataTask.Result;
             var streakSnap = streakTask.Result;
+
+            if (data != null)
+            {
+                UpdatePremiumVisuals(data.hasElitePass);
+            }
+
 
             // --- Handling Currency ---
             if (data != null)
@@ -171,6 +205,23 @@ public class UserStatsDisplayer : MonoBehaviour
                 SetText(currencyTMP, "-");
             }
 
+            // --- Handling Premium Currency ---
+            if (data != null)
+            {
+                float prevPremium = LoadLastPremiumCurrency();
+                float currPremium = (float)data.premiumCurrency;
+                
+                SaveLastPremiumCurrency(currPremium);
+                
+                StopPulse(premiumCurrencyTMP, ref _premiumCurrencyPulseRoutine);
+                StartAnim(premiumCurrencyTMP, (double)prevPremium, (double)currPremium, 0.5f, 0f, "0", ref _premiumCurrencyAnimRoutine);
+            }
+            else
+            {
+                StopPulse(premiumCurrencyTMP, ref _premiumCurrencyPulseRoutine);
+                SetText(premiumCurrencyTMP, "-");
+            }
+
             // --- Handling Streak ---
             float targetStreak = 0;
             if (streakSnap.ok)
@@ -193,39 +244,35 @@ public class UserStatsDisplayer : MonoBehaviour
         {
             Debug.LogWarning($"[UserStats] currency/streak load failed: {e.Message}");
             StopPulse(currencyTMP, ref _currencyPulseRoutine);
+            StopPulse(premiumCurrencyTMP, ref _premiumCurrencyPulseRoutine);
             StopPulse(streakTMP, ref _streakPulseRoutine);
         }
     }
 
-    private async Task RefreshRankFromSnapshot()
+    // Rank fetch removed
+
+    private void UpdatePremiumVisuals(bool isPremium)
     {
-        try
+        // 1. Swap Plater Sprites
+        if (currencyPlaterImage) 
+            currencyPlaterImage.sprite = isPremium ? currencyPlaterPremium : currencyPlaterNormal;
+
+        if (streakPlaterImage) 
+            streakPlaterImage.sprite = isPremium ? streakPlaterPremium : streakPlaterNormal;
+
+        if (gemPlaterImage) 
+            gemPlaterImage.sprite = isPremium ? gemPlaterPremium : gemPlaterNormal;
+
+        if (profilePicturePlaterImage) 
+            profilePicturePlaterImage.sprite = isPremium ? profilePicturePlaterPremium : profilePicturePlaterNormal;
+
+        // 2. Toggle Pro Badge
+        if (proBadgeImage)
         {
-            int limit = Mathf.Clamp(leaderboardProbeLimit, 1, 500);
-            var page = await userDB.GetLeaderboardsSnapshotAsync(limit: limit, startAfterScore: null, includeSelf: true);
-
-            string myUid = userDB.currentLoggedUserID;
-            float rank = 0;
-
-            if (!string.IsNullOrEmpty(myUid) && page != null && page.items != null)
-            {
-                int idx = page.items.FindIndex(e => e.uid == myUid);
-                if (idx >= 0) rank = idx + 1; 
-            }
-            
-            float prevRank = LoadLastRank();
-            SaveLastRank(rank);
-
-            StopPulse(rankTMP, ref _rankPulseRoutine);
-            // No extra delay for rank
-            StartAnim(rankTMP, (double)prevRank, (double)rank, 0.5f, 0f, "0", ref _rankAnimRoutine);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[UserStats] rank fetch failed: {ex.Message}");
-            StopPulse(rankTMP, ref _rankPulseRoutine); 
+            proBadgeImage.gameObject.SetActive(isPremium);
         }
     }
+
 
     // --- Helpers ---
 

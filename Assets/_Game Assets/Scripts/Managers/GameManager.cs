@@ -41,7 +41,7 @@ public class GameManager : MonoBehaviour
 
     private void OnRequestStartGameplay()
     {
-        _ = RequestSessionAndStartAsync();
+        _ = RequestSessionAndStartAsync(CurrentMode);
     }
 
     private void OnRequestReturnToMeta()
@@ -65,7 +65,7 @@ public class GameManager : MonoBehaviour
     {
         Debug.LogWarning("[GameManager] OnPlayButtonPressed is DEPRECATED. Use RequestSessionAndStartAsync() or ensure UIHomePanel handles the flow.");
         // Forwarding to new logic for safety, but UIHomePanel should be the caller.
-        _ = RequestSessionAndStartAsync();
+        _ = RequestSessionAndStartAsync(CurrentMode);
     }
 
     /// <summary>
@@ -77,10 +77,14 @@ public class GameManager : MonoBehaviour
     /// Async method for external UI controllers (like UIHomePanel) to request start.
     /// STRICT FLOW: Request Session -> Check Result -> (If OK) Show Loading & Start Game -> (If Fail) Show Energy Panel.
     /// </summary>
-    public async System.Threading.Tasks.Task<bool> RequestSessionAndStartAsync()
+    public GameMode CurrentMode { get; private set; } = GameMode.Endless;
+
+    public async System.Threading.Tasks.Task<bool> RequestSessionAndStartAsync(GameMode mode)
     {
+        CurrentMode = mode;
+
         // 1. Request Session
-        var task = SessionRemoteService.RequestSessionAsync();
+        var task = SessionRemoteService.RequestSessionAsync(mode); // Updated to pass mode
         try
         {
             await task;
@@ -93,7 +97,7 @@ public class GameManager : MonoBehaviour
         if (task.IsFaulted || task.IsCanceled)
         {
             // Fail Scenario A: Network error or obscure fail
-            ShowInsufficientEnergyPanel(); 
+            ShowInsufficientEnergyPanel();
             return false;
         }
 
@@ -101,12 +105,12 @@ public class GameManager : MonoBehaviour
         if (resp.ok && !string.IsNullOrEmpty(resp.sessionId))
         {
              // Success Scenario B: Energy OK -> Game Start
-             
+
              // 1. Show Loading Screen First (so user sees transition)
              UIManager.Instance?.ShowGameplayLoading();
-             
+
              // 2. Grant Session to GameplayManager (still in boot/meta phase technically until next line)
-             gameplayManager?.BeginSessionWithServerGrant(resp.sessionId);
+             gameplayManager?.BeginSessionWithServerGrant(resp.sessionId, mode); // Updated to pass mode
 
              // 3. Switch Phase to Gameplay (Triggers GameplayManager logic)
              SetPhase(GamePhase.Gameplay);

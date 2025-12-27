@@ -4,6 +4,6 @@ public class UIMetaSettingsButton : MonoBehaviour
 {
     public void OnSettingsButtonClicked()
     {
-        UIManager.Instance.metaSettingsPanel.Show();
+        UIManager.Instance.profileAndSettingsPanel.Show();
     }
 }

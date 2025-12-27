@@ -11,6 +11,8 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Collections;
 
+using System.Collections;
+using UnityEngine.SocialPlatforms.Impl;
 
 public class UserDatabaseManager : MonoBehaviour
 {
@@ -62,6 +64,7 @@ public class UserDatabaseManager : MonoBehaviour
     }
 
     [Sirenix.OdinInspector.ReadOnly] public string currentLoggedUserID;
+    public UserData currentUserData => _cachedUserData;
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -859,14 +862,55 @@ public class UserDatabaseManager : MonoBehaviour
         }
     }
 
-    // --- GAMEPLAY SESSION SUBMISSION (Persistent) ---
-    public async Task SubmitGameplaySessionAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected)
+    // --- CHAPTER MAP FETCHING ---
+    public async Task<string> FetchChapterMapJsonAsync(int chapterIndex)
     {
-        EmitLog($"[UserDatabaseManager] Submitting session: {sessionId} Cur:{earnedCurrency} Score:{earnedScore}");
+        if (db == null) return null;
+        try
+        {
+            var docRef = db.Collection("appdata").Document("chaptermaps").Collection("maps").Document($"chapter_{chapterIndex}");
+            var snap = await docRef.GetSnapshotAsync();
+            if (snap.Exists)
+            {
+                // Assuming json is stored in a field called 'json' or similar. 
+                // Let's assume standard 'json' based on map manager usage.
+                if (snap.TryGetValue("json", out string json) && !string.IsNullOrWhiteSpace(json))
+                    return json;
+                if (snap.TryGetValue("mapJson", out string json2) && !string.IsNullOrWhiteSpace(json2))
+                    return json2;
+            }
+        }
+        catch (Exception e)
+        {
+            EmitLog($"❌ FetchChapterMapJsonAsync failed: {e.Message}");
+        }
+        return null;
+    }
+
+    public async Task<bool> CheckIfChapterExists(int chapterIndex)
+    {
+        if (db == null) return false;
+        try
+        {
+            var docRef = db.Collection("appdata").Document("chaptermaps").Collection("maps").Document($"chapter_{chapterIndex}");
+            var snap = await docRef.GetSnapshotAsync();
+            return snap.Exists;
+        }
+        catch 
+        {
+            return false;
+        }
+    }
+
+    // --- GAMEPLAY SESSION SUBMISSION (Persistent) ---
+    public async Task SubmitGameplaySessionAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected, GameMode mode, bool success)
+    {
+        string modeStr = mode.ToString().ToLower();
+        EmitLog($"[UserDatabaseManager] Submitting session: {sessionId} Cur:{earnedCurrency} Score:{earnedScore} Mode:{modeStr} Suc:{success}");
 
         try
         {
-            var resp = await SessionResultRemoteService.SubmitAsync(sessionId, earnedCurrency, earnedScore, maxCombo, playtimeSec, powerUpsCollected);
+            var resp = await SessionRemoteService.SubmitResultAsync(sessionId, earnedCurrency, earnedScore, maxCombo, playtimeSec, powerUpsCollected, modeStr, success);
             
             // Success! Update local cache immediately
             if (_cachedUserData != null)
@@ -881,6 +925,13 @@ public class UserDatabaseManager : MonoBehaviour
                     _cachedUserData.maxScore = resp.maxScore;
                 else if (earnedScore > _cachedUserData.maxScore) // Fallback local check
                     _cachedUserData.maxScore = (float)earnedScore;
+
+                if (mode == GameMode.Chapter && success)
+                {
+                    _cachedUserData.chapterProgress++;
+                    // Refund energy optimistically
+                    // We don't track energy in cachedUserData strictly but let's assume UI refreshes from server or uses separate component
+                }
 
                 _lastOptimisticUpdateTimestamp = Time.time;
                 EmitLog($"✅ Session Submitted! Optimistic Cache Updated: Currency={_cachedUserData.currency}");

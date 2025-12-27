@@ -34,10 +34,23 @@ namespace RemoteApp
             mapManager.OnReady         += HandleReady;
             mapManager.OnDeinitialized += HandleDeinitialized;
 
-            var task = mapManager.Initialize(); // async Task
-            while (!task.IsCompleted) yield return null;
+            if (mapManager == null)
+            {
+                Debug.LogError("[MapLoaderJsonAdapter] MapManager ref missing!");
+                yield break;
+            }
 
-            initRoutine = null;
+            // Pass the current game mode to the map manager
+            var mode = GameMode.Endless;
+            if (GameplayManager.Instance != null)
+            {
+                mode = GameplayManager.Instance.CurrentMode;
+            }
+
+            var task = mapManager.Initialize(mode);
+            yield return new WaitUntil(() => task.IsCompleted);
+            
+            IsReady = true;
         }
 
         public void Unload()
