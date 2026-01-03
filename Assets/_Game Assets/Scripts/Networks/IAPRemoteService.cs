@@ -36,7 +36,9 @@ public static class IAPRemoteService
             var data = new Dictionary<string, object>
             {
                 { "productId", productId },
-                { "receipt", receipt } // Send the full receipt; backend parses it.
+                { "receipt", receipt }, // Send the full receipt; backend parses it.
+                { "deviceId", SystemInfo.deviceUniqueIdentifier },
+                { "platform", Application.platform.ToString() }
             };
 
             var res = await call.CallAsync(data);

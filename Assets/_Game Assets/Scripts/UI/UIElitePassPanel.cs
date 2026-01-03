@@ -105,10 +105,18 @@ public class UIElitePassPanel : MonoBehaviour
             {
                 if (isWaitingForInitialization) return; // Already waiting
 
-                Debug.LogWarning("[UIElitePassPanel] IAPManager not initialized. Attempting to initialize...");
                 isWaitingForInitialization = true;
                 IAPManager.Instance.OnIAPInitialized += OnIAPInitializedForPurchase;
-                IAPManager.Instance.InitializePurchasing();
+
+                if (!IAPManager.Instance.IsInitializing())
+                {
+                    Debug.LogWarning("[UIElitePassPanel] IAPManager not initialized. Attempting to initialize...");
+                    IAPManager.Instance.InitializePurchasing();
+                }
+                else
+                {
+                    Debug.Log("[UIElitePassPanel] IAPManager is initializing. Waiting for completion...");
+                }
                 return;
             }
 

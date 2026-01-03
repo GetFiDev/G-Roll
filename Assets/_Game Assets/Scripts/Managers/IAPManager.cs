@@ -139,28 +139,9 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
     {
         if (IsInitialized()) return;
 
-        // Check if Codeless IAP has already initialized the system
-        if (CodelessIAPStoreListener.initializationComplete)
-        {
-            Debug.Log("[IAPManager] Codeless IAP already initialized. Attempting to hook into existing controller...");
-            try 
-            {
-                _controller = CodelessIAPStoreListener.Instance.StoreController;
-                // _extensions cannot be easily accessed from Codeless listener in this version.
-                // We will handle null _extensions in RestorePurchases.
-
-                if (_controller != null)
-                {
-                     Debug.Log("[IAPManager] Successfully hooked into Codeless IAP controller.");
-                     OnIAPInitialized?.Invoke();
-                     return;
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[IAPManager] Failed to get controller from Codeless IAP: {e.Message}");
-            }
-        }
+        // Strict Manual Initialization Rule
+        // We assume no Codeless IAP is present. Checking .Instance might lazily create it!
+        // if (CodelessIAPStoreListener.Instance != null) { ... }
 
         if (_isInitializationStarted) 
         {
@@ -203,6 +184,11 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
     public bool IsInitialized()
     {
         return _controller != null && _extensions != null;
+    }
+
+    public bool IsInitializing()
+    {
+        return _isInitializationStarted;
     }
 
     public string GetProductId(IAPProductType type)
@@ -291,8 +277,15 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
     {
         if (!IsInitialized())
         {
-            Debug.LogWarning("[IAPManager] Buy failed: Not initialized. Attempting to initialize...");
-            InitializePurchasing(); 
+            if (IsInitializing())
+            {
+                Debug.LogWarning("[IAPManager] Buy failed: Initialization in progress. Please wait...");
+            }
+            else
+            {
+                Debug.LogWarning("[IAPManager] Buy failed: Not initialized. Attempting to initialize...");
+                InitializePurchasing();
+            }
             return;
         }
 
@@ -473,5 +466,15 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
              OnPurchaseFailedEvent?.Invoke("Verification error");
              if (UIManager.Instance && UIManager.Instance.overlay) UIManager.Instance.overlay.HideProcessingPanel();
         }
+    }
+    private string GetGameObjectPath(GameObject obj)
+    {
+        string path = "/" + obj.name;
+        while (obj.transform.parent != null)
+        {
+            obj = obj.transform.parent.gameObject;
+            path = "/" + obj.name + path;
+        }
+        return path;
     }
 }
