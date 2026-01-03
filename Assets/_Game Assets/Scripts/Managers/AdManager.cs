@@ -1,59 +1,89 @@
 using System;
-using System.Collections;
 using UnityEngine;
+using AppodealAds.Unity.Api;
+using AppodealAds.Unity.Common;
 
 public abstract class AdManager
 {
-    private static GameSettingsData _gameSettingsData;
-    
-    private static float _lastInterstitialRequestTime;
-    private static float _nextInterstitialTime;
+    // A simplified listener class to bridge callbacks to Actions
+    private class AdListener : IRewardedVideoAdListener, IInterstitialAdListener
+    {
+        private Action<bool> _onRewardedComplete;
+
+        public void SetRewardedCallback(Action<bool> onComplete)
+        {
+            _onRewardedComplete = onComplete;
+        }
+
+        // --- Rewarded Video ---
+        public void onRewardedVideoLoaded(bool precache) { }
+        public void onRewardedVideoFailedToLoad() { }
+        public void onRewardedVideoShowFailed() 
+        { 
+             _onRewardedComplete?.Invoke(false);
+             _onRewardedComplete = null;
+        }
+        public void onRewardedVideoShown() { }
+        public void onRewardedVideoFinished(double amount, string name) 
+        { 
+            // Mark validation success, but wait for closed? 
+            // Usually 'Finished' means they watched it all.
+            // verifying in 'Closed' is also common pattern but 'Finished' guarantees reward.
+             _onRewardedComplete?.Invoke(true);
+             _onRewardedComplete = null;
+        }
+        public void onRewardedVideoClosed(bool finished) 
+        { 
+            if (_onRewardedComplete != null)
+            {
+                // If we reach here and callback hasn't fired (e.g. skipped), fire false
+                _onRewardedComplete.Invoke(finished);
+                _onRewardedComplete = null;
+            }
+        }
+        public void onRewardedVideoExpired() { }
+        public void onRewardedVideoClicked() { }
+
+        // --- Interstitial (Stub) ---
+        public void onInterstitialLoaded(bool isPrecache) { }
+        public void onInterstitialFailedToLoad() { }
+        public void onInterstitialShowFailed() { }
+        public void onInterstitialShown() { }
+        public void onInterstitialClosed() { }
+        public void onInterstitialClicked() { }
+        public void onInterstitialExpired() { }
+    }
+
+    private static AdListener _listener;
 
     public static void Initialize()
     {
-        _gameSettingsData = GameSettingsData.Instance;
-
-        _nextInterstitialTime = Time.time + _gameSettingsData.initialInterstitialDuration;
+        if (_listener == null)
+        {
+            _listener = new AdListener();
+            Appodeal.setRewardedVideoCallbacks(_listener);
+            Appodeal.setInterstitialCallbacks(_listener);
+        }
     }
-    
+
     public static void ShowInterstitial(string placement)
     {
-        if (Time.time < _lastInterstitialRequestTime)
-            return;
-
-        if (Time.time < _nextInterstitialTime)
-            return;
-
-        placement += "_interstitial";
-
-        //TODO: REQUEST AD HERE
-
-        _lastInterstitialRequestTime = Time.time + 1;
-        _nextInterstitialTime = Time.time + _gameSettingsData.interstitialInterval;
+        // Empty as requested
     }
 
     public static void ShowRewarded(string placement, Action<bool> onComplete)
     {
-        placement += "_rewarded";
+        if (_listener == null) Initialize();
 
-#if UNITY_EDITOR
-        onComplete?.Invoke(true);
-#else
-        //TODO: REQUEST AD HERE
-#endif
-    }
-
-    public static void ActivateBanner()
-    {
-        GameManager.Instance.StartCoroutine(BannerActivationCheck());
-    }
-
-    private static IEnumerator BannerActivationCheck()
-    {
-        var checkInterval = new WaitForSeconds(.5f);
-
-        //TODO: REQUEST AD HERE
-        
-        yield return null;
+        if (Appodeal.isLoaded(Appodeal.REWARDED_VIDEO))
+        {
+            _listener.SetRewardedCallback(onComplete);
+            Appodeal.show(Appodeal.REWARDED_VIDEO, placement);
+        }
+        else
+        {
+            Debug.Log("Rewared Ad not loaded");
+            onComplete?.Invoke(false);
+        }
     }
 }

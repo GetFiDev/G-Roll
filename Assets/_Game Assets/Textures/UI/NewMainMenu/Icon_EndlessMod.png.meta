@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Icon_EndlessMod_0: -1116594419307536059
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

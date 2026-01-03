@@ -67,9 +67,26 @@ public static class InventoryRemoteService
         public List<ActiveConsumable> items = new();
         public string error;
     }
+    // Helper to quick-fail if auth missing
+    private static bool CheckAuth()
+    {
+        if (UserDatabaseManager.Instance == null || !UserDatabaseManager.Instance.IsFirebaseReady || UserDatabaseManager.Instance.currentUser == null)
+        {
+            return false;
+        }
+        return true;
+    }
+
     public static async Task<ActiveConsumablesResponse> GetActiveConsumablesAsync()
     {
         var result = new ActiveConsumablesResponse { ok = false, serverNowMillis = 0, items = new List<ActiveConsumable>(), error = null };
+        
+        if (!CheckAuth())
+        {
+             result.error = "Auth required.";
+             return result;
+        }
+
         try
         {
             var callable = Fn.GetHttpsCallable("getActiveConsumables");
@@ -207,6 +224,8 @@ public static class InventoryRemoteService
     // -------- Helpers for ownership bootstrap (getAllItems + checkOwnership) --------
     private static async Task<List<string>> FetchAllItemIdsAsync()
     {
+        if (!CheckAuth()) return new List<string>();
+
         try
         {
             var callable = Fn.GetHttpsCallable("getAllItems");
@@ -258,6 +277,8 @@ public static class InventoryRemoteService
 
     private static async Task<HashSet<string>> FetchOwnedIdsAsync()
     {
+        if (!CheckAuth()) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         try
         {
             var callable = Fn.GetHttpsCallable("checkOwnership");
@@ -310,6 +331,8 @@ public static class InventoryRemoteService
     // ---------------- API ----------------
     public static async Task<InventorySnapshot> GetInventoryAsync()
     {
+        if (!CheckAuth()) return new InventorySnapshot { ok = false };
+
         try
         {
             // 1) Orijinal snapshot (equipped/quantity vb. ayrıntılar burada)

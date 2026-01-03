@@ -223,7 +223,10 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      NewIcon_Magnet_0: -6745225443907694915
+      NewIcon_Magnet_1: 6757692966498134509
+      NewIcon_Magnet_2: -5456528549993557148
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

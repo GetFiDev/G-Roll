@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Badge_Pro_0: 1725321934370662845
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Button_MainMenu_NewEndlessMod_0: -5323168737301083052
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -77,6 +77,9 @@ public class UIAutoPilot : MonoBehaviour
         Elite_Working
     }
 
+    // Event invoked when this panel closes (OnDisable)
+    public static event Action OnClosed;
+
     private void OnEnable()
     {
         _cts = new CancellationTokenSource();
@@ -85,6 +88,7 @@ public class UIAutoPilot : MonoBehaviour
 
     private void OnDisable()
     {
+        OnClosed?.Invoke();
         CancelCountdown();
         if (_cts != null) { _cts.Cancel(); _cts.Dispose(); _cts = null; }
     }

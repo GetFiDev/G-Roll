@@ -35,4 +35,12 @@ public class UITopPanel : MonoBehaviour
         UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.ProfileAndSettings);
     }
 
+    public void OnShopButtonClick()
+    {
+        // Resets bottom panel colors if needed, though shop behaves as an overlay usually.
+        // bottomPanel.ChangeAllColorToDefault(); 
+        
+        UIManager.Instance.mainMenu.ShowPanel(UIMainMenu.PanelType.IAPShop);
+    }
+
 }

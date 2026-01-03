@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Banner_ProfileDiamondArtwork_0: 4656197223378010988
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

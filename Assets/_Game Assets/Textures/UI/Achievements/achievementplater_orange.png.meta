@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      achievementplater_orange_0: -1111543211221130947
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

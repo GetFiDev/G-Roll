@@ -108,7 +108,24 @@ public class UserInventoryManager : MonoBehaviour
     {
         if (IsInitialized) return;
 
-        Debug.Log("[UserInventoryManager] Initializing inventory...");
+        Debug.Log("[UserInventoryManager] InitializeAsync called. Waiting for Auth...");
+
+        // Wait for Firebase Auth to be ready (timeout safe)
+        float timeout = 10f;
+        float elapsed = 0f;
+        while ((UserDatabaseManager.Instance == null || !UserDatabaseManager.Instance.IsFirebaseReady || UserDatabaseManager.Instance.currentUser == null) && elapsed < timeout)
+        {
+            await Task.Delay(200);
+            elapsed += 0.2f;
+        }
+
+        if (UserDatabaseManager.Instance == null || UserDatabaseManager.Instance.currentUser == null)
+        {
+            Debug.LogWarning("[UserInventoryManager] Auth wait timed out or failed. Cannot fetch inventory.");
+            return;
+        }
+
+        Debug.Log("[UserInventoryManager] Auth ready. Fetching inventory...");
 
         var snapshot = await InventoryRemoteService.GetInventoryAsync();
         if (snapshot == null || !snapshot.ok)

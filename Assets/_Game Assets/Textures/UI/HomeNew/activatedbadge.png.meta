@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      activatedbadge_0: -291584851048884707
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

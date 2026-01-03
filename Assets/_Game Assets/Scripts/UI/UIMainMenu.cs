@@ -15,6 +15,7 @@ public class UIMainMenu : MonoBehaviour
     [SerializeField] private ProfileAndSettingsPanel profileAndSettingsPanel;
     [SerializeField] private UIAutoPilotPanel autoPilotpanel;
     [SerializeField] private UIElitePassPanel elitePassPanel;
+    [SerializeField] private UIIAPShopPanel iapShopPanel; // Added IAP Shop Panel
 
 
 
@@ -24,7 +25,7 @@ public class UIMainMenu : MonoBehaviour
 
     public enum PanelType
     {
-        Home, Shop, Referral, Customization, Ranking, Task, ProfileAndSettings, ElitePass, AutoPilot
+        Home, Shop, Referral, Customization, Ranking, Task, ProfileAndSettings, ElitePass, AutoPilot, IAPShop
     }
 
     private Dictionary<PanelType, UIFadePanel> panels;
@@ -49,7 +50,8 @@ public class UIMainMenu : MonoBehaviour
             { PanelType.Task, GetOrAdd(TaskPanel.gameObject) },
             { PanelType.ProfileAndSettings, GetOrAdd(profileAndSettingsPanel.gameObject) },
             { PanelType.ElitePass, GetOrAdd(elitePassPanel.gameObject) },
-            { PanelType.AutoPilot, GetOrAdd(autoPilotpanel.gameObject) }
+            { PanelType.AutoPilot, GetOrAdd(autoPilotpanel.gameObject) },
+            { PanelType.IAPShop, GetOrAdd(iapShopPanel.gameObject) }
         };
     }
 
@@ -115,5 +117,14 @@ public class UIMainMenu : MonoBehaviour
     {
         TogglePanel(PanelType.AutoPilot);
     }
-    
+
+    public void OnIAPShopButtonClick()
+    {
+        ShowPanel(PanelType.IAPShop);
+    }
+
+    public void OnTaskButtonClick()
+    {
+        ShowPanel(PanelType.Task);
+    }
 }

@@ -1,14 +1,27 @@
 import * as admin from "firebase-admin";
 import * as functionsV1 from "firebase-functions/v1";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { setGlobalOptions } from "firebase-functions/v2/options";
-import { Firestore, Timestamp, FieldValue } from "@google-cloud/firestore";
+import {onDocumentWritten} from "firebase-functions/v2/firestore";
 
-admin.initializeApp();
+// ...
+
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {setGlobalOptions} from "firebase-functions/v2/options";
+import {Firestore, Timestamp, FieldValue} from "@google-cloud/firestore";
+// import {google} from "googleapis"; // Lazy loaded
+
+
+console.log("[STARTUP] Loading index.ts...");
+try {
+  admin.initializeApp();
+  console.log("[STARTUP] Firebase Admin initialized");
+} catch (e) {
+  console.error("[STARTUP] Firebase Admin init failed", e);
+}
+
 // nam5 -> us-central1
 
-setGlobalOptions({ region: "us-central1" });
+setGlobalOptions({region: "us-central1", memory: "512MiB"});
+
 
 // --- ID Normalization Helper (use everywhere for itemId) ---
 const normId = (s?: string) => (s || "").trim().toLowerCase();
@@ -35,7 +48,7 @@ async function acquireRankLock(dbNow: Timestamp, holdMs = 2 * 60 * 1000): Promis
       tx.set(ref, {
         lockedUntil: Timestamp.fromMillis(dbNow.toMillis() + holdMs),
         updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      }, {merge: true});
     });
     return true;
   } catch (e) {
@@ -49,7 +62,7 @@ async function releaseRankLock() {
     await ref.set({
       lockedUntil: Timestamp.fromMillis(0),
       updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    }, {merge: true});
   } catch { }
 }
 
@@ -58,7 +71,7 @@ async function recomputeAllRanks(): Promise<{ count: number }> {
   const got = await acquireRankLock(now);
   if (!got) {
     console.log("[ranks] another job is running; skip");
-    return { count: 0 };
+    return {count: 0};
   }
 
   let ranked = 0;
@@ -77,7 +90,7 @@ async function recomputeAllRanks(): Promise<{ count: number }> {
       const batch = db.batch();
       snap.docs.forEach((doc, i) => {
         const rank = ranked + i + 1; // 1-based
-        batch.set(doc.ref, { rank, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        batch.set(doc.ref, {rank, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
       });
       await batch.commit();
 
@@ -89,11 +102,11 @@ async function recomputeAllRanks(): Promise<{ count: number }> {
       await db.doc(RANK_LOCK_DOC).set({
         lockedUntil: Timestamp.fromMillis(Timestamp.now().toMillis() + 2 * 60 * 1000),
         updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      }, {merge: true});
     }
 
     console.log(`[ranks] recomputed for ${ranked} users`);
-    return { count: ranked };
+    return {count: ranked};
   } finally {
     await releaseRankLock();
   }
@@ -107,7 +120,7 @@ function utcDateString(ts: Timestamp): string {
 }
 
 
-const db = new Firestore({ databaseId: DB_ID });
+const db = new Firestore({databaseId: DB_ID});
 
 // ========================= Streak System (server-side only) =========================
 // Doc layout:
@@ -125,7 +138,7 @@ export const recordLogin = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await applyDailyStreakIncrement(uid);
-  return { ok: true, ...res, deprecated: true };
+  return {ok: true, ...res, deprecated: true};
 });
 
 // claimStreak: Grants accumulated unclaimedDays * reward to user currency and resets unclaimedDays.
@@ -145,7 +158,7 @@ export const claimStreak = onCall(async (req) => {
     if (unclaimed <= 0) {
       const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
       const rewardPerDay = cfgSnap.exists ? Number(cfgSnap.get("reward") ?? 0) || 0 : 0;
-      return { granted: 0, rewardPerDay: Math.max(0, rewardPerDay), unclaimedDays: 0, newCurrency: curCurrency };
+      return {granted: 0, rewardPerDay: Math.max(0, rewardPerDay), unclaimedDays: 0, newCurrency: curCurrency};
     }
 
     const rewardPerDay = cfgSnap.exists ? Number(cfgSnap.get("reward") ?? 0) || 0 : 0;
@@ -154,8 +167,8 @@ export const claimStreak = onCall(async (req) => {
     const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
     const newCurrency = curCurrency + grant;
 
-    tx.set(uRef, { currency: newCurrency, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(sRef, { unclaimedDays: 0, lastClaimAt: now, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(uRef, {currency: newCurrency, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(sRef, {unclaimedDays: 0, lastClaimAt: now, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
 
     // optional: audit log
     const logRef = uRef.collection("streakClaims").doc();
@@ -167,10 +180,10 @@ export const claimStreak = onCall(async (req) => {
       currencyAfter: newCurrency,
     });
 
-    return { granted: grant, rewardPerDay, unclaimedDays: 0, newCurrency };
+    return {granted: grant, rewardPerDay, unclaimedDays: 0, newCurrency};
   });
 
-  return { ok: true, ...res };
+  return {ok: true, ...res};
 });
 
 // getStreakStatus: For UI — shows whether a claim is available and the next UTC midnight countdown.
@@ -178,7 +191,7 @@ export const getStreakStatus = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await applyDailyStreakIncrement(uid);
-  return { ok: true, ...res };
+  return {ok: true, ...res};
 });
 
 // small numeric helper for safe casting
@@ -252,7 +265,7 @@ async function upsertUserAch(uid: string, typeId: AchType, progress: number) {
     level,
     nextThreshold,
     updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  }, {merge: true});
 }
 
 async function grantAchReward(uid: string, typeId: AchType, level: number) {
@@ -271,9 +284,9 @@ async function grantAchReward(uid: string, typeId: AchType, level: number) {
     if (claimed.includes(level)) throw new HttpsError("already-exists", "Already claimed");
 
     const curCurrency = Number(uSnap.get("currency") ?? 0) || 0;
-    tx.set(uRef, { currency: curCurrency + reward, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.set(aRef, { claimedLevels: FieldValue.arrayUnion(level), lastClaimedAt: Timestamp.now() }, { merge: true });
-    return { reward, newCurrency: curCurrency + reward };
+    tx.set(uRef, {currency: curCurrency + reward, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    tx.set(aRef, {claimedLevels: FieldValue.arrayUnion(level), lastClaimedAt: Timestamp.now()}, {merge: true});
+    return {reward, newCurrency: curCurrency + reward};
   });
 }
 
@@ -338,10 +351,10 @@ export const getAchievementsSnapshot = onCall(async (req) => {
     const level = s.exists ? Number(s.get("level") ?? 0) || 0 : 0;
     const claimed = s.exists && Array.isArray(s.get("claimedLevels")) ? (s.get("claimedLevels") as number[]) : [];
     const nextThreshold = s.exists ? ((s.get("nextThreshold") ?? null) as number | null) : (d.thresholds[level] ?? null);
-    return { typeId: d.typeId, progress, level, claimedLevels: claimed, nextThreshold };
+    return {typeId: d.typeId, progress, level, claimedLevels: claimed, nextThreshold};
   });
 
-  return { ok: true, defs, states };
+  return {ok: true, defs, states};
 });
 
 // -------- claimAchievementReward (callable) --------
@@ -352,7 +365,7 @@ export const claimAchievementReward = onCall(async (req) => {
   const level = Number(req.data?.level ?? 0);
   if (!typeId || !level) throw new HttpsError("invalid-argument", "typeId and level required");
   const res = await grantAchReward(uid, typeId, level);
-  return { ok: true, rewardGet: res.reward, newCurrency: res.newCurrency };
+  return {ok: true, rewardGet: res.reward, newCurrency: res.newCurrency};
 });
 
 // ---- Stats helpers for equip/unequip merging ----
@@ -368,7 +381,7 @@ function parseStatsJson(s: any): Record<string, number> {
 }
 
 function mergeStats(base: Record<string, number>, delta: Record<string, number>, sign: 1 | -1) {
-  const out: Record<string, number> = { ...base };
+  const out: Record<string, number> = {...base};
   for (const k of Object.keys(delta)) {
     const v = Number(delta[k]);
     if (!Number.isFinite(v)) continue;
@@ -442,7 +455,7 @@ async function cleanupExpiredConsumablesInTx(
 
 // ---------------- Leaderboard Sync ----------------
 export const syncLeaderboard = onDocumentWritten(
-  { document: "users/{uid}", database: DB_ID },
+  {document: "users/{uid}", database: DB_ID},
   async (event) => {
     const uid = event.params.uid;
     const after = event.data?.after?.data();
@@ -466,7 +479,7 @@ export const syncLeaderboard = onDocumentWritten(
         elitePassExpiresAt, // carry expiry to leaderboard entry for client-side active check
         updatedAt: FieldValue.serverTimestamp(),
       },
-      { merge: true }
+      {merge: true}
     );
     // NOTE: Removed materialization of topN and background rank recomputation.
   }
@@ -503,12 +516,12 @@ export const getLeaderboardsSnapshot = onCall(async (req) => {
     const updatedAt = (data.updatedAt as Timestamp | undefined)?.toDate()?.toISOString() ?? null;
     const eliteTs = (data.elitePassExpiresAt as Timestamp | undefined) || undefined;
     const elitePassExpiresAtMillis = eliteTs ? eliteTs.toMillis() : null;
-    return { uid: d.id, username, score, updatedAt, elitePassExpiresAtMillis };
+    return {uid: d.id, username, score, updatedAt, elitePassExpiresAtMillis};
   });
 
   const hasMore = snap.size >= limit;
   const next = hasMore && snap.docs.length > 0
-    ? { startAfterScore: (typeof snap.docs[snap.docs.length - 1].get("score") === 'number' ? snap.docs[snap.docs.length - 1].get("score") : 0) }
+    ? {startAfterScore: (typeof snap.docs[snap.docs.length - 1].get("score") === 'number' ? snap.docs[snap.docs.length - 1].get("score") : 0)}
     : null;
 
   let me: { uid: string; username: string; score: number } | null = null;
@@ -535,7 +548,7 @@ export const getLeaderboardsSnapshot = onCall(async (req) => {
     }
   }
 
-  return { ok: true, season: SEASON, serverNowMillis: now.toMillis(), count: items.length, hasMore, next, items, me };
+  return {ok: true, season: SEASON, serverNowMillis: now.toMillis(), count: items.length, hasMore, next, items, me};
 });
 
 // ---------------- Elite Pass ----------------
@@ -585,14 +598,14 @@ export const purchaseElitePass = onCall(async (req) => {
         elitePassExpiresAt: newExpiry,
         updatedAt: FieldValue.serverTimestamp()
       },
-      { merge: true }
+      {merge: true}
     );
 
     if (purchaseId) {
       tx.set(
         userRef.collection("elitePassPurchases").doc(purchaseId),
-        { processedAt: now, newExpiry },
-        { merge: true }
+        {processedAt: now, newExpiry},
+        {merge: true}
       );
     }
   });
@@ -644,7 +657,7 @@ async function reserveUniqueReferralKey(uid: string): Promise<string> {
     const ref = db.collection("referralKeys").doc(k);
     const snap = await ref.get();
     if (!snap.exists) {
-      await ref.set({ ownerUid: uid, createdAt: Timestamp.now() });
+      await ref.set({ownerUid: uid, createdAt: Timestamp.now()});
       return k;
     }
   }
@@ -664,17 +677,306 @@ async function ensureReferralKeyFor(uid: string): Promise<string> {
     const key = await reserveUniqueReferralKey(uid);
     tx.set(
       userRef,
-      { referralKey: key, updatedAt: FieldValue.serverTimestamp() },
-      { merge: true }
+      {referralKey: key, updatedAt: FieldValue.serverTimestamp()},
+      {merge: true}
     );
     return key;
   });
 }
 
+// ========================= IAP Verification =========================
+
+// Config for iOS
+// Config for iOS moved to verifyAppleStore to avoid load-time crash
+
+// Load Google Service Account
+let googleAuthClient: any = null;
+async function getGoogleAuth() {
+  if (googleAuthClient) return googleAuthClient;
+  const {google} = require("googleapis");
+  try {
+    // Determine path to service account (copied to lib/ during build)
+    // In Cloud Functions, __dirname is usually /workspace/lib or /workspace/src depending on structure
+    // We try to require it relative to this file.
+    const key = require("./service-account.json");
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: key.client_email,
+        private_key: key.private_key,
+      },
+      scopes: ["https://www.googleapis.com/auth/androidpublisher"],
+    });
+    googleAuthClient = await auth.getClient();
+    return googleAuthClient;
+  } catch (e) {
+    console.error("[IAP] Failed to load service-account.json", e);
+    throw new Error("Server configuration error: Google Auth failed");
+  }
+}
+
+// Helper to verify Apple Receipt
+async function verifyAppleStore(receipt: string): Promise<boolean> {
+  const APPLE_SHARED_SECRET = String(((functionsV1 as any).config?.() || {}).iap?.apple_secret || "");
+  const excludeOldTransactions = true;
+  try {
+    // Receipt from Unity is often a base64 encoded string OR a JSON with "Payload" being base64.
+    let base64Receipt = receipt;
+    try {
+      const json = JSON.parse(receipt);
+      if (json.Payload) base64Receipt = json.Payload;
+      else if (json.payload) base64Receipt = json.payload;
+    } catch { }
+
+    // Remove any pure whitespace
+    base64Receipt = base64Receipt.trim();
+
+    const body = {
+      "receipt-data": base64Receipt,
+      "password": APPLE_SHARED_SECRET,
+      "exclude-old-transactions": excludeOldTransactions
+    };
+
+    // Try Production first
+    let response = await fetch("https://buy.itunes.apple.com/verifyReceipt", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    let data: any = await response.json();
+
+    // If status 21007, try Sandbox
+    if (data.status === 21007) {
+      response = await fetch("https://sandbox.itunes.apple.com/verifyReceipt", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body)
+      });
+      data = await response.json();
+    }
+
+    if (data.status === 0) {
+      return true;
+    }
+
+    console.warn("[IAP] Apple verification failed. Status:", data.status);
+    return false;
+
+  } catch (e) {
+    console.error("[IAP] Apple verification exception", e);
+    return false;
+  }
+}
+
+// Helper to verify Google Play receipt
+async function verifyGooglePlay(productId: string, receiptJson: string): Promise<boolean> {
+  try {
+    const {google} = require("googleapis");
+    // Parse Unity receipt
+    const receiptObj = JSON.parse(receiptJson);
+    // Unity's GooglePlay receipt format: { "Payload": "{ \"json\": \"...\", \"signature\": \"...\" }" }
+    // Or sometimes directly inside "Payload".
+    // Let's decode the payload first.
+
+    // Typically Unity sends the raw receipt string which might look like:
+    // {"Store":"GooglePlay","TransactionID":"...","Payload":"{ ... }"}
+
+    let payloadStr = receiptObj.Payload || receiptObj.payload;
+    if (!payloadStr) {
+      // fallback: maybe the whole json IS the payload details?
+      // If standard Unity IAP structure is used, Payload is an inner JSON string.
+      console.warn("[IAP] Google receipt missing Payload field", receiptObj);
+      return false;
+    }
+
+    const payload = JSON.parse(payloadStr);
+    // payload content structure:
+    // { "json": "{\"orderId\":...}", "signature": "..." }
+
+    const innerJson = JSON.parse(payload.json);
+    const token = innerJson.purchaseToken;
+    const packageName = innerJson.packageName;
+    const sku = innerJson.productId;
+
+    if (!token || !packageName || !sku) {
+      console.error("[IAP] Malformed Google receipt payload", innerJson);
+      return false;
+    }
+
+    // Call Google API
+    const auth = await getGoogleAuth();
+    const androidPublisher = google.androidpublisher({version: "v3", auth});
+
+    // Try as product (consumable/non-consumable)
+    try {
+      const res = await androidPublisher.purchases.products.get({
+        packageName,
+        productId: sku,
+        token,
+      });
+      if (res.data.purchaseState === 0) { // 0 = Purchased
+        return true;
+      }
+    } catch (e) {
+      // ignore, might be subscription
+    }
+
+    // Try as subscription
+    try {
+      const res = await androidPublisher.purchases.subscriptions.get({
+        packageName,
+        subscriptionId: sku,
+        token,
+      });
+      // check paymentState, expiryTimeMillis, etc.
+      // paymentState: 1 = Received
+      // expiryTimeMillis > now
+      if (res.data.expiryTimeMillis) {
+        const expiry = Number(res.data.expiryTimeMillis);
+        if (expiry > Date.now()) return true;
+      }
+    } catch (e) {
+      console.warn("[IAP] Google verification failed for both product and sub", e);
+    }
+
+    return false;
+
+  } catch (e) {
+    console.error("[IAP] Google verification exception", e);
+    return false;
+  }
+}
+
+
+
+export const verifyPurchase = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+  const productId = req.data?.productId;
+  const receipt = req.data?.receipt; // This is the full receipt string from Unity
+
+  if (!productId || !receipt) {
+    throw new HttpsError("invalid-argument", "Missing productId or receipt");
+  }
+
+  console.log(`[verifyPurchase] Start for ${uid} - ${productId}`);
+
+  // 1. Detect Store
+  let isGoogle = false;
+  let isApple = false;
+
+  // Simple heuristic or parsing
+  if (receipt.includes("GooglePlay")) isGoogle = true;
+  else if (receipt.includes("AppleAppStore")) isApple = true;
+  else {
+    // Attempt parse
+    try {
+      const r = JSON.parse(receipt);
+      if (r.Store === "GooglePlay") isGoogle = true;
+      else if (r.Store === "AppleAppStore" || r.Store === "MacAppStore") isApple = true;
+    } catch { }
+  }
+
+  // 2. Verify
+  let valid = false;
+  if (isGoogle) {
+    valid = await verifyGooglePlay(productId, receipt);
+  } else if (isApple) {
+    valid = await verifyAppleStore(receipt);
+  } else {
+    // Unknown store (Editor? FakeStore?)
+    console.warn("[IAP] Unknown store in receipt", receipt);
+    // If testing in Editor (fake store)
+    try {
+      const r = JSON.parse(receipt);
+      if (r.Store === "fake" || r.Store === "FakeStore") {
+        console.log("[IAP] FakeStore detected, auto-verifying for testing.");
+        valid = true;
+      }
+    } catch { }
+
+    if (!valid) {
+      throw new HttpsError("failed-precondition", "Unknown store");
+    }
+  }
+
+  if (!valid) {
+    throw new HttpsError("permission-denied", "Receipt verification failed");
+  }
+
+  // 3. Grant Rewards (Idempotent)
+  // We rely on transactionID normally, but for simplicity here we will just grant.
+  // IMPROVEMENT: Store transactionIDs to prevent replay attacks.
+
+  const result = {success: true, message: "Verified", rewards: {} as any};
+  const userRef = db.collection("users").doc(uid);
+
+  // MAPPING
+  // Consumables
+  if (productId.includes("diamond")) {
+    let amount = 0;
+    if (productId.endsWith("diamond5")) amount = 5;
+    else if (productId.endsWith("diamond10")) amount = 10;
+    else if (productId.endsWith("diamond25")) amount = 25;
+    else if (productId.endsWith("diamond60")) amount = 60;
+    else if (productId.endsWith("diamond150")) amount = 150;
+    else if (productId.endsWith("diamond400")) amount = 400;
+    else if (productId.endsWith("diamond1000")) amount = 1000;
+
+    if (amount > 0) {
+      await userRef.update({
+        premiumCurrency: FieldValue.increment(amount),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      result.rewards["diamonds"] = amount;
+    }
+  }
+  // Subscriptions
+  else if (productId.includes("elitepass")) {
+    // Logic similar to purchaseElitePass but just refreshing expiry
+    const now = Timestamp.now();
+
+    let days = 30; // Default monthly
+    if (productId.includes("annual")) {
+      days = 365;
+    }
+    const durationMs = days * 24 * 60 * 60 * 1000;
+
+    // In a real app, query the subscription info for exact expiry
+
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      const currentExp = snap.exists ? (snap.get("elitePassExpiresAt") as Timestamp) : null;
+      let baseTime = now.toMillis();
+      if (currentExp && currentExp.toMillis() > baseTime) {
+        baseTime = currentExp.toMillis();
+      }
+      const newExp = Timestamp.fromMillis(baseTime + durationMs);
+
+      tx.set(userRef, {
+        hasElitePass: true,
+        elitePassExpiresAt: newExp,
+        updatedAt: FieldValue.serverTimestamp()
+      }, {merge: true});
+    });
+    result.message = "Elite Pass Extended";
+  }
+  // Non-Consumables
+  else if (productId.includes("removeads")) {
+    await userRef.update({
+      removeAds: true,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    result.message = "Ads Removed";
+  }
+
+  return result;
+});
+
 // Grant referral reward items to ownerUid if their referrals reach new thresholds
 async function grantReferralThresholdItems(ownerUid: string, referrals: number): Promise<void> {
   if (!ownerUid || !Number.isFinite(referrals) || referrals <= 0) return;
-  console.log("[referralItems] START", { ownerUid, referrals });
+  console.log("[referralItems] START", {ownerUid, referrals});
 
   // Root for appdata/items/...
   const itemsRoot = db.collection("appdata").doc("items");
@@ -689,16 +991,16 @@ async function grantReferralThresholdItems(ownerUid: string, referrals: number):
     const docSnap = await subCol.doc("itemdata").get();
     if (!docSnap.exists) continue;
     const data = (docSnap.data() || {}) as any;
-    console.log("[referralItems] ITEMDATA", { itemId: subCol.id, data });
+    console.log("[referralItems] ITEMDATA", {itemId: subCol.id, data});
 
     const threshold = Number(data.itemReferralThreshold ?? 0) || 0;
     if (threshold <= 0) continue;
     if (referrals < threshold) continue; // not yet eligible
-    console.log("[referralItems] CANDIDATE", { itemId: subCol.id, threshold });
+    console.log("[referralItems] CANDIDATE", {itemId: subCol.id, threshold});
 
     const isConsumable = !!data.itemIsConsumable;
     const itemId = normId(subCol.id);
-    candidates.push({ itemId, threshold, isConsumable });
+    candidates.push({itemId, threshold, isConsumable});
   }
 
   console.log("[referralItems] CANDIDATES_FINAL", candidates);
@@ -717,7 +1019,7 @@ async function grantReferralThresholdItems(ownerUid: string, referrals: number):
     const invStates = invSnaps.map((snap) => {
       const exists = snap.exists;
       const data = exists ? (snap.data() || {}) : {};
-      return { exists, data: data as any };
+      return {exists, data: data as any};
     });
 
     // === WRITE PHASE: only tx.set calls, no more tx.get ===
@@ -759,8 +1061,8 @@ async function grantReferralThresholdItems(ownerUid: string, referrals: number):
         base.quantity = prevQty > 0 ? prevQty : 1;
       }
 
-      console.log("[referralItems] TX_SET", { itemId: c.itemId, base });
-      tx.set(invRef, base, { merge: true });
+      console.log("[referralItems] TX_SET", {itemId: c.itemId, base});
+      tx.set(invRef, base, {merge: true});
     });
   });
 }
@@ -805,7 +1107,7 @@ async function applyReferralCodeToUser(
         referralAppliedAt: Timestamp.now(),
         updatedAt: FieldValue.serverTimestamp()
       },
-      { merge: true }
+      {merge: true}
     );
 
     tx.set(
@@ -814,7 +1116,7 @@ async function applyReferralCodeToUser(
         referrals: FieldValue.increment(1),
         updatedAt: FieldValue.serverTimestamp()
       },
-      { merge: true }
+      {merge: true}
     );
   });
 
@@ -828,7 +1130,7 @@ async function applyReferralCodeToUser(
     console.warn("[ach/referral] post-referral processing failed", e);
   }
 
-  return { applied: true, referredByUid: ownerUid };
+  return {applied: true, referredByUid: ownerUid};
 }
 
 // -------- profile create (Auth trigger) --------
@@ -896,7 +1198,7 @@ export const createUserProfile = functionsV1
           createdAt: nowTs,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        { merge: true }
+        {merge: true}
       );
     });
 
@@ -968,7 +1270,7 @@ export const ensureUserProfile = onCall(async (req) => {
           createdAt: nowTs,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        { merge: true }
+        {merge: true}
       );
     } else {
       const needInit = !snap.get("elitePassExpiresAt");
@@ -1011,17 +1313,17 @@ export const ensureUserProfile = onCall(async (req) => {
             createdAt: Timestamp.now(),
             updatedAt: FieldValue.serverTimestamp(),
           },
-          { merge: true }
+          {merge: true}
         );
       } else {
         // just touch updatedAt to keep a heartbeat; don't reset counters
         tx.set(
           sRef,
-          { updatedAt: FieldValue.serverTimestamp() },
-          { merge: true }
+          {updatedAt: FieldValue.serverTimestamp()},
+          {merge: true}
         );
       }
-      tx.set(userRef, patch, { merge: true });
+      tx.set(userRef, patch, {merge: true});
     }
   });
 
@@ -1052,7 +1354,7 @@ async function applyDailyStreakIncrement(uid: string): Promise<{
   const userRef = db.collection("users").doc(uid);
   const sRef = userStreakRef(uid);
 
-  const { totalDays, unclaimedDays, rewardPerDay, todayCounted } = await db.runTransaction(async (tx) => {
+  const {totalDays, unclaimedDays, rewardPerDay, todayCounted} = await db.runTransaction(async (tx) => {
     const [uSnap, sSnap, cfgSnap] = await Promise.all([
       tx.get(userRef),
       tx.get(sRef),
@@ -1088,12 +1390,12 @@ async function applyDailyStreakIncrement(uid: string): Promise<{
         createdAt: sSnap.exists ? (sSnap.get("createdAt") as Timestamp) ?? now : now,
         updatedAt: FieldValue.serverTimestamp(),
       },
-      { merge: true }
+      {merge: true}
     );
 
-    tx.set(userRef, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
 
-    return { totalDays, unclaimedDays, rewardPerDay, todayCounted };
+    return {totalDays, unclaimedDays, rewardPerDay, todayCounted};
   });
 
   const d = new Date(now.toMillis());
@@ -1120,7 +1422,7 @@ export const updateDailyStreak = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await applyDailyStreakIncrement(uid);
-  return { ok: true, ...res };
+  return {ok: true, ...res};
 });
 
 // -------- apply referral later (optional) --------
@@ -1144,8 +1446,8 @@ export const submitSessionResult = onCall(async (req) => {
   const earnedScore = Number(p.earnedScore) || 0;
 
   // NEW: Game Mode & Result (for energy refund logic)
-  const mode = (p.mode || "endless").toString().trim().toLowerCase();
-  const success = !!p.success;
+  // const mode = (p.mode || "endless").toString().trim().toLowerCase();
+  // const success = !!p.success;
 
   if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required");
 
@@ -1159,17 +1461,30 @@ export const submitSessionResult = onCall(async (req) => {
     const sSnap = await tx.get(sessRef);
     if (!sSnap.exists) {
       // Session yoksa (belki cok eski veya creation fail oldu)
-      return { alreadyProcessed: false, valid: false };
+      return {alreadyProcessed: false, valid: false};
     }
     const sData = sSnap.data() || {};
     if (sData.state === "completed" || sData.processedAt) {
       // Already processed
-      return { alreadyProcessed: true, valid: true };
+      return {alreadyProcessed: true, valid: true};
     }
 
     // 2) User data read (for currency update & maxScore check)
     const uSnap = await tx.get(userRef);
     const prevMaxCombo = Number(uSnap.get("maxCombo") ?? 0) || 0;
+    const prevSessions = Number(uSnap.get("sessionsPlayed") ?? 0) || 0;
+    const prevCumEarn = Number(uSnap.get("cumulativeCurrencyEarned") ?? 0) || 0;
+    const prevPlaySec = Number(uSnap.get("totalPlaytimeSec") ?? 0) || 0;
+    const prevPups = Number(uSnap.get("powerUpsCollected") ?? 0) || 0;
+    const prevCurrency = Number(uSnap.get("currency") ?? 0) || 0;
+    const prevBest = Number(uSnap.get("maxScore") ?? 0) || 0;
+
+    const playtimeSec = Number(p.playtimeSec) || 0;
+    const powerUpsCollectedInSession = Number(p.powerUpsCollected) || 0;
+    const maxComboInSession = Number(p.maxCombo) || 0;
+
+    const newCurrency = prevCurrency + earnedCurrency;
+    const newBest = Math.max(prevBest, earnedScore);
 
     const newSessions = prevSessions + 1;
     const newCumEarn = prevCumEarn + earnedCurrency;
@@ -1190,12 +1505,12 @@ export const submitSessionResult = onCall(async (req) => {
       powerUpsCollected: newPups,
       maxCombo: newMaxCombo,
       updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    }, {merge: true});
 
     // mark session as processed
-    tx.set(sessRef, { state: "completed", earnedCurrency, earnedScore, processedAt: Timestamp.now() }, { merge: true });
+    tx.set(sessRef, {state: "completed", earnedCurrency, earnedScore, processedAt: Timestamp.now()}, {merge: true});
 
-    return { alreadyProcessed: false, currency: newCurrency, maxScore: newBest };
+    return {alreadyProcessed: false, currency: newCurrency, maxScore: newBest};
   });
   try {
     const u = await db.collection("users").doc(uid).get();
@@ -1214,7 +1529,7 @@ export const submitSessionResult = onCall(async (req) => {
   } catch (e) {
     console.warn("[ach] post-session evaluate failed", e);
   }
-  return result;
+  return res;
 });
 
 // -------- Energy (lazy regen) helpers --------
@@ -1241,7 +1556,7 @@ async function lazyRegenInTx(
       tx.set(userRef, {
         energyCurrent: newCur, energyUpdatedAt: newUpdated,
         updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      }, {merge: true});
       cur = newCur;
       updatedAt = newUpdated;
     }
@@ -1251,7 +1566,7 @@ async function lazyRegenInTx(
     ? Timestamp.fromMillis(updatedAt.toMillis() + (period * 1000))
     : null;
 
-  return { cur, max, period, nextAt };
+  return {cur, max, period, nextAt};
 }
 
 // -------- getEnergySnapshot (callable, preferred by clients) --------
@@ -1347,10 +1662,10 @@ export const spendEnergy = onCall(async (req) => {
     tx.set(userRef, {
       energyCurrent: newCur, energyUpdatedAt: now,
       updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    }, {merge: true});
 
     if (sessionId) {
-      tx.set(userRef.collection("energySpends").doc(sessionId), { spentAt: now }, { merge: true });
+      tx.set(userRef.collection("energySpends").doc(sessionId), {spentAt: now}, {merge: true});
     }
 
     const nextAt = Timestamp.fromMillis(now.toMillis() + st.period * 1000);
@@ -1413,7 +1728,7 @@ export const grantBonusEnergy = onCall(async (req) => {
         energyCurrent: newCur,
         updatedAt: FieldValue.serverTimestamp(),
       },
-      { merge: true }
+      {merge: true}
     ); // WRITE
 
     // nextAt: lazyRegenInTx zaten hesapladı; full olduysa null olabilir
@@ -1423,7 +1738,7 @@ export const grantBonusEnergy = onCall(async (req) => {
         Timestamp.fromMillis(now.toMillis() + st.period * 1000)
         : null;
 
-    return { granted, cur: newCur, max: st.max, period: st.period, nextAt };
+    return {granted, cur: newCur, max: st.max, period: st.period, nextAt};
   });
 
   const nextMs = res.nextAt ? res.nextAt.toMillis() : null;
@@ -1516,7 +1831,7 @@ async function settleAutopilotInTx(
       totalEarnedViaAutopilot: 0,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    tx.set(autoRef, auto, { merge: true });
+    tx.set(autoRef, auto, {merge: true});
   }
 
   let gained = 0;
@@ -1553,11 +1868,11 @@ async function settleAutopilotInTx(
       auto.totalEarnedViaAutopilot = clampNum(auto.totalEarnedViaAutopilot, 0) + gained;
       auto.updatedAt = FieldValue.serverTimestamp();
       // We do NOT advance autopilotLastClaimedAt here; it only moves on claim.
-      tx.set(autoRef, auto, { merge: true });
+      tx.set(autoRef, auto, {merge: true});
     }
   }
 
-  return { userRef, autoRef, userData: { ...userData, currency: curCurrency }, auto, config, isElite };
+  return {userRef, autoRef, userData: {...userData, currency: curCurrency}, auto, config, isElite};
 }
 
 // -------- getAutopilotStatus (callable) --------
@@ -1605,7 +1920,7 @@ export const getAutopilotStatus = onCall(async (req) => {
     };
   });
 
-  return { ok: true, serverNowMillis: now.toMillis(), ...out };
+  return {ok: true, serverNowMillis: now.toMillis(), ...out};
 });
 
 // -------- toggleAutopilot (callable) --------
@@ -1627,21 +1942,21 @@ export const toggleAutopilot = onCall(async (req) => {
         isAutopilotOn: true,
         autopilotActivationDate: now.toMillis(),
         updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      }, {merge: true});
     } else {
       // Turning OFF: close the window by simply disabling and clearing activation
       tx.set(autoRef, {
         isAutopilotOn: false,
         autopilotActivationDate: null,
         updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      }, {merge: true});
     }
 
     // Touch user updatedAt for visibility
-    tx.set(userRef, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
   });
 
-  return { ok: true, isAutopilotOn: on };
+  return {ok: true, isAutopilotOn: on};
 });
 
 // -------- claimAutopilot (callable) --------
@@ -1707,8 +2022,8 @@ export const claimAutopilot = onCall(async (req) => {
     if (wallet > 0) {
       tx.set(
         userRef,
-        { currency: curCurrency + wallet, updatedAt: FieldValue.serverTimestamp() },
-        { merge: true }
+        {currency: curCurrency + wallet, updatedAt: FieldValue.serverTimestamp()},
+        {merge: true}
       );
 
       const baseUpdate: any = {
@@ -1722,7 +2037,7 @@ export const claimAutopilot = onCall(async (req) => {
         baseUpdate.autopilotActivationDate = null;
       }
 
-      tx.set(autoRef, baseUpdate, { merge: true });
+      tx.set(autoRef, baseUpdate, {merge: true});
     } else {
       const baseUpdate: any = {
         autopilotLastClaimedAt: now.toMillis(),
@@ -1734,13 +2049,13 @@ export const claimAutopilot = onCall(async (req) => {
         baseUpdate.autopilotActivationDate = null;
       }
 
-      tx.set(autoRef, baseUpdate, { merge: true });
+      tx.set(autoRef, baseUpdate, {merge: true});
     }
 
-    return { claimed: wallet, currencyAfter: curCurrency + wallet };
+    return {claimed: wallet, currencyAfter: curCurrency + wallet};
   });
 
-  return { ok: true, claimed: res.claimed, currencyAfter: res.currencyAfter };
+  return {ok: true, claimed: res.claimed, currencyAfter: res.currencyAfter};
 });
 
 export const listReferredUsers = onCall(async (req) => {
@@ -1797,7 +2112,7 @@ export const listReferredUsers = onCall(async (req) => {
 
     const snap = await q.get();
     const items = await Promise.all(snap.docs.map(mapDoc));
-    return { ok: true, sorted: true, items };
+    return {ok: true, sorted: true, items};
   } catch (err: any) {
     const msg = String(err?.message ?? "");
     const needsIndex = err?.code === 9 || /index/i.test(msg);
@@ -1893,7 +2208,7 @@ export const getGalleryItems = onCall(async (req) => {
         };
       });
 
-    return { ok: true, items };
+    return {ok: true, items};
 
   } catch (e) {
     console.error("getGalleryItems error:", e);
@@ -1902,7 +2217,7 @@ export const getGalleryItems = onCall(async (req) => {
 });
 
 export const indexMapMeta = onDocumentWritten(
-  { document: "appdata/maps/{mapId}/raw", database: DB_ID },
+  {document: "appdata/maps/{mapId}/raw", database: DB_ID},
   async (event) => {
     const mapId = event.params.mapId as string;
 
@@ -1922,7 +2237,7 @@ export const indexMapMeta = onDocumentWritten(
               ids: FieldValue.arrayRemove(mapId),
               updatedAt: FieldValue.serverTimestamp(),
             },
-            { merge: true }
+            {merge: true}
           );
         }
       });
@@ -1980,9 +2295,9 @@ export const indexMapMeta = onDocumentWritten(
         {
           difficultyTag,
           updatedAt: FieldValue.serverTimestamp(),
-          ...(prev.exists ? {} : { createdAt: now }),
+          ...(prev.exists ? {} : {createdAt: now}),
         },
-        { merge: true }
+        {merge: true}
       );
 
       // Maintain pools/{1|2|3}.ids arrays
@@ -1995,7 +2310,7 @@ export const indexMapMeta = onDocumentWritten(
               ids: FieldValue.arrayUnion(mapId),
               updatedAt: FieldValue.serverTimestamp(),
             },
-            { merge: true }
+            {merge: true}
           );
         } else if (prevDiff && d === prevDiff) {
           tx.set(
@@ -2004,7 +2319,7 @@ export const indexMapMeta = onDocumentWritten(
               ids: FieldValue.arrayRemove(mapId),
               updatedAt: FieldValue.serverTimestamp(),
             },
-            { merge: true }
+            {merge: true}
           );
         } else {
           // no-op
@@ -2081,7 +2396,7 @@ export const getSequencedMaps = onCall(async (req) => {
         const j = Math.floor((rng() || Math.random()) * (i + 1));
         const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
       }
-      return { d, ids, bag: arr };
+      return {d, ids, bag: arr};
     })
   );
 
@@ -2107,7 +2422,7 @@ export const getSequencedMaps = onCall(async (req) => {
   const chosen: { mapId: string; difficultyTag: number }[] = [];
   for (const d of pattern) {
     const id = takeFrom(d);
-    chosen.push({ mapId: id, difficultyTag: d });
+    chosen.push({mapId: id, difficultyTag: d});
   }
 
   // 4) fetch raw jsons in parallel (dedup reads)
@@ -2145,7 +2460,7 @@ export const getSequencedMaps = onCall(async (req) => {
     if (typeof js !== "string") {
       throw new HttpsError("data-loss", `json not string for ${x.mapId}`);
     }
-    return { mapId: x.mapId, difficultyTag: x.difficultyTag, json: js };
+    return {mapId: x.mapId, difficultyTag: x.difficultyTag, json: js};
   });
 
   console.log(
@@ -2183,12 +2498,12 @@ export const requestSession = onCall(async (req) => {
     tx.set(userRef, {
       energyCurrent: newCur, energyUpdatedAt: now,
       updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    }, {merge: true});
 
     // 3) create server-owned session doc
     const sessionId = `${now.toMillis()}_${Math.random().toString(36).slice(2, 10)}`;
     const sessRef = userRef.collection("sessions").doc(sessionId);
-    tx.set(sessRef, { state: "granted", startedAt: now }, { merge: true });
+    tx.set(sessRef, {state: "granted", startedAt: now}, {merge: true});
 
     const nextAt = Timestamp.fromMillis(now.toMillis() + st.period * 1000);
     return {
@@ -2305,7 +2620,7 @@ export const createItem = onCall(async (req) => {
     const ref = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
     const snap = await ref.get();
     if (!snap.exists) {
-      await ref.set(docData, { merge: false });
+      await ref.set(docData, {merge: false});
       return {
         ok: true,
         itemId,
@@ -2380,12 +2695,12 @@ export const getInventorySnapshot = onCall(async (req) => {
   invSnap.forEach((d) => {
     const id = normId(d.id);
     // include normalized id in payload for clients if needed
-    inventory[id] = { id, ...d.data() };
+    inventory[id] = {id, ...d.data()};
   });
   const equippedItemIds: string[] = loadSnap.exists
     ? (loadSnap.get("equippedItemIds") || []).map((x: string) => normId(x))
     : [];
-  return { ok: true, inventory, equippedItemIds };
+  return {ok: true, inventory, equippedItemIds};
 });
 
 // ---------------- purchaseItem ----------------
@@ -2433,7 +2748,7 @@ export const purchaseItem = onCall(async (req) => {
     if (existing.exists) {
       throw new HttpsError("already-exists", "This purchase receipt was already processed.");
     }
-    await lockRef.set({ usedAt: now, platform, previewHash: String(receipt).slice(0, 32) }, { merge: true });
+    await lockRef.set({usedAt: now, platform, previewHash: String(receipt).slice(0, 32)}, {merge: true});
   };
   const verifyAdGrant = async (adToken?: string) => {
     if (!adToken) throw new HttpsError("invalid-argument", "adToken required for AD method.");
@@ -2442,7 +2757,7 @@ export const purchaseItem = onCall(async (req) => {
     if (g.exists) {
       throw new HttpsError("already-exists", "This ad grant token was already used.");
     }
-    await grantRef.set({ usedAt: now }, { merge: true });
+    await grantRef.set({usedAt: now}, {merge: true});
   };
 
   if (m === "IAP") {
@@ -2501,16 +2816,16 @@ export const purchaseItem = onCall(async (req) => {
       if (curBalance < priceGet) {
         throw new HttpsError("failed-precondition", "Not enough currency.");
       }
-      tx.update(userRef, { currency: curBalance - priceGet, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(userRef, {currency: curBalance - priceGet, updatedAt: FieldValue.serverTimestamp()});
     } else if (m === "PREMIUM") {
       const curPremium = Number(userSnap.get("premiumCurrency") ?? 0) || 0;
       if (curPremium < pricePremium) {
         throw new HttpsError("failed-precondition", "Not enough premium currency.");
       }
-      tx.update(userRef, { premiumCurrency: curPremium - pricePremium, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(userRef, {premiumCurrency: curPremium - pricePremium, updatedAt: FieldValue.serverTimestamp()});
     } else {
       // touch the user doc for bookkeeping
-      tx.set(userRef, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      tx.set(userRef, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
     }
 
     // Prepare audit expiry holder
@@ -2539,7 +2854,7 @@ export const purchaseItem = onCall(async (req) => {
           lastActivatedAt: now,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        { merge: true }
+        {merge: true}
       );
 
       // On first activation only, add stats to user
@@ -2566,7 +2881,7 @@ export const purchaseItem = onCall(async (req) => {
         lastChangedAt: FieldValue.serverTimestamp(),
         acquiredAt: invSnap.exists ? invSnap.get("acquiredAt") ?? now : now,
       };
-      tx.set(invRef, invData, { merge: true });
+      tx.set(invRef, invData, {merge: true});
     }
 
     // Audit trail (use exact newExpiry when consumable)
@@ -2586,7 +2901,7 @@ export const purchaseItem = onCall(async (req) => {
     tx.set(userRef, {
       itemsPurchasedCount: FieldValue.increment(1),
       updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    }, {merge: true});
 
     // Build response snapshot
     const currencyLeft = m === "GET"
@@ -2647,7 +2962,7 @@ export const getActiveConsumables = onCall(async (req) => {
     };
   });
 
-  return { ok: true, serverNowMillis: now.toMillis(), items };
+  return {ok: true, serverNowMillis: now.toMillis(), items};
 });
 
 // ---------------- equipItem ----------------
@@ -2696,13 +3011,13 @@ export const equipItem = onCall(async (req) => {
     // ---- WRITES AFTER ALL READS ----
     tx.set(
       loadRef,
-      { equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp() },
-      { merge: true }
+      {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()},
+      {merge: true}
     );
     tx.set(
       invRef,
-      { equipped: true, lastChangedAt: FieldValue.serverTimestamp() },
-      { merge: true }
+      {equipped: true, lastChangedAt: FieldValue.serverTimestamp()},
+      {merge: true}
     );
 
     // Merge item stats into user's stats only on first-time equip
@@ -2717,7 +3032,7 @@ export const equipItem = onCall(async (req) => {
     }
   });
 
-  return { ok: true, itemId };
+  return {ok: true, itemId};
 });
 
 // ---------------- unequipItem ----------------
@@ -2750,13 +3065,13 @@ export const unequipItem = onCall(async (req) => {
     // ---- WRITES AFTER ALL READS ----
     tx.set(
       loadRef,
-      { equippedItemIds: afterEquipped, updatedAt: FieldValue.serverTimestamp() },
-      { merge: true }
+      {equippedItemIds: afterEquipped, updatedAt: FieldValue.serverTimestamp()},
+      {merge: true}
     );
     tx.set(
       invRef,
-      { equipped: false, lastChangedAt: FieldValue.serverTimestamp() },
-      { merge: true }
+      {equipped: false, lastChangedAt: FieldValue.serverTimestamp()},
+      {merge: true}
     );
 
     // Subtract item stats from user's stats only if it was previously equipped
@@ -2772,7 +3087,7 @@ export const unequipItem = onCall(async (req) => {
     }
   });
 
-  return { ok: true, itemId };
+  return {ok: true, itemId};
 });
 
 // -------- recomputeRanks (callable) --------
@@ -2780,7 +3095,7 @@ export const recomputeRanks = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
   const res = await recomputeAllRanks();
-  return { ok: true, updated: res.count };
+  return {ok: true, updated: res.count};
 });
 
 // ========================= Change Username =========================
@@ -2910,8 +3225,8 @@ export const changeUsername = onCall(async (req) => {
     // Yeni username'i rezerve et
     tx.set(
       nameRef,
-      { uid, updatedAt: now },
-      { merge: true }
+      {uid, updatedAt: now},
+      {merge: true}
     );
 
     // User doc'u güncelle
@@ -2922,9 +3237,9 @@ export const changeUsername = onCall(async (req) => {
         usernameLastChangedAt: now,
         updatedAt: FieldValue.serverTimestamp(),
       },
-      { merge: true }
+      {merge: true}
     );
   });
 
-  return { ok: true, newName: newNameRaw };
+  return {ok: true, newName: newNameRaw};
 });

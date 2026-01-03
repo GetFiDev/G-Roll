@@ -198,7 +198,9 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      referralicon_0: -8562515990627797596
+      referralicon_1: -1707406112497459855
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

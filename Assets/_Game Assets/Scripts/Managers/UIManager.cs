@@ -14,6 +14,8 @@ public class UIManager : MonoSingleton<UIManager>
 
     public UIGameplayLoading gameplayLoading;
     public InsufficientEnergyPanel insufficientEnergyPanel;
+    public UIIAPShopPanel iapShopPanel; // IAP Shop Integration
+
     [SerializeField] private PhaseEventChannelSO phaseChanged;
 
     [SerializeField] private CanvasGroup fullscreenFader;
@@ -127,6 +129,18 @@ public class UIManager : MonoSingleton<UIManager>
             levelEnd.ShowSequence(success);
         else
             Debug.LogError("[UIManager] levelEnd is not assigned.");
+    }
+
+    public void ShowIAPShop()
+    {
+        if (mainMenu != null)
+        {
+            mainMenu.ShowPanel(UIMainMenu.PanelType.IAPShop);
+        }
+        else
+        {
+            Debug.LogError("[UIManager] mainMenu is not assigned!");
+        }
     }
 
     public void ShowNewHighScore(double score, Action onClosed)

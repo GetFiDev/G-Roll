@@ -19,6 +19,7 @@ public class UIHomePanel : MonoBehaviour
 
     private void OnEnable()
     {
+        UIAutoPilot.OnClosed += OnAutopilotClosed;
         Initialize();
     }
 
@@ -122,12 +123,19 @@ public class UIHomePanel : MonoBehaviour
 
     private void OnDisable()
     {
+        UIAutoPilot.OnClosed -= OnAutopilotClosed;
         if (_timerCts != null)
         {
             _timerCts.Cancel();
             _timerCts.Dispose();
             _timerCts = null;
         }
+    }
+
+    private void OnAutopilotClosed()
+    {
+        // Refresh things that might have changed after interacting with Autopilot Panel
+        Initialize(); 
     }
 
     private async Task RefreshAutopilotPreviewAsync()

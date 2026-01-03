@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Button_MainMenu_Autopilotnew_0: 7092876313978035752
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

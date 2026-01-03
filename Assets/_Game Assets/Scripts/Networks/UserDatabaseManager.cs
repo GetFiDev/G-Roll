@@ -13,6 +13,8 @@ using System.Collections;
 
 using System.Collections;
 using UnityEngine.SocialPlatforms.Impl;
+using Newtonsoft.Json;
+
 
 public class UserDatabaseManager : MonoBehaviour
 {
@@ -948,6 +950,131 @@ public class UserDatabaseManager : MonoBehaviour
         {
             EmitLog($"❌ SubmitGameplaySessionAsync Failed: {e.Message}");
         }
+    }
+
+    // --- AD PRODUCT MANAGEMENT ---
+
+    [Serializable]
+    public class AdClaimData
+    {
+        public string lastClaimDate; // "yyyy-MM-dd"
+        public int count;
+    }
+
+    public int GetDailyAdClaimCount(string productId)
+    {
+        if (currentUser == null || _cachedUserData == null) return 0;
+        
+        try
+        {
+            var dict = ParseAdClaims();
+            if (dict.TryGetValue(productId, out var data))
+            {
+                // Date Check
+                string today = DateTime.Now.ToString("yyyy-MM-dd");
+                if (data.lastClaimDate == today)
+                {
+                    return data.count;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            EmitLog($"⚠️ GetDailyAdClaimCount exception: {e.Message}");
+        }
+        return 0;
+    }
+
+    public bool CanClaimAdProduct(string productId, int dailyLimit)
+    {
+        int used = GetDailyAdClaimCount(productId);
+        return used < dailyLimit;
+    }
+
+    public async Task<bool> RecordAdClaimAsync(string productId, float rewardCurrency = 0)
+    {
+        if (currentUser == null) return false;
+
+        try
+        {
+            var dict = ParseAdClaims();
+            
+            string today = DateTime.Now.ToString("yyyy-MM-dd");
+            if (!dict.ContainsKey(productId))
+            {
+                dict[productId] = new AdClaimData { lastClaimDate = today, count = 0 };
+            }
+
+            var entry = dict[productId];
+            // Reset if new day
+            if (entry.lastClaimDate != today)
+            {
+                entry.lastClaimDate = today;
+                entry.count = 0;
+            }
+
+            entry.count++;
+            
+            // Serialize
+            string json = JsonConvert.SerializeObject(dict);
+            
+            // Update UserData
+            var patch = new Dictionary<string, object>
+            {
+                { "adClaimsJson", json }
+            };
+
+            // If there's a reward, add it to currency securely via cloud function or patch if permissible.
+            // Since we trust client for ad view verification in this scope (or assume server verification is hard),
+            // we will pessimistically optimistic update? Or just update currency patch.
+            // NOTE: 'currency' is allowed in SaveUserData strip list, so we can patch it.
+            if (rewardCurrency > 0)
+            {
+                // We need to fetch latest currency or use cached?
+                // Let's use Firestore increment for atomicity if possible.
+                // But SaveUserData does a SetAsync with Merge.
+                // We can just add to our local optimistic cache, and send the new total.
+                
+                // Better: Use FieldValue.Increment
+                patch["currency"] = FieldValue.Increment(rewardCurrency);
+            }
+
+            StripServerOnlyKeys(patch);
+            await UserDoc().SetAsync(patch, SetOptions.MergeAll);
+
+            // Update Local Cache
+            if (_cachedUserData != null)
+            {
+                _cachedUserData.adClaimsJson = json;
+                if (rewardCurrency > 0) _cachedUserData.currency += rewardCurrency;
+                OnUserDataSaved?.Invoke(_cachedUserData);
+            }
+
+            EmitLog($"✅ Ad Claim Recorded: {productId} (Count: {entry.count})");
+            return true;
+        }
+        catch (Exception e)
+        {
+            EmitLog($"❌ RecordAdClaimAsync error: {e.Message}");
+            return false;
+        }
+    }
+
+    private Dictionary<string, AdClaimData> ParseAdClaims()
+    {
+        var dict = new Dictionary<string, AdClaimData>();
+        if (_cachedUserData == null || string.IsNullOrEmpty(_cachedUserData.adClaimsJson)) return dict;
+
+        try
+        {
+            dict = JsonConvert.DeserializeObject<Dictionary<string, AdClaimData>>(_cachedUserData.adClaimsJson) 
+                   ?? new Dictionary<string, AdClaimData>();
+        }
+        catch
+        {
+            // Ignore parse errors, return empty
+        }
+        return dict;
     }
 
 }

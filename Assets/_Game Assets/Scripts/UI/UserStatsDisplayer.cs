@@ -46,7 +46,9 @@ public class UserStatsDisplayer : MonoBehaviour
     public Sprite profilePicturePlaterNormal;
     public Sprite profilePicturePlaterPremium;
 
-    [Header("FX")] public ParticleImage currencyGainFx;
+    [Header("FX")] 
+    public ParticleImage currencyGainFx;
+    public ParticleImage premiumCurrencyGainFx;
 
     [Header("Persistence")]
     public bool persistLastCurrency = true;
@@ -67,6 +69,11 @@ public class UserStatsDisplayer : MonoBehaviour
     private Coroutine _currencyAnimRoutine;
     private Coroutine _premiumCurrencyAnimRoutine;
     private Coroutine _streakAnimRoutine;
+
+    // Animation Targets (to prevent redundant restarts/snaps)
+    private double _targetCurrency = -1;
+    private float _targetPremiumCurrency = -1;
+    private float _targetStreak = -1;
 
     #region Persistence Helpers
 
@@ -121,6 +128,16 @@ public class UserStatsDisplayer : MonoBehaviour
         if (current > previous + EPS)
         {
             try { currencyGainFx.Play(); } catch { }
+        }
+    }
+
+    private void MaybePlayPremiumCurrencyFx(float previous, float current)
+    {
+        const float EPS = 0.0001f;
+        if (premiumCurrencyGainFx == null) return;
+        if (current > previous + EPS)
+        {
+            try { premiumCurrencyGainFx.Play(); } catch { }
         }
     }
 
@@ -186,18 +203,22 @@ public class UserStatsDisplayer : MonoBehaviour
                 double curr = (double)data.currency;
                 
                 // Only animate if changed. 
-                // Delay: 0.75s if currency increased (to sync with potential FX), else 0.
-                bool increased = curr > prev;
-                float delay = increased ? 0.75f : 0f;
+                // Delay: 1.0s if currency increased (to sync with potential FX), else 0.
+                bool increased = curr > prev + 0.0001;
+                float delay = increased ? 1.0f : 0f;
+                float duration = 1.0f;
 
                 // FX logic
                 MaybePlayCurrencyFx(prev, curr);
                 SaveLastCurrency(curr);
 
+                // Prevent snapping if we are already animating to this value
                 StopPulse(currencyTMP, ref _currencyPulseRoutine);
-                
-                // Start animation from 'prev' to 'curr' - Use DOUBLE to avoid precision issues
-                StartAnim(currencyTMP, prev, curr, 0.5f, delay, "F2", ref _currencyAnimRoutine);
+                if (_currencyAnimRoutine == null || Math.Abs(_targetCurrency - curr) > 0.0001)
+                {
+                    _targetCurrency = curr;
+                    StartAnim(currencyTMP, prev, curr, duration, delay, "F2", ref _currencyAnimRoutine);
+                }
             }
             else
             {
@@ -210,11 +231,24 @@ public class UserStatsDisplayer : MonoBehaviour
             {
                 float prevPremium = LoadLastPremiumCurrency();
                 float currPremium = (float)data.premiumCurrency;
+
+                // FX logic
+                MaybePlayPremiumCurrencyFx(prevPremium, currPremium);
                 
                 SaveLastPremiumCurrency(currPremium);
                 
                 StopPulse(premiumCurrencyTMP, ref _premiumCurrencyPulseRoutine);
-                StartAnim(premiumCurrencyTMP, (double)prevPremium, (double)currPremium, 0.5f, 0f, "0", ref _premiumCurrencyAnimRoutine);
+
+                // User Request: 1s delay if increasing, 1s duration
+                bool isIncrease = currPremium > prevPremium + 0.0001f;
+                float pDelay = isIncrease ? 1.0f : 0f;
+                float pDuration = 1.0f; 
+
+                if (_premiumCurrencyAnimRoutine == null || Math.Abs(_targetPremiumCurrency - currPremium) > 0.0001f)
+                {
+                    _targetPremiumCurrency = currPremium;
+                    StartAnim(premiumCurrencyTMP, (double)prevPremium, (double)currPremium, pDuration, pDelay, "0", ref _premiumCurrencyAnimRoutine);
+                }
             }
             else
             {
