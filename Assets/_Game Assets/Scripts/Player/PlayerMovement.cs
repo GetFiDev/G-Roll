@@ -9,6 +9,7 @@ public class PlayerMovement : MonoBehaviour
 {
     public bool IsMoving => _isActive && _movementDirection.magnitude > 0.1f;
     public float Speed { get; private set; }
+    public float SpeedDisplayDivider { get; set; } = 1f; // UI display compensation
     public bool IsJumping { get; private set; } = false;
 
     // New orchestration bindings
@@ -835,6 +836,11 @@ public class PlayerMovement : MonoBehaviour
     public void AddPlayerSpeed(float delta)
     {
         movementSpeed += delta;
+    }
+
+    public void SetBaseSpeed(float val)
+    {
+        movementSpeed = val;
     }
 
     public void SetPlayerSize(int percent)

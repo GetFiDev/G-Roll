@@ -83,7 +83,11 @@ public class PlayerStatHandler : MonoBehaviour
             if (_parsed.magnetPowerPercent != int.MinValue)               magExtra  = _parsed.magnetPowerPercent;
         }
 
-        FinalComboPowerFactor      = cpBase + cpExtra;     // integer result
+        // Combo Power Logic: JSON contains the TOTAL value (Base + Extra).
+        // If JSON has value, use it directly. Otherwise use local Base.
+        FinalComboPowerFactor = (_parsed != null && _parsed.comboPower != int.MinValue) 
+            ? _parsed.comboPower 
+            : cpBase;
         FinalCoinMultiplierPercent = cmpBase + cmpExtra;   // integer result
         FinalMagnetPowerPct        = magBase + magExtra;   // integer result
         FinalGameplaySpeedPct      = gspBase + gspExtra;   // integer result
@@ -117,7 +121,11 @@ public class PlayerStatHandler : MonoBehaviour
         // PlayerStatHandler.cs - ApplyOnRunStart
         if (!Mathf.Approximately(FinalPlayerSpeedAdd, 0f))
         {
-            movement.AddPlayerSpeed(FinalPlayerSpeedAdd);
+            // movement.AddPlayerSpeed(FinalPlayerSpeedAdd); // ESKİ: Prefab speed üzerine ekliyordu -> Double counting
+            // YENİ: Direkt hesaplanan total hızı set et. 
+            // Kullanıcı isteği: Gösterge aynı kalsın (22) ama fiziksel hız %35 artsın.
+            movement.SetBaseSpeed(FinalPlayerSpeedAdd * 1.35f);
+            movement.SpeedDisplayDivider = 1.35f; 
         }
 
         if (!Mathf.Approximately(FinalPlayerSizePct, 0f))

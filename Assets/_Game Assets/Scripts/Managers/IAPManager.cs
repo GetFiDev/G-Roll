@@ -130,9 +130,19 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
         LoadCatalog();
     }
 
-    private void Start()
+    // Start() removed for strict initialization by AppFlowManager
+    // private void Start() { }
+
+    /// <summary>
+    /// Explicit initialization called by AppFlowManager.
+    /// </summary>
+    public Task InitializeAsync()
     {
+        Debug.Log("[IAPManager] InitializeAsync called.");
         InitializePurchasing();
+        // Unity IAP init is callback-based. We don't await the callback here to avoid blocking chain.
+        // The app can continue loading while IAP connects in background.
+        return Task.CompletedTask;
     }
 
     public void InitializePurchasing()

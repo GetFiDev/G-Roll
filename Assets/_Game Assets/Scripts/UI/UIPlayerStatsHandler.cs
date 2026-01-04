@@ -82,8 +82,8 @@ public class UIPlayerStatsHandler : MonoBehaviour
             switch (key)
             {
                 case KEY_COMBO_POWER:
-                    // Base 25 + upgrades
-                    valueStr = (25 + dto.comboPower).ToString(CultureInfo.InvariantCulture);
+                    // Base included in server stats now
+                    valueStr = dto.comboPower.ToString(CultureInfo.InvariantCulture);
                     isPercent = false; // User requested int, no percent
                     isDecimal = false;
                     break;
@@ -103,9 +103,8 @@ public class UIPlayerStatsHandler : MonoBehaviour
                     isDecimal = true; // tek ondalık
                     break;
                 case KEY_PLAYER_SPEED_ADD:
-                    // Base Display 20 + Upgrade Value (assuming dto.playerSpeed is in Display Units)
-                    // If dto.playerSpeed = 0, default is 20.0
-                    valueStr = ((20f + dto.playerSpeed)).ToString(CultureInfo.InvariantCulture);
+                    // Base included in server stats now
+                    valueStr = dto.playerSpeed.ToString(CultureInfo.InvariantCulture);
                     isPercent = false;
                     isDecimal = true; // tek ondalık
                     break;

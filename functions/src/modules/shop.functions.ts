@@ -5,6 +5,47 @@ import {normId, extractItemStats, mergeStats, parseStatsJson} from "../utils/hel
 import {DB_ID, ACH_TYPES} from "../utils/constants";
 import {upsertUserAch} from "./achievements.functions";
 
+const BASE_STATS: Record<string, number> = {
+    "comboPower": 25,
+    "playerSpeed": 20,
+    // Add others if needed with 0 defaults or specific values
+    "coinMultiplierPercent": 0,
+    "gameplaySpeedMultiplierPercent": 0,
+    "playerAcceleration": 0.1, // DTO says float default 0.1?
+    "maxScore": 0,
+    "playerSizePercent": 0,
+    "magnetPowerPercent": 0
+};
+
+// Helper: Calculate total stats from a list of item IDs (equipped + active consumables)
+// This function MUST be called after all necessary reads (itemRefs) are performed.
+// It returns the final stats object.
+function computeTotalStats(
+    itemSnaps: FirebaseFirestore.DocumentSnapshot[]
+): Record<string, number> {
+    let totalStats: Record<string, number> = {...BASE_STATS};
+    for (const snap of itemSnaps) {
+        if (!snap.exists) continue;
+        const stats = extractItemStats(snap.data() || {});
+        totalStats = mergeStats(totalStats, stats, 1);
+    }
+    return totalStats;
+}
+
+// Helper: Fetches item snapshots for a list of item IDs. READ ONLY.
+async function fetchItemSnaps(
+    tx: FirebaseFirestore.Transaction,
+    ids: string[]
+): Promise<FirebaseFirestore.DocumentSnapshot[]> {
+    if (ids.length === 0) return [];
+
+    // Deduplicate
+    const uniqueIds = Array.from(new Set(ids)).map(x => normId(x));
+    const itemRefs = uniqueIds.map(id => db.collection("appdata").doc("items").collection(id).doc("itemdata"));
+    return await Promise.all(itemRefs.map(r => tx.get(r)));
+}
+
+// ---- Consumables lazy cleanup helper (Exported for Energy/Session modules) ----
 // ---- Consumables lazy cleanup helper (Exported for Energy/Session modules) ----
 export async function cleanupExpiredConsumablesInTx(
     tx: FirebaseFirestore.Transaction,
@@ -12,49 +53,42 @@ export async function cleanupExpiredConsumablesInTx(
     now: Timestamp
 ) {
     const activeCol = userRef.collection("activeConsumables");
+    const loadRef = userRef.collection("loadout").doc("current");
 
-    // READS first: all reads before writes
-    const expiredSnap = await tx.get(
-        activeCol.where("expiresAt", "<=", now)
-    );
-    if (expiredSnap.empty) return;
+    // READ PHASE:
+    // 1. Get Expired (<now)
+    // 2. Get Active (>now)
+    // 3. Get Loadout (to know equipped items for full recalc)
 
-    let totalDelta: Record<string, number> = {};
-    const itemRefs: FirebaseFirestore.DocumentReference[] = [];
-    const toDelete: FirebaseFirestore.DocumentReference[] = [];
+    const [expiredSnap, activeSnap, loadSnap] = await Promise.all([
+        tx.get(activeCol.where("expiresAt", "<=", now)),
+        tx.get(activeCol.where("expiresAt", ">", now)),
+        tx.get(loadRef)
+    ]);
 
+    if (expiredSnap.empty) return; // Nothing to clean up
+
+    // Gather IDs for recalculation
+    const equippedIds: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
+    const activeIds: string[] = activeSnap.docs.map(d => d.id);
+    const allIds = [...equippedIds, ...activeIds];
+
+    // Fetch Item Data for all valid items
+    const itemSnaps = await fetchItemSnaps(tx, allIds);
+
+    // WRITE PHASE:
+    // 1. Delete Expired
     expiredSnap.docs.forEach((d) => {
-        const itemId = d.id;
-        const itemRef = db
-            .collection("appdata")
-            .doc("items")
-            .collection(itemId)
-            .doc("itemdata");
-        itemRefs.push(itemRef);
-        toDelete.push(d.ref);
+        tx.delete(d.ref);
     });
 
-    // READ: item defs (stats)
-    const itemSnaps = await Promise.all(itemRefs.map((r) => tx.get(r)));
-    itemSnaps.forEach((s) => {
-        if (!s.exists) return;
-        const stats = extractItemStats(s.data() || {});
-        totalDelta = mergeStats(totalDelta, stats, -1); // subtract
+    // 2. Compute & Update Stats
+    const totalStats = computeTotalStats(itemSnaps);
+
+    tx.update(userRef, {
+        statsJson: JSON.stringify(totalStats),
+        updatedAt: FieldValue.serverTimestamp()
     });
-
-    // WRITE: apply merged subtraction to user's stats
-    if (Object.keys(totalDelta).length > 0) {
-        const uSnap = await tx.get(userRef);
-        const baseStats = parseStatsJson(uSnap.get("statsJson"));
-        const merged = mergeStats(baseStats, totalDelta, 1); // totalDelta already negative
-        tx.update(userRef, {
-            statsJson: JSON.stringify(merged),
-            updatedAt: FieldValue.serverTimestamp(),
-        });
-    }
-
-    // WRITE: delete expired docs
-    toDelete.forEach((ref) => tx.delete(ref));
 }
 
 // ========================= getAllItems =========================
@@ -462,13 +496,16 @@ export const equipItem = onCall(async (req) => {
     const userRef = db.collection("users").doc(uid);
     const invRef = userRef.collection("inventory").doc(itemId);
     const loadRef = userRef.collection("loadout").doc("current");
+    const activeCol = userRef.collection("activeConsumables");
+    const now = Timestamp.now();
 
     await db.runTransaction(async (tx) => {
-        const [invSnap, itemSnap, loadSnap, userSnap] = await Promise.all([
+        // READ PHASE
+        const [invSnap, itemSnap, loadSnap, activeSnap] = await Promise.all([
             tx.get(invRef),
             tx.get(itemRef),
             tx.get(loadRef),
-            tx.get(userRef),
+            tx.get(activeCol.where("expiresAt", ">", now))
         ]);
 
         if (!invSnap.exists || !invSnap.get("owned")) {
@@ -480,20 +517,34 @@ export const equipItem = onCall(async (req) => {
         const isConsumable = !!itemSnap.get("itemIsConsumable");
         if (isConsumable) throw new HttpsError("failed-precondition", "Consumables cannot be equipped.");
 
+        // Determine new equipped list
         let equipped: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
         equipped = equipped.map((x: string) => normId(x));
-        const wasEquipped = equipped.includes(itemId);
-        if (!wasEquipped) equipped.push(itemId);
 
+        if (!equipped.includes(itemId)) {
+            if (equipped.length >= 6) {
+                throw new HttpsError("resource-exhausted", "MAX_EQUIPPED_REACHED");
+            }
+            equipped.push(itemId);
+        }
+
+        // Collect all IDs needed for stats calculation
+        const activeIds: string[] = activeSnap.docs.map(d => d.id);
+        const allIds = [...equipped, ...activeIds];
+
+        // Fetch detailed item data for all stats
+        const itemSnaps = await fetchItemSnaps(tx, allIds);
+
+        // WRITE PHASE
         tx.set(loadRef, {equippedItemIds: equipped, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
         tx.set(invRef, {equipped: true, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
 
-        if (!wasEquipped) {
-            const baseStats = parseStatsJson(userSnap.get("statsJson"));
-            const itemStats = extractItemStats(itemSnap.data() || {});
-            const merged = mergeStats(baseStats, itemStats, 1);
-            tx.update(userRef, {statsJson: JSON.stringify(merged), updatedAt: FieldValue.serverTimestamp()});
-        }
+        // Update stats
+        const totalStats = computeTotalStats(itemSnaps);
+        tx.update(userRef, {
+            statsJson: JSON.stringify(totalStats),
+            updatedAt: FieldValue.serverTimestamp()
+        });
     });
 
     return {ok: true, itemId};
@@ -510,30 +561,37 @@ export const unequipItem = onCall(async (req) => {
     const userRef = db.collection("users").doc(uid);
     const invRef = userRef.collection("inventory").doc(itemId);
     const loadRef = userRef.collection("loadout").doc("current");
-    const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
+    const activeCol = userRef.collection("activeConsumables");
+    const now = Timestamp.now();
 
     await db.runTransaction(async (tx) => {
-        const [loadSnap, userSnap, itemSnap] = await Promise.all([
+        // READ PHASE
+        const [loadSnap, activeSnap] = await Promise.all([
             tx.get(loadRef),
-            tx.get(userRef),
-            tx.get(itemRef),
+            tx.get(activeCol.where("expiresAt", ">", now))
         ]);
 
         let before: string[] = loadSnap.exists ? (loadSnap.get("equippedItemIds") || []) : [];
         const beforeNorm = before.map((x: string) => normId(x));
-        const wasEquipped = beforeNorm.includes(itemId);
         const afterEquipped = beforeNorm.filter((x) => x !== itemId);
 
+        // Collect all IDs needed for stats calculation
+        const activeIds: string[] = activeSnap.docs.map(d => d.id);
+        const allIds = [...afterEquipped, ...activeIds];
+
+        // Fetch detailed item data
+        const itemSnaps = await fetchItemSnaps(tx, allIds);
+
+        // WRITE PHASE
         tx.set(loadRef, {equippedItemIds: afterEquipped, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
         tx.set(invRef, {equipped: false, lastChangedAt: FieldValue.serverTimestamp()}, {merge: true});
 
-        if (wasEquipped) {
-            if (!itemSnap.exists) throw new HttpsError("not-found", "Item not found.");
-            const baseStats = parseStatsJson(userSnap.get("statsJson"));
-            const itemStats = extractItemStats(itemSnap.data() || {});
-            const merged = mergeStats(baseStats, itemStats, -1);
-            tx.update(userRef, {statsJson: JSON.stringify(merged), updatedAt: FieldValue.serverTimestamp()});
-        }
+        // Update stats
+        const totalStats = computeTotalStats(itemSnaps);
+        tx.update(userRef, {
+            statsJson: JSON.stringify(totalStats),
+            updatedAt: FieldValue.serverTimestamp()
+        });
     });
 
     return {ok: true, itemId};

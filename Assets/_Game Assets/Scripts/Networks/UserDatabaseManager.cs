@@ -14,6 +14,8 @@ using System.Collections;
 using System.Collections;
 using UnityEngine.SocialPlatforms.Impl;
 using Newtonsoft.Json;
+using GooglePlayGames;
+using GooglePlayGames.BasicApi;
 
 
 public class UserDatabaseManager : MonoBehaviour
@@ -77,8 +79,7 @@ public class UserDatabaseManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject); // İstersen kaldır
     }
-    void Start() => InitializeFirebase();
-
+    // Optimized Initialization Flow
     public void Reset()
     {
         if (auth != null)
@@ -87,44 +88,78 @@ public class UserDatabaseManager : MonoBehaviour
         }
         currentUser = null;
         currentLoggedUserID = null;
+        
+        // Critical: Clear cache so we don't serve previous user's data to new user
+        _cachedUserData = null;
+        _lastOptimisticUpdateTimestamp = -999f;
+        
         EmitLog("✅ UserDatabaseManager Reset (Signed Out)");
     }
 
-    private void InitializeFirebase()
+    public async Task<bool> InitializeFirebaseAsync()
     {
-        Firebase.FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
+        if (IsFirebaseReady) return true;
+
+        var depStatus = await Firebase.FirebaseApp.CheckAndFixDependenciesAsync();
+        if (depStatus == Firebase.DependencyStatus.Available)
         {
-            if (task.Result == Firebase.DependencyStatus.Available)
-            {
-                auth = FirebaseAuth.DefaultInstance;
-                db = FirebaseFirestore.GetInstance(Firebase.FirebaseApp.DefaultInstance, "getfi");
+            auth = FirebaseAuth.DefaultInstance;
+            db = FirebaseFirestore.GetInstance(Firebase.FirebaseApp.DefaultInstance, "getfi");
+            _funcs = FirebaseFunctions.GetInstance("us-central1");
 
-                if (auth.CurrentUser == null)
-                {
-                    auth.SignInAnonymouslyAsync().ContinueWithOnMainThread(t =>
-                    {
-                        if (t.IsCompletedSuccessfully)
-                        {
-                            currentUser = auth.CurrentUser;
-                            EmitLog("✅ Anonymous signed in: " + currentUser?.UserId);
-                        }
-                        else
-                        {
-                            EmitLog("❌ Anonymous sign-in failed: " + t.Exception?.Message);
-                        }
-                    });
-                }
-
-                EmitLog("✅ Firebase ready");
-                _funcs = FirebaseFunctions.GetInstance("us-central1");
-                EmitLog("✅ Functions bound to us-central1");
-                IsFirebaseReady = true;
-            }
-            else
+            EmitLog("✅ Firebase Core Initialized");
+            
+            // Disable Auto-Login -> Force fresh flow every time
+            if (auth.CurrentUser != null)
             {
-                EmitLog($"❌ Firebase deps not available: {task.Result}");
+                EmitLog("ℹ️ Auto-login disabled. Signing out exiting user...");
+                auth.SignOut();
+                currentUser = null;
+                currentLoggedUserID = null;
             }
-        });
+            
+            IsFirebaseReady = true;
+            return true;
+        }
+        else
+        {
+            EmitLog($"❌ Firebase Dependencies Missing: {depStatus}");
+            return false;
+        }
+    }
+    
+    // Check if user is currently authenticated (synchronous check for AppFlow)
+    public bool IsAuthenticated() => auth != null && auth.CurrentUser != null;
+
+    void Start() { /* NO OPs - Controlled by AppFlowManager */ }
+
+    // --- Profile Completion (Server-Side) ---
+    public async Task<bool> CompleteProfileAsync(string username, string referralCode)
+    {
+        if (currentUser == null) { EmitLog("❌ No Login (CompleteProfile)"); return false; }
+        if (_funcs == null) { EmitLog("❌ Functions null"); return false; }
+
+        try
+        {
+            var callable = _funcs.GetHttpsCallable("completeUserProfile");
+            var data = new Dictionary<string, object>
+            {
+                { "username", username },
+                { "referralCode", referralCode }
+            };
+
+            var result = await callable.CallAsync(data);
+            EmitLog("✅ Profile Completed Successfully");
+            
+            // Refresh local cache immediately
+            await LoadUserData();
+            return true;
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ CompleteProfile Failed: " + e.Message);
+            return false;
+        }
     }
 
     /// <summary>
@@ -139,7 +174,7 @@ public class UserDatabaseManager : MonoBehaviour
     /// <summary>
     /// Calls the `updateDailyStreak` callable on the server. Safe to call multiple times per day (no-op if already updated).
     /// </summary>
-    private async Task<bool> UpdateDailyStreakAsync()
+    public async Task<bool> UpdateDailyStreakAsync() // Changed to public for AppFlow if needed
     {
         if (_funcs == null)
         {
@@ -169,56 +204,24 @@ public class UserDatabaseManager : MonoBehaviour
         }
     }
 
-    // --- REGISTER ---
-    public async void Register(string email, string password, string referralCode)
+    // --- SOCIAL LOGIN ---
+
+    /// <summary>
+    /// Authenticate with a credential obtained from a social provider (Play Games, Game Center, etc.)
+    /// </summary>
+    public async void LoginWithCredential(Credential credential)
     {
-        Reset(); // Ensure clean state before new auth
+        Reset();
         if (auth == null) { EmitLog("❌ Auth null"); return; }
+        if (credential == null) { EmitLog("❌ Credential null"); return; }
 
         try
         {
-            var r = await auth.CreateUserWithEmailAndPasswordAsync(email, password);
-            currentUser = r.User;
+            var r = await auth.SignInWithCredentialAsync(credential);
+            currentUser = r;
             currentLoggedUserID = currentUser?.UserId;
-            EmitLog($"✅ Register Successful, UID: {currentLoggedUserID}");
+            EmitLog($"✅ Social Login succeed, UID: {currentLoggedUserID}");
 
-            // Sunucuda profil oluşturulduğundan (Auth trigger) emin olmak için callable:
-            await EnsureUserProfileAsync(referralCode);
-            // Daily streak: update once on sign-up/login
-            await UpdateDailyStreakAsync();
-
-            // Taze veriyi çek ve UI’a yayınla
-            var data = await LoadUserData();
-
-            EnqueueMain(() =>
-            {
-                OnRegisterSucceeded?.Invoke();
-                OnLoginSucceeded?.Invoke();        // UI kapanması için
-                if (data != null) OnUserDataSaved?.Invoke(data); // HUD/istatistikler yenilensin
-            });
-        }
-        catch (Exception e)
-        {
-            EmitLog("❌ Register error: " + e.Message);
-            EnqueueMain(() => OnRegisterFailed?.Invoke(e.Message));
-        }
-    }
-
-    // --- LOGIN ---
-    public async void Login(string email, string password)
-    {
-        Reset(); // Ensure clean state before new auth
-        if (auth == null) { EmitLog("❌ Auth null"); return; }
-
-        try
-        {
-            var r = await auth.SignInWithEmailAndPasswordAsync(email, password);
-            currentUser = r.User;
-            currentLoggedUserID = currentUser?.UserId;
-            EmitLog($"✅ Login succeed, UID: {currentLoggedUserID}");
-
-            // Profil var/yok normalize et (lastLogin güncellemesini artık server yapıyor)
-            await EnsureUserProfileAsync();
             // Daily streak: update once on sign-in
             await UpdateDailyStreakAsync();
 
@@ -228,15 +231,143 @@ public class UserDatabaseManager : MonoBehaviour
             EnqueueMain(() =>
             {
                 OnLoginSucceeded?.Invoke();
-                if (data != null) OnUserDataSaved?.Invoke(data);  // HUD tazele
+                if (data != null) OnUserDataSaved?.Invoke(data);
+                // For social login, "Register" and "Login" are often the same flow from user perspective.
+                // If it's a new user, they might just have empty data.
             });
         }
         catch (Exception e)
         {
-            EmitLog("❌ Login error: " + e.Message);
+            EmitLog("❌ Social Login error: " + e.Message);
             EnqueueMain(() => OnLoginFailed?.Invoke(e.Message));
         }
     }
+
+    /// <summary>
+    /// Mock login for Editor testing (uses Email/Pass auth).
+    /// </summary>
+    public async void LoginWithEditorMock()
+    {
+        Reset();
+        if (auth == null) { EmitLog("❌ Auth null"); return; }
+        EmitLog("Starting Editor Mock Login (Email: test@gmail.com)...");
+
+        try
+        {
+            // Make sure you created this user in Firebase Console -> Auth -> Email/Password
+            var r = await auth.SignInWithEmailAndPasswordAsync("testuser@gmail.com", "123456");
+            currentUser = r.User;
+            currentLoggedUserID = currentUser?.UserId;
+            EmitLog($"✅ Mock Login succeed, UID: {currentLoggedUserID}");
+
+            await UpdateDailyStreakAsync();
+            var data = await LoadUserData();
+            
+            EnqueueMain(() =>
+            {
+                OnLoginSucceeded?.Invoke();
+                if (data != null) OnUserDataSaved?.Invoke(data);
+            });
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ Mock Login error: " + e.Message);
+            EnqueueMain(() => OnLoginFailed?.Invoke(e.Message));
+        }
+    }
+
+#if UNITY_ANDROID
+    public void LoginWithGooglePlayGames()
+    {
+        if (Application.isEditor)
+        {
+            LoginWithEditorMock();
+            return;
+        }
+
+        EmitLog("Starting Google Play Games Login...");
+        
+        PlayGamesPlatform.Instance.Authenticate((status) =>
+        {
+            if (status == SignInStatus.Success)
+            {
+                EmitLog("✅ Play Games Authenticated. Requesting Server Auth Code...");
+                PlayGamesPlatform.Instance.RequestServerSideAccess(true, (authCode) =>
+                {
+                    if (!string.IsNullOrEmpty(authCode))
+                    {
+                        EmitLog("✅ Auth Code received. Exchanging for Firebase Credential...");
+                        Credential credential = PlayGamesAuthProvider.GetCredential(authCode);
+                        LoginWithCredential(credential);
+                    }
+                    else
+                    {
+                        EmitLog("❌ Failed to get Server Auth Code.");
+                        EnqueueMain(() => OnLoginFailed?.Invoke("Failed to get Google Auth Code"));
+                    }
+                });
+            }
+            else
+            {
+                EmitLog("❌ Play Games Authentication Failed.");
+                EnqueueMain(() => OnLoginFailed?.Invoke("Google Play Games Auth Failed"));
+            }
+        });
+    }
+#endif
+
+#if UNITY_IOS
+    public void LoginWithGameCenter()
+    {
+        if (Application.isEditor)
+        {
+            LoginWithEditorMock();
+            return;
+        }
+
+        EmitLog("Starting Game Center Login...");
+        
+        Social.localUser.Authenticate((bool success) =>
+        {
+            if (success)
+            {
+                EmitLog("✅ Game Center Authenticated. Generating Firebase Credential...");
+                
+                 // Game Center authentication is a bit more complex for Firebase.
+                 // We need to use the GameCenterAuthProvider.
+                 // This requires Unity 2017.4+ and Firebase 6.16.0+
+                 
+                 // Legacy or Current way depending on Firebase SDK version.
+                 // Assuming fairly modern SDK based on user context.
+                 
+                 GameCenterAuthProvider.GetCredentialAsync().ContinueWith(task => {
+                     if (task.IsCanceled)
+                     {
+                         EmitLog("❌ GameCenter GetCredentialAsync was canceled.");
+                         EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Canceled"));
+                         return;
+                     }
+                     if (task.IsFaulted)
+                     {
+                         EmitLog("❌ GameCenter GetCredentialAsync encountered an error: " + task.Exception);
+                         EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Error"));
+                         return;
+                     }
+
+                     Credential credential = task.Result;
+                     EmitLog("✅ Game Center Credential created. Signing in to Firebase...");
+                     // Ensure back on main thread if needed, effectively handled by LoginWithCredential which calls auth calls
+                     EnqueueMain(() => LoginWithCredential(credential));
+                 });
+            }
+            else
+            {
+                EmitLog("❌ Game Center Authentication Failed.");
+                EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Auth Failed"));
+            }
+        });
+    }
+#endif
 
 
     // --- LOAD ---
@@ -731,24 +862,7 @@ public class UserDatabaseManager : MonoBehaviour
         return result;
     }
 
-    private async Task EnsureUserProfileAsync(string referralCode = null)
-    {
-        if (_funcs == null) return;
-        try
-        {
-            var callable = _funcs.GetHttpsCallable("ensureUserProfile");
-            var payload = new System.Collections.Generic.Dictionary<string, object>();
-            if (!string.IsNullOrWhiteSpace(referralCode))
-                payload["referralCode"] = referralCode;
-
-            await callable.CallAsync(payload);
-            EmitLog("✅ ensureUserProfile ok");
-        }
-        catch (Exception e)
-        {
-            EmitLog("⚠️ ensureUserProfile error: " + e.Message);
-        }
-    }
+    // REMOVED EnsureUserProfileAsync - method deleted.
 
     public async Task<float> FetchMyReferralEarningsAsync()
     {

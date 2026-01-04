@@ -20,4 +20,10 @@ public class UIOverlay : MonoBehaviour
         if (purchaseCompletedPanel != null) purchaseCompletedPanel.SetActive(true);
     }
 
+    [SerializeField] private GameObject inventoryFullPanel;
+
+    public void ShowInventoryFullPanel()
+    {
+        if (inventoryFullPanel != null) inventoryFullPanel.SetActive(true);
+    }
 }

@@ -27,6 +27,14 @@ public class UIManager : MonoSingleton<UIManager>
         return this;
     }
 
+
+    
+    private void Start()
+    {
+        // Ensure UI starts in a clean "Boot" state (all gameplay panels hidden)
+        OnPhaseChanged(GamePhase.Boot);
+    }
+    
     private void OnEnable()
     {
         StopAllCoroutines();
@@ -70,7 +78,7 @@ public class UIManager : MonoSingleton<UIManager>
                 Fade(mainMenu, false);
                 Fade(gamePlay, false);
                 Fade(levelEnd, false);
-                Fade(overlay, false);
+                Fade(overlay, true); // Strict Flow: Overlay (TopPanel + Login) must be visible on boot
                 Fade(gameplayLoading, false);
                 break;
             case GamePhase.Meta:

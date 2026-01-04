@@ -76,6 +76,13 @@ public class PlayerStatsRemoteService : MonoBehaviour
             var db = userDB;
             if (db == null) return;
             string uid = cachedUserID;
+            if (string.IsNullOrEmpty(uid)) 
+            {
+                // Fallback: try getting from the database manager itself
+                uid = db.currentLoggedUserID;
+                // Update cache if found
+                if (!string.IsNullOrEmpty(uid)) cachedUserID = uid;
+            }
             if (string.IsNullOrEmpty(uid)) return;
 
             // KENDİ projendeki gerçek çağrı ile değiştir:

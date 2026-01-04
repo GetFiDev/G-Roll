@@ -33,6 +33,7 @@ namespace NetworkingData
         // Timestamp alanları:
         [FirestoreProperty] public Timestamp elitePassExpiresAt { get; set; }
         [FirestoreProperty] public Timestamp lastLogin { get; set; }
+        [FirestoreProperty] public Timestamp usernameLastChangedAt { get; set; }
 
         // ServerTimestamp alanları (sunucu dolduruyor)
         [FirestoreProperty, ServerTimestamp] public Timestamp createdAt { get; set; }
@@ -41,7 +42,9 @@ namespace NetworkingData
         // (Varsa referral alanları)
         [FirestoreProperty] public string referredByUid { get; set; }
         [FirestoreProperty] public string referredByKey { get; set; }
-        [FirestoreProperty] public Timestamp referralAppliedAt { get; set; }
+
+        [FirestoreProperty] public object referralAppliedAt { get; set; } // object to allow nulls
+        public Timestamp ReferralAppliedAtTimestamp => referralAppliedAt is Timestamp t ? t : Timestamp.FromDateTime(System.DateTime.MinValue);
 
         [FirestoreProperty] public double totalPlaytimeMinutesFloat { get; set; }
         [FirestoreProperty] public string lastLoginLocalDate { get; set; }
@@ -54,5 +57,13 @@ namespace NetworkingData
         [FirestoreProperty] public int totalPlaytimeMinutes { get; set; }
         [FirestoreProperty] public double totalPlaytimeSec { get; set; }
         [FirestoreProperty] public int tzOffsetMinutes { get; set; }
+
+        // Missing fields added to suppress warnings and ensure data layout
+        [FirestoreProperty] public string uid { get; set; } = "";
+        [FirestoreProperty] public string email { get; set; } = ""; // Often same as mail, but sometimes SDK requests explicit field
+        [FirestoreProperty] public string photoUrl { get; set; } = "";
+        [FirestoreProperty] public int level { get; set; } = 1;
+        [FirestoreProperty] public bool isProfileComplete { get; set; } = false;
+        [FirestoreProperty] public double referralEarnings { get; set; } = 0; // The pool of unclaimed referral earnings
     }
 }

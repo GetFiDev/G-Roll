@@ -104,39 +104,39 @@ public class UserInventoryManager : MonoBehaviour
     /// <summary>
     /// Fetch inventory snapshot from server and cache locally.
     /// </summary>
+    /// <summary>
+    /// Fetch inventory snapshot from server and cache locally.
+    /// Called strictly by AppFlowManager after Auth & Profile are ready.
+    /// </summary>
     public async Task InitializeAsync()
     {
         if (IsInitialized) return;
 
-        Debug.Log("[UserInventoryManager] InitializeAsync called. Waiting for Auth...");
+        Debug.Log("[UserInventoryManager] InitializeAsync called.");
 
-        // Wait for Firebase Auth to be ready (timeout safe)
-        float timeout = 10f;
-        float elapsed = 0f;
-        while ((UserDatabaseManager.Instance == null || !UserDatabaseManager.Instance.IsFirebaseReady || UserDatabaseManager.Instance.currentUser == null) && elapsed < timeout)
+        // Strict Check: Auth MUST be ready by now
+        if (UserDatabaseManager.Instance == null || !UserDatabaseManager.Instance.IsAuthenticated())
         {
-            await Task.Delay(200);
-            elapsed += 0.2f;
-        }
-
-        if (UserDatabaseManager.Instance == null || UserDatabaseManager.Instance.currentUser == null)
-        {
-            Debug.LogWarning("[UserInventoryManager] Auth wait timed out or failed. Cannot fetch inventory.");
+            Debug.LogError("[UserInventoryManager] CRITICAL: Auth not ready during explicit initialization!");
             return;
         }
 
-        Debug.Log("[UserInventoryManager] Auth ready. Fetching inventory...");
+        Debug.Log("[UserInventoryManager] Fetching inventory...");
 
         var snapshot = await InventoryRemoteService.GetInventoryAsync();
         if (snapshot == null || !snapshot.ok)
         {
             Debug.LogWarning("[UserInventoryManager] Failed to fetch inventory snapshot.");
+            // We do NOT mark initialized if failed, allowing retry? 
+            // Or should we mark it to avoid blocking loop? 
+            // For now, let's allow retry or handle error upstream.
             return;
         }
 
         ReplaceInventory(snapshot.inventory, snapshot.equippedItemIds);
         // Also pull active consumables so shop/UI can render countdowns immediately
         await RefreshActiveConsumablesAsync();
+        
         IsInitialized = true;
         OnInventoryChanged?.Invoke();
         Debug.Log($"[UserInventoryManager] Initialized. Items={_inventory.Count} Equipped={_equipped.Count}");
@@ -261,6 +261,13 @@ public class UserInventoryManager : MonoBehaviour
         if (!result.ok)
         {
             Debug.LogWarning($"[UserInventoryManager] Equip failed: {result.error}");
+            if (!string.IsNullOrEmpty(result.error) && result.error.Contains("MAX_EQUIPPED_REACHED"))
+            {
+                if (UIManager.Instance && UIManager.Instance.overlay)
+                {
+                    UIManager.Instance.overlay.ShowInventoryFullPanel();
+                }
+            }
             return false;
         }
 

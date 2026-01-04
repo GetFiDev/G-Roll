@@ -11,6 +11,9 @@ public class UIHomePanel : MonoBehaviour
     [Header("Autopilot Preview")]
     [SerializeField] private Image autopilotFillImage;   // progress bar fill
     [SerializeField] private TextMeshProUGUI autopilotTimerText; // optional UI text
+    [Header("Referral Earnings")]
+    [SerializeField] private UIReferralEarningsPanel referralEarningsPanel;
+
     [Header("Play Button Overlay")]
     [SerializeField] private GameObject playButtonLoadingOverlay;
 
@@ -20,7 +23,13 @@ public class UIHomePanel : MonoBehaviour
     private void OnEnable()
     {
         UIAutoPilot.OnClosed += OnAutopilotClosed;
-        Initialize();
+        
+        // Safety check: Only initialize if authenticated.
+        // This prevents the "Auth Required" errors if the panel is mistakenly active during boot.
+        if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.IsAuthenticated())
+        {
+            Initialize();
+        }
     }
 
     [Header("Game Modes")]
@@ -61,6 +70,23 @@ public class UIHomePanel : MonoBehaviour
 
         // 6. Update Chapter Button state
         _ = UpdateChapterButtonStateAsync();
+
+        // 7. Check for Pending Referrals
+        _ = CheckPendingReferralsAsync();
+    }
+
+    private async Task CheckPendingReferralsAsync()
+    {
+        if (referralEarningsPanel == null) return;
+        
+        // Don't show if already active (maybe user didn't close it?)
+        // if (referralEarningsPanel.gameObject.activeSelf) return; 
+
+        var res = await ReferralRemoteService.GetPendingReferrals();
+        if (res.hasPending && res.total > 0)
+        {
+            referralEarningsPanel.Initialize(res.total);
+        }
     }
 
     private async Task UpdateChapterButtonStateAsync()

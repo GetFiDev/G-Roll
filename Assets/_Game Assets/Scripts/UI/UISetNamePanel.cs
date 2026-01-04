@@ -7,6 +7,7 @@ public class UISetNamePanel : MonoBehaviour
     [Header("Refs")]
     public UserDataEditHandler handler; // LoginHandler buraya da atayabilir (opsiyonel)
     public TMP_InputField nameInput;
+    public TMP_InputField referralInput; // User requested optional referral field
     public Button doneButton;
 
     [Header("Rules")]
@@ -16,11 +17,15 @@ public class UISetNamePanel : MonoBehaviour
     {
         if (doneButton) doneButton.interactable = false;
         if (nameInput) nameInput.onValueChanged.AddListener(Validate);
+        // Referral is optional, need not validate? Or maybe just re-trigger validate?
+        if (referralInput) referralInput.onValueChanged.AddListener((_) => Validate(nameInput.text));
     }
 
     void OnDestroy()
     {
         if (nameInput) nameInput.onValueChanged.RemoveListener(Validate);
+        // Clean up referral listener if added
+        if (referralInput) referralInput.onValueChanged.RemoveAllListeners();
     }
 
     void Validate(string text)
@@ -31,6 +36,7 @@ public class UISetNamePanel : MonoBehaviour
     }
 
     public string CurrentName => (nameInput?.text ?? "").Trim();
+    public string CurrentReferral => (referralInput?.text ?? "").Trim();
 
     public void Open()
     {

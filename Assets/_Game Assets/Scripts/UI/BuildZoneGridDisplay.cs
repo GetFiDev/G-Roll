@@ -81,8 +81,9 @@ public class BuildZoneGridDisplay : MonoBehaviour
 
         if (!inv.IsInitialized)
         {
-            var initTask = inv.InitializeAsync();
-            while (!initTask.IsCompleted) yield return null;
+            // Passive wait: if not ready, just stop. AppFlowManager will init it, then OnInventoryChanged will trigger refresh.
+            // DO NOT auto-initialize here.
+            yield break;
         }
 
         // Get equipped list (length 0..N). Biz 6 slota pad edeceğiz.

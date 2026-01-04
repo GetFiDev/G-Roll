@@ -7,26 +7,37 @@ import {ALPHABET} from "../utils/constants"; // Removed ACH_TYPES
 // Removed upsertUserAch
 
 // -------- Helper Functions --------
-async function ensureReferralKeyFor(uid: string, tx: FirebaseFirestore.Transaction): Promise<string> {
-    const userRef = db.collection("users").doc(uid);
-    const userSnap = await tx.get(userRef);
-    if (userSnap.exists) {
-        const k = userSnap.get("referralKey");
-        if (k) return k;
-    }
-
-    // Generate unique
+// Helper: Pure Read Check for available referral key
+async function findAvailableReferralKey(tx: FirebaseFirestore.Transaction): Promise<string> {
     for (let i = 0; i < 5; i++) {
-        const k = randomReferralKey(12, ALPHABET); // Fixed args
+        const k = randomReferralKey(12, ALPHABET);
         const refKey = db.collection("referralKeys").doc(k);
         const s = await tx.get(refKey);
         if (!s.exists) {
-            tx.set(refKey, {uid, createdAt: FieldValue.serverTimestamp()});
-            tx.set(userRef, {referralKey: k}, {merge: true});
             return k;
         }
     }
     return "FAIL";
+}
+
+// Helper: Get next user rank (simple counter)
+async function getNextUserRank(): Promise<number> {
+    const statsRef = db.collection("appdata").doc("stats");
+    try {
+        return await db.runTransaction(async (tx) => {
+            const snap = await tx.get(statsRef);
+            let current = 0;
+            if (snap.exists) {
+                current = Number(snap.get("userCount") ?? 0) || 0;
+            }
+            const next = current + 1;
+            tx.set(statsRef, {userCount: next}, {merge: true});
+            return next;
+        });
+    } catch (e) {
+        console.warn("getNextUserRank failed, defaulting to 0:", e);
+        return 0; // Fallback
+    }
 }
 
 async function grantReferralThresholdItems(
@@ -41,7 +52,9 @@ async function grantReferralThresholdItems(
             .where("itemReferralThreshold", ">", 0)
             .where("itemReferralThreshold", "<=", newCount);
 
-        const snap = await tx.get(q);
+        // Queries cannot be run on the transaction object directly (tx.get(query) is invalid).
+        // We perform a non-transactional read for the config data.
+        const snap = await q.get();
         if (snap.empty) return;
 
         for (const d of snap.docs) {
@@ -60,7 +73,7 @@ async function grantReferralThresholdItems(
             }
         }
     } catch (e) {
-        console.warn("grantReferralThresholdItems failed (index missing?)", e);
+        console.warn("grantReferralThresholdItems failed:", e);
     }
 }
 
@@ -118,7 +131,12 @@ export async function applyReferralCodeToUser(uid: string, code: string) {
 
         // 6. Grant Reward (to new user) -> 100 currency default
         const cur = Number(uSnap.get("currency") ?? 0) || 0;
-        tx.set(userRef, {currency: cur + 100}, {merge: true});
+
+        // Fix: Also set referredByKey
+        tx.set(userRef, {
+            currency: cur + 100,
+            referredByKey: upper
+        }, {merge: true});
 
         // 7. Check Thresholds for Referrer
         await grantReferralThresholdItems(tx, referrerUid, newCount);
@@ -137,55 +155,200 @@ export const applyReferralCode = onCall(async (req) => {
 });
 
 
-// Trigger: Create basic profile on first Auth
+// Trigger: Create minimal profile on first Auth (Auth -> Firestore)
 export const createUserProfile = functionsV1.auth.user().onCreate(async (user) => {
-    const {uid, email, displayName, photoURL} = user;
+    const {uid, email, photoURL} = user;
     const now = FieldValue.serverTimestamp();
     const ref = db.collection("users").doc(uid);
+
+    // Check if user exists first
     const snap = await ref.get();
-    if (!snap.exists) {
-        await ref.set({
-            uid,
-            email,
-            username: displayName || "Guest",
-            photoUrl: photoURL || "",
-            createdAt: now,
-            updatedAt: now,
-            currency: 0,
-            premiumCurrency: 0,
-            maxScore: 0,
-            level: 1,
-        });
-        console.log(`[createUserProfile] created for ${uid}`);
-    }
+    if (snap.exists) return;
+
+    // Get Rank (User Count)
+    const rank = await getNextUserRank();
+
+    // Default JSONs
+    // Use same BASE_STATS logic as shop.functions (hardcoded here for now to avoid circular dependency
+    // or import issues if not shared properly)
+    // Synchronized with shop.functions.ts
+    const statsJson = JSON.stringify({
+        "comboPower": 25,
+        "playerSpeed": 20,
+        "coinMultiplierPercent": 0,
+        "gameplaySpeedMultiplierPercent": 0,
+        "magnetPowerPercent": 0,
+        "playerAcceleration": 0.1,
+        "playerSizePercent": 0,
+    });
+
+    // 1 day ago for elitePassExpiresAt
+    // We can't easily get "now - 24h" with ServerTimestamp in the same write 
+    // without a read-modify-write or predefined constant.
+    // But since it's just an initial "expired" state, setting it to 'now' or epoch 0 is fine.
+    // User asked for "1 day before registration". 
+    // We'll use JS Date for the initial value since it's a fixed point in time relative to function execution.
+    const OneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const elitePassExpiresAt = Timestamp.fromDate(OneDayAgo);
+
+    console.log(`[createUserProfile] Creating profile for ${uid} with Rank ${rank}`);
+
+    await ref.set({
+        // Identity
+        uid,
+        email: email || "",
+        mail: email || "", // Duplicate field as in Client
+        photoUrl: photoURL || "",
+        username: "",
+
+        // Timestamps
+        createdAt: now,
+        updatedAt: now,
+        lastLogin: now,
+        lastLoginLocalDate: "", // Client must update
+        tzOffsetMinutes: 0,     // Client must update
+
+        // Subscriptions
+        hasElitePass: false,
+        elitePassExpiresAt: elitePassExpiresAt,
+
+        // Economy & Score
+        currency: 0,
+        premiumCurrency: 0,
+        maxScore: 0,
+        cumulativeCurrencyEarned: 0,
+
+        // Progress / Stats
+        level: 1,
+        rank: rank,
+        trustFactor: 100,
+        streak: 0,
+        bestStreak: 0,
+        chapterProgress: 1,
+
+        // Game Stats
+        statsJson: statsJson,
+        adClaimsJson: "",
+        totalPlaytimeMinutes: 0,
+        totalPlaytimeMinutesFloat: 0,
+        totalPlaytimeSec: 0,
+        sessionsPlayed: 0,
+        maxCombo: 0,
+        powerUpsCollected: 0,
+        itemsPurchasedCount: 0,
+
+        // Social / Referral
+        referralKey: "", // Will be generated on SetName
+        referrals: 0,
+        referralEarnings: 0,
+        referredByUid: "",
+        referredByKey: "",
+
+
+        // Energy System
+        energyCurrent: 6,
+        energyMax: 6,
+        energyRegenPeriodSec: 14400, // 4 hours
+        energyUpdatedAt: now,
+
+        // Internal
+        isProfileComplete: false,
+    });
 });
 
-
-// Callable: Ensure profile exists + get referral key
-export const ensureUserProfile = onCall(async (req) => {
+// Callable: Complete Profile (Set Username + Apply Referral)
+// This replaces ensureUserProfile and acts as the "Finish Registration" step.
+export const completeUserProfile = onCall(async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-    let key = "";
+    const usernameRaw = String(req.data?.username || "").trim();
+    const referralCode = String(req.data?.referralCode || "").trim();
+
+    // 1. Validate Username
+    if (usernameRaw.length < 3 || usernameRaw.length > 20) {
+        throw new HttpsError("invalid-argument", "USERNAME_INVALID_LENGTH");
+    }
+    if (!/^[a-zA-Z0-9._-]+$/.test(usernameRaw)) {
+        throw new HttpsError("invalid-argument", "USERNAME_INVALID_CHARS");
+    }
+
+    const usernameLower = usernameRaw.toLowerCase();
+    const userRef = db.collection("users").doc(uid);
+    const nameRef = db.collection("usernames").doc(usernameLower);
+
+    // 2. Transaction: Set Username + Valid Unique Check
     await db.runTransaction(async (tx) => {
-        const ref = db.collection("users").doc(uid);
-        const s = await tx.get(ref);
-        if (!s.exists) {
-            tx.set(ref, {
-                uid,
-                createdAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp(),
-                currency: 0,
-                maxScore: 0
-            });
+        // --- READ PHASE ---
+        const [uSnap, nSnap] = await Promise.all([
+            tx.get(userRef),
+            tx.get(nameRef)
+        ]);
+
+        if (!uSnap.exists) throw new HttpsError("not-found", "User profile missing (Auth trigger failed?)");
+
+        // Check if already completed
+        if (uSnap.get("isProfileComplete") === true) {
+            // If already has this username, just return success
+            if (uSnap.get("username") === usernameRaw) return;
+            throw new HttpsError("failed-precondition", "Profile already completed.");
         }
-        key = await ensureReferralKeyFor(uid, tx);
+
+        // Check availability
+        if (nSnap.exists && nSnap.get("uid") !== uid) {
+            throw new HttpsError("already-exists", "USERNAME_TAKEN");
+        }
+
+        // Check specific referral key generation needed?
+        let myKey = uSnap.get("referralKey");
+        let keyToCreate = null;
+
+        if (!myKey) {
+            // Perform READ inside logic to find available key
+            const k = await findAvailableReferralKey(tx);
+            if (k === "FAIL") throw new HttpsError("internal", "Failed to generate referral key");
+            myKey = k;
+            keyToCreate = k;
+        }
+
+        // --- WRITE PHASE ---
+        const now = FieldValue.serverTimestamp();
+
+        // 1. Reserve Username
+        tx.set(nameRef, {uid, updatedAt: now});
+
+        // 2. Create Referral Key (if needed)
+        if (keyToCreate) {
+            const kRef = db.collection("referralKeys").doc(keyToCreate);
+            tx.set(kRef, {uid, createdAt: now});
+        }
+
+        // 3. Update User Profile
+        tx.set(userRef, {
+            username: usernameRaw,
+            usernameLastChangedAt: now,
+            isProfileComplete: true,
+            updatedAt: now,
+            referralKey: myKey
+        }, {merge: true});
     });
 
-    return {
-        ok: true,
-        referralKey: key,
-    };
+    // 3. Apply Referral Code (if provided) using existing logic
+    // This is separate from the main transaction to avoid complexity, 
+    // but safe because isProfileComplete is already true (so user can't retry this step infinitely).
+    // Actually, we should try to do it even if separate.
+    let referralApplied = false;
+    if (referralCode.length > 0) {
+        try {
+            const res = await applyReferralCodeToUser(uid, referralCode);
+            if (res.ok) referralApplied = true;
+        } catch (e: any) {
+            console.warn(`[completeUserProfile] Referral '${referralCode}' failed: ${e.message}`);
+            // We do NOT fail the profile completion just because referral failed.
+        }
+    }
+
+    return {success: true, username: usernameRaw, referralApplied};
 });
 
 // List Referred Users
@@ -396,4 +559,121 @@ export const changeUsername = onCall(async (req) => {
     });
 
     return {ok: true, newName: newNameRaw};
+});
+
+// -------- Pending Referral Earnings --------
+
+export const getPendingReferrals = onCall(async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const pendingCol = db.collection("users").doc(uid).collection("referralPending");
+    const snap = await pendingCol.limit(50).get();
+
+    if (snap.empty) {
+        return {hasPending: false, items: [], total: 0};
+    }
+
+    const items: any[] = [];
+    let total = 0;
+    snap.forEach(doc => {
+        const d = doc.data();
+        const amt = Number(d.amount) || 0;
+        if (amt > 0) {
+            total += amt;
+            items.push({
+                childUid: d.childUid,
+                childName: d.childName || "Unknown",
+                amount: amt
+            });
+        }
+    });
+
+    return {hasPending: total > 0, items, total};
+});
+
+export const claimReferralEarnings = onCall(async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const userRef = db.collection("users").doc(uid);
+    const pendingCol = userRef.collection("referralPending");
+    const activityCol = userRef.collection("referralsChildren"); // Correct path for lifetime stats
+
+    // Transaction to ensure atomicity
+    // We limit to 50 items to avoid transaction limits (500 ops). 
+    // If user has > 50 pending, they will need to claim multiple times or we loop?
+    // User said "pool transfers to account". We'll do one batch. 
+    // If there are more, the next check will find them.
+
+    return await db.runTransaction(async (tx) => {
+        const pSnap = await tx.get(pendingCol.limit(100)); // Process up to 100
+        if (pSnap.empty) {
+            return {claimed: 0, items: []};
+        }
+
+        const uSnap = await tx.get(userRef);
+        if (!uSnap.exists) {
+            throw new HttpsError("not-found", "User not found");
+        }
+
+        const currentCurrency = Number(uSnap.get("currency") ?? 0) || 0;
+        const currentTotalEarned = Number(uSnap.get("totalReferralEarnings") ?? 0) || 0; // Optional global stat
+
+        let batchTotal = 0;
+        const claimedItems: any[] = [];
+
+        for (const doc of pSnap.docs) {
+            const d = doc.data();
+            const childUid = doc.id; // docId is childUid based on submitSessionResult logic
+            const amt = Number(d.amount) || 0;
+
+            if (amt <= 0) {
+                tx.delete(doc.ref); // cleanup empty garbage
+                continue;
+            }
+
+            batchTotal += amt;
+            claimedItems.push({childUid, amount: amt});
+
+            // 1. Update Lifetime Activity for this child
+            // We need to read the activity doc to increment. 
+            // BUT: Reading inside loop inside TX? 
+            // If we have 100 pending, we do 100 reads of activity docs + 100 writes.
+            // + 1 read of pending + 1 read user + 1 write user + 100 delete pending.
+            // Total ops = 100(read act) + 100(write act) + 100(delete pending) + 2(user) = 302 ops. 
+            // Max is 500. So 100 items limit is safe.
+
+            const actRef = activityCol.doc(childUid);
+            const actSnap = await tx.get(actRef);
+
+            if (actSnap.exists) {
+                const prevEarned = Number(actSnap.get("earnedTotal") ?? 0) || 0;
+                tx.set(actRef, {
+                    earnedTotal: prevEarned + amt,
+                    lastClaimedAt: FieldValue.serverTimestamp()
+                }, {merge: true});
+            } else {
+                tx.set(actRef, {
+                    earnedTotal: amt,
+                    appliedAt: FieldValue.serverTimestamp(), // Should exist but fallback
+                    lastClaimedAt: FieldValue.serverTimestamp()
+                }, {merge: true});
+            }
+
+            // 2. Delete pending doc
+            tx.delete(doc.ref);
+        }
+
+        // 3. Update User Wallet
+        if (batchTotal > 0) {
+            tx.set(userRef, {
+                currency: currentCurrency + batchTotal,
+                totalReferralEarnings: currentTotalEarned + batchTotal,
+                updatedAt: FieldValue.serverTimestamp()
+            }, {merge: true});
+        }
+
+        return {claimed: batchTotal, count: claimedItems.length};
+    });
 });

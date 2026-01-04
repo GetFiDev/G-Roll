@@ -39,7 +39,7 @@ namespace Sych.ShareAssets.Runtime
         /// Asynchronous version of Item(), returns a bool indicating whether the share action was completed.
         /// </summary>
         /// <param name="item">An item to share. Item can be plain text, URLs, images, videos, audio files, or any file path.</param>
-        public static async Task<bool> ItemAsync(string item)
+        public static async System.Threading.Tasks.Task<bool> ItemAsync(string item)
         {
             var tcs = new TaskCompletionSource<bool>();
             Item(item, success => tcs.SetResult(success));
@@ -55,7 +55,7 @@ namespace Sych.ShareAssets.Runtime
         public static void Item(string item, Action<bool> completeCallback) => Bridge.ShareItems(new List<string> { item }, completeCallback);
 
         [Obsolete("Sharing multiple content types at once (e.g., text + file) may not be supported by many target apps. Use ShareAsync(string item) for reliable behavior.")]
-        public static async Task<bool> ItemsAsync(List<string> items)
+        public static async System.Threading.Tasks.Task<bool> ItemsAsync(List<string> items)
         {
             var tcs = new TaskCompletionSource<bool>();
             Items(items, success => tcs.SetResult(success));

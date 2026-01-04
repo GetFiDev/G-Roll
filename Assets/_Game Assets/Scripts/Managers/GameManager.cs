@@ -34,7 +34,16 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        // Boot tamamlanınca Meta’ya geç.
+        // DISABLED: Now controlled by AppFlowManager.InitializeGameManager()
+        // SetPhase(GamePhase.Meta);
+        // StartCoroutine(FetchAndDebugItems());
+    }
+
+    /// <summary>
+    /// Explicit initialization called by AppFlowManager when Auth & Profile are ready.
+    /// </summary>
+    public void Initialize()
+    {
         SetPhase(GamePhase.Meta);
         StartCoroutine(FetchAndDebugItems());
     }

@@ -19,7 +19,22 @@ dependencyResolutionManagement {
 // Android Resolver Repos Start
         def unityProjectPath = $/file:///**DIR_UNITYPROJECT**/$.replace("\\", "/")
         maven {
+            url "https://artifactory.appodeal.com/appodeal" // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:183
+        }
+        maven {
+            url "https://artifactory.bidmachine.io/bidmachine" // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:183
+        }
+        maven {
+            url "https://artifactory.bidon.org/bidon" // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:183
+        }
+        maven {
+            url "https://repo1.maven.org/maven2" // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:183
+        }
+        maven {
             url (unityProjectPath + "/Assets/GeneratedLocalRepo/Firebase/m2repository") // Assets/Firebase/Editor/AnalyticsDependencies.xml:18, Assets/Firebase/Editor/AppDependencies.xml:22, Assets/Firebase/Editor/AuthDependencies.xml:20, Assets/Firebase/Editor/CrashlyticsDependencies.xml:20, Assets/Firebase/Editor/FirestoreDependencies.xml:20, Assets/Firebase/Editor/FunctionsDependencies.xml:20
+        }
+        maven {
+            url (unityProjectPath + "/Assets/GooglePlayGames/com.google.play.games/Editor/m2repository") // Assets/GooglePlayGames/com.google.play.games/Editor/GooglePlayGamesPluginDependencies.xml:11
         }
         mavenLocal()
 // Android Resolver Repos End

@@ -53,6 +53,12 @@ public class UIMainMenu : MonoBehaviour
             { PanelType.AutoPilot, GetOrAdd(autoPilotpanel.gameObject) },
             { PanelType.IAPShop, GetOrAdd(iapShopPanel.gameObject) }
         };
+
+        // Ensure all panels start hidden to prevent "Auth Required" calls from OnEnable scripts
+        foreach (var p in panels.Values)
+        {
+            if (p != null) p.Hide();
+        }
     }
 
     public void ShowPanel(PanelType type)

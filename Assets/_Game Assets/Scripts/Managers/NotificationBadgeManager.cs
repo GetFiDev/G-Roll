@@ -85,6 +85,12 @@ public class NotificationBadgeManager : MonoBehaviour
     {
         if (!autoRefreshOnStart) return;
 
+        // Ensure we are authenticated before trying to fetch remote data
+        if (UserDatabaseManager.Instance == null || !UserDatabaseManager.Instance.IsAuthenticated())
+        {
+            return;
+        }
+
         // Achievement & Shop badge durumlarını oyun açılışında bir kere değerlendir.
         await RefreshAchievementBadges();
         RefreshShopBadge();

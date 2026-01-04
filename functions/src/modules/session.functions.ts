@@ -128,6 +128,39 @@ export const submitSessionResult = onCall(async (req) => {
         // mark session as processed
         tx.set(sessRef, {state: "completed", earnedCurrency, earnedScore, processedAt: Timestamp.now()}, {merge: true});
 
+        // --- Referral Logic ---
+        const referrerUid = uSnap.get("referredByUid") as string | null;
+        if (referrerUid && earnedCurrency > 0) {
+            const refUserRef = db.collection("users").doc(referrerUid);
+            const refUserSnap = await tx.get(refUserRef);
+
+            if (refUserSnap.exists) {
+                const eliteExp = refUserSnap.get("elitePassExpiresAt") as Timestamp | null;
+                const nowMs = Date.now();
+                const hasElite = eliteExp ? (eliteExp.toMillis() > nowMs) : false;
+
+                // 10% if Elite, 5% if not
+                const rate = hasElite ? 0.10 : 0.05;
+                const bonus = Math.floor(earnedCurrency * rate);
+
+                if (bonus > 0) {
+                    const pendingRef = refUserRef.collection("referralPending").doc(uid);
+                    const pendingSnap = await tx.get(pendingRef);
+
+                    const oldAmount = pendingSnap.exists ? (Number(pendingSnap.get("amount")) || 0) : 0;
+                    const childName = (uSnap.get("username") as string) || "Guest";
+
+                    tx.set(pendingRef, {
+                        amount: oldAmount + bonus,
+                        childUid: uid,
+                        childName: childName,
+                        updatedAt: FieldValue.serverTimestamp()
+                    }, {merge: true});
+                }
+            }
+        }
+        // ----------------------
+
         return {alreadyProcessed: false, currency: newCurrency, maxScore: newBest};
     });
     try {

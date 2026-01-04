@@ -20,7 +20,10 @@ public class UIEnergyDisplay : MonoBehaviour
     private void OnEnable()
     {
         StartTickerIfNeeded();
-        RefreshNow();
+        if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.IsAuthenticated())
+        {
+            RefreshNow();
+        }
     }
 
     private void OnDisable()
