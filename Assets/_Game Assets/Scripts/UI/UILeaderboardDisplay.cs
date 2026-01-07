@@ -114,7 +114,7 @@ public class UILeaderboardDisplay : MonoBehaviour
         if (profileImage)
         {
             profileImage.sprite = defaultProfileSprite; // Reset first
-            if (!string.IsNullOrEmpty(photoUrl))
+            if (!string.IsNullOrEmpty(photoUrl) && gameObject.activeInHierarchy)
             {
                 StartCoroutine(LoadProfileImage(photoUrl));
             }

@@ -10,10 +10,51 @@ let googleAuthClient: any = null;
 async function getGoogleAuth() {
     if (googleAuthClient) return googleAuthClient;
     const {google} = require("googleapis");
+    const path = require("path");
+    const fs = require("fs");
+
+    // Strategy: Try multiple potential locations for service-account.json
+    // 1. ../service-account.json (relative to lib/modules/iap.functions.js -> lib/service-account.json)
+    // 2. ../../service-account.json (relative to lib/modules -> root workspace)
+    // 3. ./service-account.json (relative to CWD)
+
+    // Cloud Functions structure can vary. We'll check existence before requiring to avoid massive error dumps.
+    const candidates = [
+        path.resolve(__dirname, "../service-account.json"),
+        path.resolve(__dirname, "../../service-account.json"),
+        path.resolve(process.cwd(), "service-account.json"),
+        path.resolve(process.cwd(), "lib/service-account.json"),
+    ];
+
+    let foundPath: string | null = null;
+
+    console.log(`[IAP] Looking for service-account.json. __dirname: ${__dirname}, CWD: ${process.cwd()}`);
+
+    for (const p of candidates) {
+        if (fs.existsSync(p)) {
+            console.log(`[IAP] Found key at: ${p}`);
+            foundPath = p;
+            break;
+        }
+    }
+
+    if (!foundPath) {
+        console.error("[IAP] service-account.json NOT FOUND in common locations.");
+        // Debugging: List contents of key directories
+        try {
+            console.log(`[IAP DEBUG] ls __dirname (${__dirname}):`, fs.readdirSync(__dirname));
+            console.log(`[IAP DEBUG] ls ../ (${path.resolve(__dirname, "..")}):`, fs.readdirSync(path.resolve(__dirname, "..")));
+            try { console.log(`[IAP DEBUG] ls ../../ (${path.resolve(__dirname, "../..")}):`, fs.readdirSync(path.resolve(__dirname, "../.."))); } catch { }
+            try { console.log(`[IAP DEBUG] ls CWD (${process.cwd()}):`, fs.readdirSync(process.cwd())); } catch { }
+            try { console.log(`[IAP DEBUG] ls /workspace:`, fs.readdirSync("/workspace")); } catch { }
+        } catch (e) {
+            console.error("[IAP DEBUG] LS failed", e);
+        }
+        throw new Error("Server configuration error: Google Auth key missing.");
+    }
+
     try {
-        // Determine path to service account (copied to lib/ during build)
-        // We try to require it relative to this file.
-        const key = require("../../service-account.json");
+        const key = require(foundPath);
         const auth = new google.auth.GoogleAuth({
             credentials: {
                 client_email: key.client_email,
@@ -23,30 +64,53 @@ async function getGoogleAuth() {
         });
         googleAuthClient = await auth.getClient();
         return googleAuthClient;
-    } catch (e) {
-        console.error("[IAP] Failed to load service-account.json", e);
-        throw new Error("Server configuration error: Google Auth failed");
+    } catch (e: any) {
+        console.error(`[IAP] Failed to load key from ${foundPath}`, e);
+        throw new Error("Server configuration error: Google Auth failed loading key.");
     }
 }
 
 // Helper: Fetch all premium non-consumable items
 async function getPremiumItems() {
     try {
-        const snaps = await db.collectionGroup("itemdata")
-            .where("itemPremiumPrice", ">", 0)
-            .get();
+        // Correct structure: appdata/items/{itemId}/itemdata
+        // We must iterate collections under appdata/items because collectionGroup("itemdata")
+        // would work IF itemdata was a collection, but here itemdata is a DOC inside {itemId} collection.
+        // Wait, NO. If {itemId} is a collection, and itemdata is a DOC inside it.
+        // collectionGroup queries COLLECTIONS.
+        // There is no collection named "itemdata". The collection name is dynamic {itemId}.
+        // So we cannot use collectionGroup.
+
+        // We must do listCollections on appdata/items (which is a DOC 'items' in 'appdata' collection?
+        // Let's check shop.functions.ts: db.collection("appdata").doc("items").listCollections()
+
+        const itemsRef = db.collection("appdata").doc("items");
+        const collections = await itemsRef.listCollections();
+
+        console.log(`[IAP] getPremiumItems scanning ${collections.length} item collections.`);
 
         const items: { id: string, name: string }[] = [];
-        snaps.forEach(d => {
-            const data = d.data();
-            const isConsumable = !!data.itemIsConsumable;
-            if (!isConsumable) {
-                // itemdata doc's parent is the itemId document (e.g. items/item_x/itemdata)
-                // So one level up is the doc with ID.
-                const itemId = d.ref.parent.parent?.id;
-                if (itemId) items.push({id: itemId, name: data.itemName});
+
+        // Optimization: We could use Promise.all but be careful with memory if 1000s of items.
+        // Assuming < 100 items for now.
+        for (const col of collections) {
+            const docSnap = await col.doc("itemdata").get();
+            if (!docSnap.exists) continue;
+
+            const data = docSnap.data() || {};
+            const premiumPrice = Number(data.itemPremiumPrice ?? 0);
+            const isConsumable = !!data.itemIsConsumable; // Check both standard name
+
+            // Criteria: Premium Price > 0 AND Not Consumable
+            if (premiumPrice > 0 && !isConsumable) {
+                items.push({
+                    id: col.id, // The collection ID is the itemId 
+                    name: data.itemName || "Unknown Item"
+                });
             }
-        });
+        }
+
+        console.log(`[IAP] getPremiumItems found ${items.length} matches.`);
         return items;
     } catch (e) {
         console.error("getPremiumItems failed", e);
@@ -154,38 +218,67 @@ async function verifyGooglePlay(productId: string, receiptJson: string): Promise
         const auth = await getGoogleAuth();
         const androidPublisher = google.androidpublisher({version: "v3", auth});
 
-        // Try as product (consumable/non-consumable)
-        try {
-            const res = await androidPublisher.purchases.products.get({
-                packageName,
-                productId: sku,
-                token,
-            });
-            rawResponse.product = res.data;
-            if (res.data.purchaseState === 0) { // 0 = Purchased
-                return {valid: true, rawResponse};
+        // ---------------- Helpers ----------------
+        const checkProduct = async () => {
+            try {
+                const res = await androidPublisher.purchases.products.get({
+                    packageName,
+                    productId: sku,
+                    token,
+                });
+                rawResponse.product = res.data;
+                if (res.data.purchaseState === 0) return true;
+                console.warn(`[IAP] Product found but purchaseState is ${res.data.purchaseState}`);
+            } catch (e: any) {
+                // Not a product or error
             }
-        } catch (e) {
-            // ignore, might be subscription
+            return false;
+        };
+
+        const checkSubscription = async () => {
+            // Try v1
+            try {
+                const res = await androidPublisher.purchases.subscriptions.get({
+                    packageName,
+                    subscriptionId: sku,
+                    token,
+                });
+                rawResponse.subscription = res.data;
+                if (res.data.expiryTimeMillis) {
+                    const expiry = Number(res.data.expiryTimeMillis);
+                    if (expiry > Date.now()) return true;
+                }
+            } catch (e: any) {
+                // Try v2 fallback
+                try {
+                    const res = await androidPublisher.purchases.subscriptionsv2.get({
+                        packageName,
+                        token,
+                    });
+                    rawResponse.subscriptionV2 = res.data;
+                    if (res.data.subscriptionState === "SUBSCRIPTION_STATE_ACTIVE" || res.data.subscriptionState === 1) {
+                        return true;
+                    }
+                } catch (e2: any) { }
+            }
+            return false;
+        };
+        // ------------------------------------------
+
+        const isLikelySubscription = sku.toLowerCase().includes("pass") || sku.toLowerCase().includes("sub");
+
+        if (isLikelySubscription) {
+            console.log(`[IAP] Heuristic: '${sku}' looks like a subscription. Checking Subs API first.`);
+            if (await checkSubscription()) return {valid: true, rawResponse};
+            // Fallback
+            if (await checkProduct()) return {valid: true, rawResponse};
+        } else {
+            if (await checkProduct()) return {valid: true, rawResponse};
+            // Fallback
+            if (await checkSubscription()) return {valid: true, rawResponse};
         }
 
-        // Try as subscription
-        try {
-            const res = await androidPublisher.purchases.subscriptions.get({
-                packageName,
-                subscriptionId: sku,
-                token,
-            });
-            rawResponse.subscription = res.data;
-            if (res.data.expiryTimeMillis) {
-                const expiry = Number(res.data.expiryTimeMillis);
-                if (expiry > Date.now()) return {valid: true, rawResponse};
-            }
-        } catch (e: any) {
-            console.warn("[IAP] Google verification failed for both product and sub", e);
-            rawResponse.error = e.message;
-        }
-
+        console.warn("[IAP] Google verification failed (checked both Product and Subscription APIs).");
         return {valid: false, error: "Google validation failed", rawResponse};
 
     } catch (e: any) {
@@ -423,7 +516,23 @@ export const verifyPurchase = onCall(async (req) => {
         const premiumItems = await getPremiumItems();
 
         await db.runTransaction(async (tx) => {
+            // 1. READS (All reads must happen before any writes)
             const snap = await tx.get(userRef);
+
+            // Read status of all premium items to see if we need to grant them
+            const invChecks: { ref: any, exists: boolean, owned: boolean, item: any }[] = [];
+            for (const item of premiumItems) {
+                const invRef = userRef.collection("inventory").doc(item.id);
+                const invSnap = await tx.get(invRef);
+                invChecks.push({
+                    ref: invRef,
+                    exists: invSnap.exists,
+                    owned: invSnap.exists && invSnap.get("owned") === true,
+                    item: item
+                });
+            }
+
+            // 2. LOGIC
             const currentExp = snap.exists ? (snap.get("elitePassExpiresAt") as Timestamp) : null;
             let baseTime = now.toMillis();
             if (currentExp && currentExp.toMillis() > baseTime) {
@@ -431,34 +540,35 @@ export const verifyPurchase = onCall(async (req) => {
             }
             const newExp = Timestamp.fromMillis(baseTime + durationMs);
             const curPremium = Number(snap.get("premiumCurrency") ?? 0) || 0;
+            const currentEnergy = Number(snap.get("energyCurrent") ?? 0);
 
-            // Grant 400 Gems + 10 Max Energy + Active Status
+            let newCurrent = currentEnergy + 5;
+            if (newCurrent > 10) newCurrent = 10;
+
+            // 3. WRITES
+            // Update User
             tx.set(userRef, {
                 hasElitePass: true,
                 elitePassExpiresAt: newExp,
                 premiumCurrency: curPremium + 400, // Grant 400
-                energyMax: 10, // Boost Energy
+                energyMax: 10, // Set Max to 10
+                energyCurrent: newCurrent,
                 updatedAt: FieldValue.serverTimestamp()
             }, {merge: true});
 
             // Grant Items
-            for (const item of premiumItems) {
-                const invRef = userRef.collection("inventory").doc(item.id);
-                // We check existing within TX? 
-                // Optimally we should read them. But blindly setting merged with source='elite_pass' 
-                // might overwrite 'owned: true' from a REAL purchase if we are not careful?
-                // Requirement: "ancak subscribe olmadan önce aldığı item premium item varsa onlar durur".
-                // If user bought it, source is likely 'purchase' or undefined. 
-                // We should ONLY update if NOT owned.
-
-                const invSnap = await tx.get(invRef);
-                if (!invSnap.exists || !invSnap.get("owned")) {
-                    tx.set(invRef, {
+            console.log(`[IAP] Granting ${premiumItems.length} premium items.`);
+            for (const check of invChecks) {
+                if (!check.owned) {
+                    console.log(`[IAP] Granting item: ${check.item.id} (${check.item.name})`);
+                    tx.set(check.ref, {
                         owned: true,
-                        source: "elite_pass", // Marker to remove later
+                        source: "elite_pass",
                         acquiredAt: FieldValue.serverTimestamp(),
                         itemIsConsumable: false
                     }, {merge: true});
+                } else {
+                    console.log(`[IAP] Item ${check.item.id} already owned, skipping grant.`);
                 }
             }
         });

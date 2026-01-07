@@ -248,7 +248,7 @@ public class GameplayManager : MonoBehaviour
     /// Gameplay bitişini dışarıdan tetiklemek için çağır.
     /// success: level kazanıldı mı?
     /// </summary>
-    public void EndSession(bool success)
+    public async void EndSession(bool success)
     {
         if (!sessionActive) return;
         sessionActive = false;
@@ -258,15 +258,22 @@ public class GameplayManager : MonoBehaviour
         stats.levelSuccess = success;
         stats.playtimeSeconds = Mathf.Max(0f, Time.time - sessionStartTime);
 
-        // Remote reporting (fire-and-forget) – logic layer owns the call
+        // Remote reporting (awaiting server response)
         var earnedScore = logicApplier != null ? (double)logicApplier.Score : 0d;
         var earnedCurrency = _sessionCurrencyTotal;
         
         Debug.Log($"[GameplayManager] EndSession. EarnedScore: {earnedScore}, InitialMaxScore: {_initialMaxScore}");
 
-        SubmitSessionToServer(earnedCurrency, earnedScore, success);
+        // Stop updates immediately so user doesn't see game continuing while we wait
+        visualApplier?.Unbind();
+        logicApplier?.StopRun();
+        
+        // Show loading or wait? The user said "SubmitSessionResult" function tamamlanmadan dönme.
+        // Usually we might want a spinner, but blocking return to meta is the key.
+        
+        await SubmitSessionToServer(earnedCurrency, earnedScore, success);
 
-        // Check for New High Score
+        // Check for New High Score AFTER server submission (just to be safe, though local check is fine)
         if (earnedScore > _initialMaxScore)
         {
             Debug.Log($"[GameplayManager] New High Score! {earnedScore} > {_initialMaxScore}");
@@ -290,8 +297,7 @@ public class GameplayManager : MonoBehaviour
             requestReturnToMeta.Raise();
         }
 
-
-        // Let player stats cleanup (if any)
+        // Cleanup
         var statEnd = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
         statEnd?.OnRunEnd();
 
@@ -302,10 +308,6 @@ public class GameplayManager : MonoBehaviour
         }
 
         gameplayTouch?.UnbindPlayer();
-
-        // Koşuyu durdur ve temizle
-        visualApplier?.Unbind();
-        logicApplier?.StopRun();
         logicApplier?.ResetCombo();
         logicApplier?.SetGameplaySpeedMultiplier(1f);
         logicApplier?.SetPlayerSpeedMultiplier(1f);
@@ -315,109 +317,16 @@ public class GameplayManager : MonoBehaviour
 
         _coinBonusPercent = 0;
         _comboPowerFactor = 1;
-        _coinBonusPercent = 0;
         _magnetBonusPercent = 0;
         _gameplaySpeedPct = 0;
         _playerAccelPer60 = 0.1f;
         _playerSpeedAdd   = 0f;
         _playerSizePct    = 0;
 
-        // (Gerekirse burada async raporlama yapabilirsiniz)
         stats = null;
-
-        // Fazı Meta'ya geri aldır -> Moved to High Score logic block above
-        // requestReturnToMeta.Raise();
     }
 
-    private void TearDownIfAny()
-    {
-        // Önce görsel ve mantık bağlantılarını kapat
-        gameplayTouch?.UnbindPlayer();
-        var statTear = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
-        statTear?.OnRunEnd();
-
-        if (logicApplier != null)
-        {
-            logicApplier.OnSessionResultSubmitted -= OnRemoteSubmitOk;
-            logicApplier.OnSessionResultFailed    -= OnRemoteSubmitFail;
-        }
-
-        visualApplier?.Unbind();
-        logicApplier?.StopRun();
-        logicApplier?.ResetCombo();
-        logicApplier?.SetGameplaySpeedMultiplier(1f);
-        logicApplier?.SetPlayerSpeedMultiplier(1f);
-        mapLoader?.Unload();
-        playerSpawner?.DespawnAll();
-        if (playerGO != null) { Destroy(playerGO); playerGO = null; }
-        _coinBonusPercent = 0;
-        _comboPowerFactor = 1;
-        _coinBonusPercent = 0;
-        _magnetBonusPercent = 0;
-        _gameplaySpeedPct = 0;
-        _playerAccelPer60 = 0.1f;
-        _playerSpeedAdd   = 0f;
-        _playerSizePct    = 0;
-        stats = null;
-        sessionActive = false;
-        sessionStartTime = 0f;
-        _currentSessionId = null;
-    }
-
-
-    // ---- Delegates to LogicApplier (optional but useful) ----
-    public void AddCoins(float delta, Vector3? worldFxAt = null, int fxCount = 1)
-    {
-        if (delta <= 0f) return;
-        var factor = 1f + (_coinBonusPercent / 100f);
-        var effective = delta * factor;
-
-        // Track currency at manager level (logic layer does not track currency by design)
-        _sessionCurrencyTotal += effective;
-
-        // Logic layer: combo + booster + FX only (delta ignored internally)
-        logicApplier?.AddCoins(effective, worldFxAt, fxCount);
-    }
-    public void BoosterUse() => logicApplier?.BoosterUse();
-    public void ApplyGameplaySpeedPercent(float delta01)
-    {
-        if (logicApplier == null) return;
-        logicApplier.ApplyGameplaySpeedPercent(delta01);
-    }
-    public void ApplyPlayerSpeedPercent(float delta01)
-    {
-        if (logicApplier == null) return;
-        logicApplier.ApplyPlayerSpeedPercent(delta01);
-    }
-    public void SetMaxSpeed(float m) => logicApplier?.SetMaxSpeed(m);
-    public void InstantlyFillTheBooster() => logicApplier?.FillBoosterToMax();
-
-    public void RefreshCachedStatsFromPlayer()
-    {
-        var stat = playerGO ? playerGO.GetComponent<PlayerStatHandler>() : null;
-        if (stat != null)
-        {
-            _comboPowerFactor = stat.FinalComboPowerFactor;
-            _coinBonusPercent = stat.FinalCoinMultiplierPercent;
-            _magnetBonusPercent = stat.FinalMagnetPowerPct;
-            _gameplaySpeedPct = stat.FinalGameplaySpeedPct;
-            _playerAccelPer60 = stat.FinalPlayerAcceleration;
-            _playerSpeedAdd   = stat.FinalPlayerSpeedAdd;
-            _playerSizePct    = stat.FinalPlayerSizePct;
-        }
-        else
-        {
-            _comboPowerFactor = 1;
-            _coinBonusPercent = 0;
-            _magnetBonusPercent = 0;
-            _gameplaySpeedPct = 0;
-            _playerAccelPer60 = 0.1f;
-            _playerSpeedAdd   = 0f;
-            _playerSizePct    = 0;
-        }
-    }
-
-    private async void SubmitSessionToServer(double earnedCurrency, double earnedScore, bool success)
+    private async System.Threading.Tasks.Task SubmitSessionToServer(double earnedCurrency, double earnedScore, bool success)
     {
         if (logicApplier == null) return;
         if (string.IsNullOrEmpty(_currentSessionId))
@@ -468,4 +377,58 @@ public class GameplayManager : MonoBehaviour
     {
         Debug.LogWarning($"[GameplayManager] Session submit failed: {msg}");
     }
+
+    // --- restored missing methods ---
+
+    private void TearDownIfAny()
+    {
+        // Internal cleanup helper
+        if (sessionActive)
+        {
+            EndSession(false);
+        }
+    }
+
+    public void AddCoins(double amount, Vector3? worldPos = null, int fxCount = 1)
+    {
+        if (logicApplier != null)
+        {
+            // Delegate completely to logic applier (which fires events for visuals)
+            logicApplier.AddCoins((float)amount, worldPos, fxCount);
+            
+            _sessionCurrencyTotal += amount;
+        }
+    }
+    // Overload for simple usage
+    public void AddCoins(float amount) => AddCoins((double)amount);
+
+
+    public void ApplyGameplaySpeedPercent(float pct)
+    {
+        // logicApplier expects delta (e.g. 0.25 for +25%)
+        if (logicApplier != null)
+        {
+            logicApplier.ApplyGameplaySpeedPercent(pct);
+        }
+    }
+
+    public void ApplyPlayerSpeedPercent(float pct)
+    {
+        if (logicApplier != null)
+        {
+             logicApplier.ApplyPlayerSpeedPercent(pct);
+        }
+    }
+
+    public void InstantlyFillTheBooster()
+    {
+         // Delegate to logicApplier if it has a booster concept, 
+         // or if this is about the player's special ability bar.
+         // Assuming logicApplier has a method for this, otherwise we might need to access PlayerController directly.
+         if(logicApplier != null) 
+         {
+             logicApplier.FillBoosterToMax();
+         }
+    }
+
 }

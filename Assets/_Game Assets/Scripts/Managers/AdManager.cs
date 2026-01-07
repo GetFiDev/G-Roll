@@ -6,7 +6,7 @@ using AppodealAds.Unity.Common;
 public abstract class AdManager
 {
     // A simplified listener class to bridge callbacks to Actions
-    private class AdListener : IRewardedVideoAdListener, IInterstitialAdListener
+    private class AdListener : IRewardedVideoAdListener, IInterstitialAdListener, IAppodealInitializationListener
     {
         private Action<bool> _onRewardedComplete;
 
@@ -52,23 +52,52 @@ public abstract class AdManager
         public void onInterstitialClosed() { }
         public void onInterstitialClicked() { }
         public void onInterstitialExpired() { }
+
+        // --- Initialization ---
+        public void onInitializationFinished(System.Collections.Generic.List<string> errors)
+        {
+            string output = errors == null ? string.Empty : string.Join(", ", errors);
+            Debug.Log($"[AdManager] onInitializationFinished(errors:[{output}])");
+        }
     }
 
     private static AdListener _listener;
+    
+#if UNITY_ANDROID
+    private const string AppKey = "a19618d3fac34820a6ca644fb52240e658699d884f46fd2a";
+#elif UNITY_IOS
+    private const string AppKey = "";
+#else
+    private const string AppKey = "";
+#endif
 
     public static void Initialize()
     {
         if (_listener == null)
         {
             _listener = new AdListener();
+            
+            // Basic settings
+            // Appodeal.setTesting(true); // Uncomment if testing is needed
+            // Appodeal.setLogLevel(Appodeal.LogLevel.Verbose);
+
+            int adTypes = Appodeal.INTERSTITIAL | Appodeal.REWARDED_VIDEO;
+            
             Appodeal.setRewardedVideoCallbacks(_listener);
             Appodeal.setInterstitialCallbacks(_listener);
+            
+            // Initialize SDK
+            Appodeal.initialize(AppKey, adTypes, _listener);
+            Debug.Log("[AdManager] Initializing Appodeal with Key: " + AppKey);
         }
     }
 
     public static void ShowInterstitial(string placement)
     {
-        // Empty as requested
+        if (Appodeal.isLoaded(Appodeal.INTERSTITIAL))
+        {
+             Appodeal.show(Appodeal.INTERSTITIAL, placement);
+        }
     }
 
     public static void ShowRewarded(string placement, Action<bool> onComplete)
@@ -92,7 +121,8 @@ public abstract class AdManager
         }
         else
         {
-            Debug.Log("Rewared Ad not loaded");
+            Debug.Log("[AdManager] Rewarded Ad not loaded yet. Attempting cache or wait.");
+            // Optional: call cache if needed, though autocheck is usually on
             onComplete?.Invoke(false);
         }
     }

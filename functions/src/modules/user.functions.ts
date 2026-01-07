@@ -173,17 +173,24 @@ export const createUserProfile = functionsV1.auth.user().onCreate(async (user) =
     const now = FieldValue.serverTimestamp();
     const ref = db.collection("users").doc(uid);
 
-    // Check if user exists first
+    // RACE CONDITION FIX:
+    // Some flows (like referral application) might create the doc BEFORE this trigger runs.
+    // Instead of exiting if doc exists, we check if it is "initialized" (has createdAt).
     const snap = await ref.get();
-    if (snap.exists) return;
 
-    // Get Rank (User Count)
+    // If it has 'createdAt', assume it is already fully initialized.
+    if (snap.exists && snap.data()?.createdAt) {
+        console.log(`[createUserProfile] Profile for ${uid} already fully initialized. Skipping.`);
+        return;
+    }
+
+    // Get Rank (User Count) - Only fetching if we are truly setting up the user
+    // (If it was a partial doc, it likely doesn't have rank/stats/currency yet)
+    // Note: If partial doc exists, we merge into it.
     const rank = await getNextUserRank();
 
     // Default JSONs
-    // Use same BASE_STATS logic as shop.functions (hardcoded here for now to avoid circular dependency
-    // or import issues if not shared properly)
-    // Synchronized with shop.functions.ts
+    // Use same BASE_STATS logic as shop.functions 
     const statsJson = JSON.stringify({
         "comboPower": 25,
         "playerSpeed": 20,
@@ -195,30 +202,31 @@ export const createUserProfile = functionsV1.auth.user().onCreate(async (user) =
     });
 
     // 1 day ago for elitePassExpiresAt
-    // We can't easily get "now - 24h" with ServerTimestamp in the same write 
-    // without a read-modify-write or predefined constant.
-    // But since it's just an initial "expired" state, setting it to 'now' or epoch 0 is fine.
-    // User asked for "1 day before registration". 
-    // We'll use JS Date for the initial value since it's a fixed point in time relative to function execution.
     const OneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const elitePassExpiresAt = Timestamp.fromDate(OneDayAgo);
 
-    console.log(`[createUserProfile] Creating profile for ${uid} with Rank ${rank}`);
+    console.log(`[createUserProfile] Creating/Merging profile for ${uid} with Rank ${rank}`);
 
+    // Use MERGE to preserve any existing fields (like referralKey, referredByUid)
     await ref.set({
-        // Identity
+        // Identity (Merge safe: will overwrite with sync'd auth data which is good)
         uid,
         email: email || "",
-        mail: email || "", // Duplicate field as in Client
+        mail: email || "",
         photoUrl: photoURL || "",
-        username: "",
+        // username: "", 
+        // DONT overwrite username if it exists (e.g. from early set flow) - handled by merge if we omit it? 
+        // actually username is usually empty string initially. If partial doc has it, we shouldn't wipe it.
+        // We will explicitly set it ONLY if it is missing in the data we write? No, set with merge merges fields.
+        // To be safe, let's conditionally add username only if we want to force empty. 
+        // Standard flow: User has no username yet.
 
         // Timestamps
-        createdAt: now,
+        createdAt: now, // Critical marker for initialization
         updatedAt: now,
         lastLogin: now,
-        lastLoginLocalDate: "", // Client must update
-        tzOffsetMinutes: 0,     // Client must update
+        lastLoginLocalDate: "",
+        tzOffsetMinutes: 0,
 
         // Subscriptions
         hasElitePass: false,
@@ -250,22 +258,21 @@ export const createUserProfile = functionsV1.auth.user().onCreate(async (user) =
         itemsPurchasedCount: 0,
 
         // Social / Referral
-        referralKey: "", // Will be generated on SetName
-        referralCount: 0, // Unified to match v2.0 spec (was referrals)
+        // referralKey: "", // Danger: Don't overwrite if partial doc has it
+        referralCount: 0,
         referralEarnings: 0,
-        referredByUid: "",
-        referredByKey: "",
-
+        // referredByUid: "", // Danger: Don't overwrite
+        // referredByKey: "", // Danger: Don't overwrite
 
         // Energy System
         energyCurrent: 5,
         energyMax: 5,
-        energyRegenPeriodSec: 14400, // 4 hours
+        energyRegenPeriodSec: 14400,
         energyUpdatedAt: now,
 
         // Internal
         isProfileComplete: false,
-    });
+    }, {merge: true});
 });
 
 // Callable: Complete Profile (Set Username + Apply Referral)
@@ -721,4 +728,25 @@ export const claimReferralEarnings = onCall(async (req) => {
 
         return {claimed: batchTotal, count: breakdown.length};
     });
+});
+
+
+// Sync Email: Updates the user's email in Firestore from the Auth Token
+// Useful for GPGS users who just granted Email scope after account creation.
+export const syncUserEmail = onCall(async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const email = req.auth?.token.email;
+    if (!email) {
+        return {updated: false, reason: "No email in auth token"};
+    }
+
+    await db.collection("users").doc(uid).set({
+        email: email,
+        mail: email,
+        updatedAt: FieldValue.serverTimestamp()
+    }, {merge: true});
+
+    return {updated: true, email: email};
 });

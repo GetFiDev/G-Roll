@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using NetworkingData;
 
 public class UITopPanel : MonoBehaviour
 {
@@ -21,6 +22,32 @@ public class UITopPanel : MonoBehaviour
         statsDisplayer.RefreshUserStats();
     }
     
+    private void OnEnable()
+    {
+        if (UserDatabaseManager.Instance != null)
+        {
+            UserDatabaseManager.Instance.OnUserDataSaved += OnUserDataUpdated;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (UserDatabaseManager.Instance != null)
+        {
+            UserDatabaseManager.Instance.OnUserDataSaved -= OnUserDataUpdated;
+        }
+    }
+
+    private void OnUserDataUpdated(UserData data)
+    {
+        // User requested a quick toggle to force refresh logic that relies on OnEnable
+        gameObject.SetActive(false);
+        gameObject.SetActive(true);
+        
+        if (statsDisplayer != null)
+            statsDisplayer.RefreshUserStats();
+    }
+
     public void OnSettingsButtonClick()
     {
         bottomPanel.ChangeAllColorToDefault();

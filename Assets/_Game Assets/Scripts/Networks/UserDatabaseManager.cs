@@ -225,7 +225,7 @@ public class UserDatabaseManager : MonoBehaviour
     /// <summary>
     /// Authenticate with a credential obtained from a social provider (Play Games, Game Center, etc.)
     /// </summary>
-    public async void LoginWithCredential(Credential credential, string photoUrlToSave = null)
+    public async void LoginWithCredential(Credential credential, string photoUrlToSave = null, string emailToSave = null)
     {
         Reset();
         if (auth == null) { EmitLog("❌ Auth null"); return; }
@@ -238,25 +238,56 @@ public class UserDatabaseManager : MonoBehaviour
             currentLoggedUserID = currentUser?.UserId;
             EmitLog($"✅ Social Login succeed, UID: {currentLoggedUserID}");
 
-            // --- NEW: Update Photo URL if provided ---
-            if (!string.IsNullOrEmpty(photoUrlToSave))
+            // --- FAKE EMAIL LOGIC FOR GPGS ---
+            if (emailToSave == "GENERATE_FROM_UID")
+            {
+                emailToSave = $"{currentLoggedUserID}@groll.com";
+            }
+            // ---------------------------------
+
+            // --- NEW: Update Photo URL & Email if provided ---
+            if (!string.IsNullOrEmpty(photoUrlToSave) || !string.IsNullOrEmpty(emailToSave))
             {
                 try
                 {
-                    EmitLog($"📸 Saving PhotoURL to Firestore: {photoUrlToSave}");
-                    var patch = new Dictionary<string, object> { { "photoUrl", photoUrlToSave } };
+                    var patch = new Dictionary<string, object>();
+                    if (!string.IsNullOrEmpty(photoUrlToSave)) 
+                    {
+                        EmitLog($"📸 Saving PhotoURL to Firestore: {photoUrlToSave}");
+                        patch["photoUrl"] = photoUrlToSave;
+                    }
+                    if (!string.IsNullOrEmpty(emailToSave))
+                    {
+                        EmitLog($"📧 Saving Email to Firestore: {emailToSave}");
+                        patch["email"] = emailToSave;
+                        patch["mail"] = emailToSave; // Duplicate for safety as seen in Cloud Functions
+                    }
+
                     // Direct Firestore update to avoid overwriting other fields
                     await UserDoc().SetAsync(patch, SetOptions.MergeAll);
                 }
                 catch (Exception ex)
                 {
-                    EmitLog($"⚠️ Failed to save PhotoURL: {ex.Message}");
+                    EmitLog($"⚠️ Failed to save Profile Info: {ex.Message}");
                 }
             }
             // -----------------------------------------
 
             // Daily streak: update once on sign-in
             await UpdateDailyStreakAsync();
+
+            // --- SYNC EMAIL (Fix for missing emails via GPGS) ---
+            try
+            {
+                var syncFunc = FirebaseFunctions.DefaultInstance.GetHttpsCallable("syncUserEmail");
+                _ = syncFunc.CallAsync(); // Fire and forget to not block UI
+                EmitLog("📧 Requested Email Sync...");
+            }
+            catch (Exception exSync)
+            {
+                EmitLog($"⚠️ Email Sync Failed: {exSync.Message}");
+            }
+            // ----------------------------------------------------
 
             // En güncel user data
             var data = await LoadUserData();
@@ -348,15 +379,21 @@ public class UserDatabaseManager : MonoBehaviour
                 }
                 // ------------------------------------
 
-                PlayGamesPlatform.Instance.RequestServerSideAccess(true, (authCode) =>
+                // REQUEST EMAIL SCOPE via Server Access
+                // This is the correct way for modern GPGS plugins to ask for email
+                var scopes = new List<AuthScope> { AuthScope.EMAIL };
+                PlayGamesPlatform.Instance.RequestServerSideAccess(true, scopes, (authResponse) =>
                 {
+                    string authCode = authResponse?.GetAuthCode();
                     if (!string.IsNullOrEmpty(authCode))
                     {
-                        EmitLog("✅ Auth Code received. Exchanging for Firebase Credential...");
+                        EmitLog("✅ Auth Code received using Scopes. Exchanging for Firebase Credential...");
                         Credential credential = PlayGamesAuthProvider.GetCredential(authCode);
                         
-                        // Pass the photoUrl to the login handler or save it after login
-                        LoginWithCredential(credential, photoUrl); 
+                        // We do not have the email string client-side, but the Token has the scope.
+                        // Firebase Function createUserProfile will extract it.
+                        // USER REQUEST: Fallback to {uid}@groll.com if GPGS.
+                        LoginWithCredential(credential, photoUrl, "GENERATE_FROM_UID"); 
                     }
                     else
                     {
