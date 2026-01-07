@@ -14,7 +14,7 @@ public static class ReferralRemoteService
     {
         public bool hasPending;
         public List<PendingItem> items;
-        public long total;
+        public double total;
     }
 
     [Serializable]
@@ -22,13 +22,13 @@ public static class ReferralRemoteService
     {
         public string childUid;
         public string childName;
-        public long amount;
+        public double amount;
     }
 
     [Serializable]
     public class ClaimResponse
     {
-        public long claimed;
+        public double claimed;
         public int count;
     }
 
@@ -49,7 +49,7 @@ public static class ReferralRemoteService
 
             var resp = new PendingReferralsResponse();
             resp.hasPending = GetBool(data, "hasPending");
-            resp.total = GetLong(data, "total");
+            resp.total = GetDouble(data, "total");
             resp.items = new List<PendingItem>();
 
             if (data.ContainsKey("items") && data["items"] is List<object> list)
@@ -62,7 +62,7 @@ public static class ReferralRemoteService
                         {
                             childUid = GetString(d, "childUid"),
                             childName = GetString(d, "childName"),
-                            amount = GetLong(d, "amount")
+                            amount = GetDouble(d, "amount")
                         });
                     }
                 }
@@ -89,7 +89,7 @@ public static class ReferralRemoteService
 
             return new ClaimResponse
             {
-                claimed = GetLong(data, "claimed"),
+                claimed = GetDouble(data, "claimed"),
                 count = GetInt(data, "count")
             };
         }
@@ -102,7 +102,7 @@ public static class ReferralRemoteService
 
     // Helpers
     private static bool GetBool(IDictionary<object, object> d, string key) => d.ContainsKey(key) && Convert.ToBoolean(d[key]);
-    private static long GetLong(IDictionary<object, object> d, string key) => d.ContainsKey(key) ? Convert.ToInt64(d[key]) : 0;
+    private static double GetDouble(IDictionary<object, object> d, string key) => d.ContainsKey(key) ? Convert.ToDouble(d[key]) : 0.0;
     private static int GetInt(IDictionary<object, object> d, string key) => d.ContainsKey(key) ? Convert.ToInt32(d[key]) : 0;
     private static string GetString(IDictionary<object, object> d, string key) => d.ContainsKey(key) ? d[key]?.ToString() : "";
 }

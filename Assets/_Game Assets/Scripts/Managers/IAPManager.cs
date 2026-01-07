@@ -162,6 +162,7 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
 
         Debug.Log("[IAPManager] Initializing Unity IAP...");
         _isInitializationStarted = true;
+        StartCoroutine(InitializationTimeout());
 
         var module = StandardPurchasingModule.Instance();
 #if UNITY_EDITOR
@@ -169,26 +170,41 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
 #endif
         var builder = ConfigurationBuilder.Instance(module);
 
+        // Debug Log Products
+        void AddP(string id, ProductType t) {
+            Debug.Log($"[IAPManager] Adding Product to Builder: {id} ({t})");
+            builder.AddProduct(id, t);
+        }
+
         // Subs
-        // Only add unique IDs. ElitePass and Monthly are the same ID.
-        builder.AddProduct(ID_ElitePass, ProductType.Subscription);
-        // builder.AddProduct(ID_ElitePassMonthly, ProductType.Subscription); // DUPLICATE REMOVED
-        builder.AddProduct(ID_ElitePassAnnual, ProductType.Subscription);
+        AddP(ID_ElitePass, ProductType.Subscription);
+        AddP(ID_ElitePassAnnual, ProductType.Subscription);
 
         // Consumables
-        builder.AddProduct(ID_Diamond5, ProductType.Consumable);
-        builder.AddProduct(ID_Diamond10, ProductType.Consumable);
-        builder.AddProduct(ID_Diamond25, ProductType.Consumable);
-        builder.AddProduct(ID_Diamond60, ProductType.Consumable);
-        builder.AddProduct(ID_Diamond150, ProductType.Consumable);
-        builder.AddProduct(ID_Diamond400, ProductType.Consumable);
-        builder.AddProduct(ID_Diamond1000, ProductType.Consumable);
+        AddP(ID_Diamond5, ProductType.Consumable);
+        AddP(ID_Diamond10, ProductType.Consumable);
+        AddP(ID_Diamond25, ProductType.Consumable);
+        AddP(ID_Diamond60, ProductType.Consumable);
+        AddP(ID_Diamond150, ProductType.Consumable);
+        AddP(ID_Diamond400, ProductType.Consumable);
+        AddP(ID_Diamond1000, ProductType.Consumable);
 
         // Non-Consumables
-        builder.AddProduct(ID_RemoveAds, ProductType.NonConsumable);
-        builder.AddProduct(ID_RemoveAdsBundle, ProductType.NonConsumable);
+        AddP(ID_RemoveAds, ProductType.NonConsumable);
+        AddP(ID_RemoveAdsBundle, ProductType.NonConsumable);
 
         UnityPurchasing.Initialize(this, builder);
+    }
+
+    private IEnumerator InitializationTimeout()
+    {
+        yield return new WaitForSeconds(10f);
+        if (_isInitializationStarted && !IsInitialized())
+        {
+            Debug.LogError("[IAPManager] Initialization Timed Out (10s)! Force-resetting state.");
+            _isInitializationStarted = false;
+            OnInitializeFailed(InitializationFailureReason.AppNotKnown, "Timeout");
+        }
     }
 
     public bool IsInitialized()
@@ -219,6 +235,13 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
             case IAPProductType.RemoveAdsBundle: return ID_RemoveAdsBundle;
             default: return "";
         }
+    }
+
+    public bool IsProductOwnedLocally(string productId)
+    {
+        if (!IsInitialized() || _controller == null) return false;
+        var product = _controller.products.WithID(productId);
+        return product != null && product.hasReceipt;
     }
 
     public string GetLocalizedPrice(string productId)
@@ -444,6 +467,9 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
                 // Grant logic is handled by server (database update).
                 // Client might need to refresh local inventory/stats.
                 if (UserInventoryManager.Instance) await UserInventoryManager.Instance.RefreshAsync();
+                
+                // Refresh UserData to sync subscription status (e.g. Elite Pass)
+                if (UserDatabaseManager.Instance) await UserDatabaseManager.Instance.LoadUserData();
                 
                 // Confirm to Unity IAP so it doesn't queue it again
                 _controller.ConfirmPendingPurchase(product);

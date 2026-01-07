@@ -19,7 +19,7 @@ public class CreateItemTool : MonoBehaviour
 
     [Title("Purchase Properties")]
     [BoxGroup("Prices")]
-    public double itemDollarPrice = 0;
+    public double itemPremiumPrice = 0;
     [BoxGroup("Prices")]
     public double itemGetPrice = 0.05;
     [BoxGroup("Prices")]
@@ -58,7 +58,7 @@ public class CreateItemTool : MonoBehaviour
             { "itemName", itemName },
             { "itemDescription", itemDescription },
             { "itemIconUrl", itemIconUrl },
-            { "itemDollarPrice", itemDollarPrice },
+            { "itemPremiumPrice", itemPremiumPrice },
             { "itemGetPrice", itemGetPrice },
             { "itemReferralThreshold", itemReferralThreshold },
             { "itemIsConsumable", itemIsConsumable },

@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.Networking;
+using System.Collections;
 
 public class UILeaderboardDisplay : MonoBehaviour
 {
@@ -9,19 +11,27 @@ public class UILeaderboardDisplay : MonoBehaviour
     [SerializeField] private TextMeshProUGUI usernameTMP;
     [SerializeField] private TextMeshProUGUI scoreTMP;
 
+    [Header("Profile Visuals")]
+    [SerializeField] private Image profileImage;
+    [SerializeField] private Image avatarFrameImage; // Avatarın etrafındaki çerçeve/platter
+    [SerializeField] private GameObject eliteBadgeObj;
+    [SerializeField] private Sprite defaultProfileSprite;
+    [SerializeField] private Sprite avatarFrameElite;
+    [SerializeField] private Sprite avatarFrameDefault;
+
+    [Header("Rank Visuals")]
+    [SerializeField] private Image rankPlatterImage; // Arkadaki tabak (gold/silver/bronze)
+    [SerializeField] private Sprite rankPlatterGold;
+    [SerializeField] private Sprite rankPlatterSilver;
+    [SerializeField] private Sprite rankPlatterBronze;
+
     [Header("Frame (row background)")]
-    [SerializeField] private Image backgroundImage; // sıra arka plan çerçevesi
+    [SerializeField] private Image backgroundImage; 
+    [SerializeField] private Sprite bgElite;
+    [SerializeField] private Sprite bgDefault;
 
-    [Header("Frame Sprites")]
-    [SerializeField] private Sprite spriteTop3Elite;
-    [SerializeField] private Sprite spriteTop3NonElite;
-    [SerializeField] private Sprite spriteElite;
-    [SerializeField] private Sprite spriteDefault;
-
-    [Header("Rank Plate (behind rank text)")]
-    [SerializeField] private Image rankPlateImage;
-    [SerializeField] private Sprite rankPlateElite;
-    [SerializeField] private Sprite rankPlateDefault;
+    // Deprecated fields removed/ignored
+    // [Header("Frame Sprites")] ...
 
     [Header("Options")]
     [SerializeField] private bool hideRankIfEmpty = true; // rank boşsa gizle
@@ -30,19 +40,7 @@ public class UILeaderboardDisplay : MonoBehaviour
     /// <summary>Self header gibi özel yerlerde arka plan çerçevesini sabitle.</summary>
     public void SetLockFrame(bool on) => lockFrameSprite = on;
 
-    /// <summary>
-    /// Self header'ın Inspector'ında rank plate sprite'ları boş bırakıldıysa,
-    /// row prefab'ından gelen sprite'ları buraya enjekte edebilmek için.
-    /// </summary>
-    public void EnsureRankPlateSprites(Sprite defaultPlate, Sprite elitePlate)
-    {
-        if (rankPlateDefault == null) rankPlateDefault = defaultPlate;
-        if (rankPlateElite   == null) rankPlateElite   = elitePlate;
-    }
 
-    /// <summary>Row prefab’ındaki plate sprite’larına dışarıdan erişim (panel runtime inject için).</summary>
-    public Sprite GetRankPlateDefault() => rankPlateDefault;
-    public Sprite GetRankPlateElite()   => rankPlateElite;
 
     /// <summary>
     /// Bütün görsel bağlama burada.
@@ -56,54 +54,87 @@ public class UILeaderboardDisplay : MonoBehaviour
     ///   - hasElite -> rankPlateElite
     ///   - else     -> rankPlateDefault
     /// </summary>
-    public void SetData(string rankText, string username, int score, bool isTop3, bool hasElite)
+    public void SetData(int rank, string username, int score, bool hasElite, string photoUrl)
     {
-        // Metinler
-        if (usernameTMP)
-            usernameTMP.text = string.IsNullOrWhiteSpace(username) ? "Guest" : username;
+        // 1. Texts
+        if (usernameTMP) usernameTMP.text = string.IsNullOrWhiteSpace(username) ? "Guest" : username;
+        if (scoreTMP) scoreTMP.text = score.ToString();
 
-        if (scoreTMP)
-            scoreTMP.text = score.ToString();
-
-        if (rankTMP)
+        // 2. Rank Logic
+        if (rank > 0)
         {
-            if (string.IsNullOrEmpty(rankText) && hideRankIfEmpty)
-            {
-                rankTMP.gameObject.SetActive(false);
-                rankTMP.text = string.Empty;
-            }
-            else
+            // Always show Text
+            if (rankTMP) 
             {
                 rankTMP.gameObject.SetActive(true);
-                rankTMP.text = rankText;
+                rankTMP.text = rank.ToString();
+            }
+
+            // Platter Logic
+            if (rankPlatterImage)
+            {
+                rankPlatterImage.gameObject.SetActive(true);
+                
+                if (rank <= 3)
+                {
+                    // Top 3: Show Gold/Silver/Bronze
+                    var c = rankPlatterImage.color;
+                    c.a = 1f;
+                    rankPlatterImage.color = c;
+
+                    if (rank == 1) rankPlatterImage.sprite = rankPlatterGold;
+                    else if (rank == 2) rankPlatterImage.sprite = rankPlatterSilver;
+                    else if (rank == 3) rankPlatterImage.sprite = rankPlatterBronze;
+                }
+                else
+                {
+                    // Rank > 3: Hide Platter
+                    var c = rankPlatterImage.color;
+                    c.a = 0f;
+                    rankPlatterImage.color = c;
+                }
             }
         }
-
-        ApplyFrame(isTop3, hasElite);
-        ApplyRankPlate(hasElite);
-    }
-
-    private void ApplyFrame(bool isTop3, bool hasElite)
-    {
-        if (backgroundImage == null) return;
-        if (lockFrameSprite) return; // self header: arka plan sabit
-
-        Sprite frame = null;
-        if (isTop3)
-            frame = hasElite ? spriteTop3Elite : spriteTop3NonElite;
         else
-            frame = hasElite ? spriteElite : spriteDefault;
+        {
+            // Rank unavailable
+            if (rankTMP) rankTMP.text = "-";
+            if (rankPlatterImage) rankPlatterImage.gameObject.SetActive(false);
+        }
 
-        backgroundImage.sprite = frame;
-        backgroundImage.enabled = frame != null;
+        // 3. Elite Visuals (Background & Avatar Frame & Badge)
+        if (backgroundImage) backgroundImage.sprite = hasElite ? bgElite : bgDefault;
+        if (avatarFrameImage) avatarFrameImage.sprite = hasElite ? avatarFrameElite : avatarFrameDefault;
+        if (eliteBadgeObj) eliteBadgeObj.SetActive(hasElite);
+
+        // 4. Locked Frame Logic (Self Header)
+        if (lockFrameSprite && backgroundImage) backgroundImage.sprite = bgElite; // Example override if needed
+
+        // 5. Profile Picture
+        if (profileImage)
+        {
+            profileImage.sprite = defaultProfileSprite; // Reset first
+            if (!string.IsNullOrEmpty(photoUrl))
+            {
+                StartCoroutine(LoadProfileImage(photoUrl));
+            }
+        }
     }
 
-    private void ApplyRankPlate(bool hasElite)
+    private IEnumerator LoadProfileImage(string url)
     {
-        if (rankPlateImage == null) return;
-
-        var plate = hasElite ? rankPlateElite : rankPlateDefault;
-        rankPlateImage.sprite = plate;
-        rankPlateImage.enabled = (plate != null);
+        using (UnityWebRequest req = UnityWebRequestTexture.GetTexture(url))
+        {
+            yield return req.SendWebRequest();
+            if (req.result == UnityWebRequest.Result.Success)
+            {
+                Texture2D tex = DownloadHandlerTexture.GetContent(req);
+                if (tex && profileImage)
+                {
+                    profileImage.sprite = Sprite.Create(tex, new Rect(0,0,tex.width,tex.height), new Vector2(0.5f, 0.5f));
+                }
+            }
+        }
     }
+
 }

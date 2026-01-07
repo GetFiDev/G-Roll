@@ -1,4 +1,37 @@
 import {Timestamp} from "@google-cloud/firestore";
+import {db} from "../firebase";
+
+// Helper: Get Active Season ID
+export async function getActiveSeasonId(): Promise<string | null> {
+    const now = Timestamp.now();
+    try {
+        console.log(`[getActiveSeasonId] DB_ID=${db.databaseId}, Now=${now.toDate().toISOString()}`);
+
+        // Strategy: Filter by endDate ONLY to avoid composite index requirement.
+        // Then filter startDate in memory.
+        const snap = await db.collection("seasons")
+            .where("endDate", ">=", now)
+            .orderBy("endDate")
+            .limit(5) // Fetch a few candidates (future seasons)
+            .get();
+
+        console.log(`[getActiveSeasonId] Found ${snap.size} candidates (not ended)`);
+
+        for (const doc of snap.docs) {
+            const data = doc.data();
+            const start = data.startDate as Timestamp;
+            // Check if it has started
+            if (start && start.toMillis() <= now.toMillis()) {
+                console.log(`[getActiveSeasonId] Active Season Found: ${doc.id}`);
+                return doc.id;
+            }
+        }
+        console.log("[getActiveSeasonId] No active season found in candidates.");
+    } catch (e) {
+        console.error("Error fetching active season:", e);
+    }
+    return null;
+}
 
 // --- ID Normalization Helper (use everywhere for itemId) ---
 export const normId = (s?: string) => (s || "").trim().toLowerCase();

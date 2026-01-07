@@ -69,6 +69,7 @@ public class AchievementsPanelController : MonoBehaviour
 
     public async Task RefreshUIAsync()
     {
+        if (!isActiveAndEnabled) return;
         if (_refreshing) return;
         _refreshing = true;
 
@@ -206,6 +207,9 @@ public class AchievementsPanelController : MonoBehaviour
 
     private void UpdateStreakUI(StreakService.StreakSnapshot s)
     {
+        // Guard: If inactive, we cannot start coroutines.
+        if (!isActiveAndEnabled) return;
+
         // Update counter
         StopAllCoroutines(); // Stop pulse or countdown
         if (streakTMP) streakTMP.alpha = 1f;
@@ -335,18 +339,7 @@ public class AchievementsPanelController : MonoBehaviour
             // 1) Full refresh (like restarting the game’s achievements UI)
             await RefreshUIAsync();
 
-            // 2) Re-open the same achievement with the latest snapshot so UI never stays in a stale state
-            if (!string.IsNullOrEmpty(_openedTypeId))
-            {
-                var newDef = _snapshot?.defs?.Find(d => d.typeId == _openedTypeId);
-                var newSt  = _snapshot?.states?.Find(s => s.typeId == _openedTypeId)
-                             ?? new AchState { typeId = _openedTypeId, level = 0, progress = 0, claimedLevels = new List<int>() };
-
-                if (newDef != null)
-                {
-                    detailPanel.Open(newDef, newSt, async () => { await RefreshUIAsync(); });
-                }
-            }
+            // The code that forced the panel to re-open has been removed as per user request.
         });
     }
 

@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using System.Linq;
+using UnityEngine.UI;
 
 public class ShopItemManager : MonoBehaviour
 {
     [Header("Item Prefab")]
     [SerializeField] private UIShopItemDisplay itemPrefab;
     [SerializeField] private UIShopItemDisplay bullMarketItemPrefab;
+    [SerializeField] private GameObject diamondArtworkPrefab;
 
     [Header("Tab Roots (assign in Inspector)")]
     [SerializeField] private Transform myItemsRoot;
@@ -29,6 +31,7 @@ public class ShopItemManager : MonoBehaviour
     private int _referralCount;
 
     private readonly List<UIShopItemDisplay> _spawned = new();
+    private readonly List<GameObject> _extraSpawned = new();
     private bool _isRefreshing;
 
     private async void OnEnable()
@@ -74,11 +77,14 @@ public class ShopItemManager : MonoBehaviour
             // Repo hazır değilse initialize et
             if (!ItemDatabaseManager.IsReady)
                 await ItemDatabaseManager.InitializeAsync();
+            
+            if (!isActiveAndEnabled) return;
 
             // Ensure inventory is initialized before spawning cards so ownership is correct on first render
             if (UserInventoryManager.Instance != null && !UserInventoryManager.Instance.IsInitialized)
             {
                 await UserInventoryManager.Instance.InitializeAsync();
+                if (!isActiveAndEnabled) return;
             }
             else if (UserInventoryManager.Instance == null)
             {
@@ -106,17 +112,17 @@ public class ShopItemManager : MonoBehaviour
             // --- PREMIUM --- (cheapest dollarPrice -> expensive)
             var premiumItems = allItems
                 .Where(i => DetermineCategory(i) == ShopCategory.Premium)
-                .OrderBy(i => i.dollarPrice)
+                .OrderBy(i => i.premiumPrice)
                 .ToList();
             SpawnList(premiumItems, ShopCategory.Premium);
 
             // --- BULL MARKET --- (RewardedAd first -> GetPrice asc -> DollarPrice asc)
             var bullAll = allItems.Where(i => DetermineCategory(i) == ShopCategory.BullMarket).ToList();
             var bullRewarded = bullAll.Where(i => i.isRewardedAd).ToList();
-            var bullInGame   = bullAll.Where(i => !i.isRewardedAd && i.getPrice > 0 && i.dollarPrice <= 0)
+            var bullInGame   = bullAll.Where(i => !i.isRewardedAd && i.getPrice > 0 && i.premiumPrice <= 0)
                                       .OrderBy(i => i.getPrice).ToList();
-            var bullDollar   = bullAll.Where(i => !i.isRewardedAd && i.dollarPrice > 0)
-                                      .OrderBy(i => i.dollarPrice).ToList();
+            var bullDollar   = bullAll.Where(i => !i.isRewardedAd && i.premiumPrice > 0)
+                                      .OrderBy(i => i.premiumPrice).ToList();
             var bullItemsOrdered = bullDollar.Concat(bullInGame).Concat(bullRewarded).ToList();
             SpawnList(bullItemsOrdered, ShopCategory.BullMarket);
 
@@ -131,6 +137,13 @@ public class ShopItemManager : MonoBehaviour
             int coreOwned    = CountOwned(coreItems);
             int premiumTotal = premiumItems.Count;
             int premiumOwned = CountOwned(premiumItems);
+            
+            // New: Fetch referral count dynamically if user is logged in
+            if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.IsAuthenticated())
+            {
+                // We await this to ensure label is correct immediately
+                _referralCount = await UserDatabaseManager.Instance.GetReferralCountAsync();
+            }
 
             // My Bag: "x items"
             if (myBagCountText != null)
@@ -231,6 +244,13 @@ public class ShopItemManager : MonoBehaviour
                 Destroy(_spawned[i].gameObject);
         }
         _spawned.Clear();
+
+        for (int i = 0; i < _extraSpawned.Count; i++)
+        {
+            if (_extraSpawned[i] != null)
+                Destroy(_extraSpawned[i]);
+        }
+        _extraSpawned.Clear();
     }
 
     /// <summary>
@@ -251,12 +271,12 @@ public class ShopItemManager : MonoBehaviour
         if (d.isConsumable && d.referralThreshold == 0)
             return ShopCategory.BullMarket;
 
-        // 3) Premium (real money only)
-        if (d.dollarPrice > 0 && d.getPrice <= 0 && d.referralThreshold == 0 && !d.isConsumable && !d.isRewardedAd)
+        // 3) Premium (premium gems only)
+        if (d.premiumPrice > 0 && d.getPrice <= 0 && d.referralThreshold == 0 && !d.isConsumable && !d.isRewardedAd)
             return ShopCategory.Premium;
 
-        // 4) Core (in-game currency only)
-        if (d.getPrice > 0 && d.dollarPrice <= 0 && d.referralThreshold == 0 && !d.isConsumable && !d.isRewardedAd)
+        // 4) Core (in-game currency only - or free fallback)
+        if (d.getPrice > 0 && d.premiumPrice <= 0 && d.referralThreshold == 0 && !d.isConsumable && !d.isRewardedAd)
             return ShopCategory.Core;
 
         // Uymayanları uyar ve Core'a düşür (ya da skip etmeyi tercih edebilirsin)
@@ -265,6 +285,8 @@ public class ShopItemManager : MonoBehaviour
     }
     private void SpawnList(List<ItemDatabaseManager.ReadableItemData> list, ShopCategory cat)
     {
+        if (!isActiveAndEnabled) return;
+
         var parent = GetParentFor(cat);
         if (parent == null) {
             Debug.LogWarning($"[ShopItemManager] No root for category {cat}");
@@ -278,6 +300,7 @@ public class ShopItemManager : MonoBehaviour
             prefabToUse = bullMarketItemPrefab;
         }
 
+        int indexCounter = 0;
         foreach (var item in list)
         {
             var inst = Instantiate(prefabToUse, parent);
@@ -287,12 +310,39 @@ public class ShopItemManager : MonoBehaviour
             inst.gameObject.name = $"ShopCard_{nid}";
             // If UIShopItemDisplay exposes SetItemId(string), this will set; otherwise it's safely ignored
             inst.SendMessage("SetItemId", nid, SendMessageOptions.DontRequireReceiver);
-            StartCoroutine(inst.Setup(item, cat));
+            if (isActiveAndEnabled) StartCoroutine(inst.Setup(item, cat));
             _spawned.Add(inst);
+
+            // Inject Diamond Artwork Button after the 1st item (index 0) is spawned, so it becomes index 1
+            // Only for Premium ('Pro') and BullMarket
+            if (indexCounter == 0 && diamondArtworkPrefab != null)
+            {
+                if (cat == ShopCategory.Premium || cat == ShopCategory.BullMarket)
+                {
+                    var diamondBtn = Instantiate(diamondArtworkPrefab, parent);
+                    if (!diamondBtn.activeSelf) diamondBtn.SetActive(true);
+                    diamondBtn.name = "DiamondArtworkButton";
+                    
+                    // Directly add listener to the button component since the user confirmed it's a button
+                    var btn = diamondBtn.GetComponent<Button>();
+                    if (btn != null)
+                    {
+                        btn.onClick.RemoveAllListeners();
+                        btn.onClick.AddListener(() => {
+                            if (UIManager.Instance != null) UIManager.Instance.ShowIAPShop();
+                        });
+                    }
+
+                    _extraSpawned.Add(diamondBtn);
+                }
+            }
+            indexCounter++;
         }
     }
     private void SpawnMyItems(List<ItemDatabaseManager.ReadableItemData> list)
     {
+        if (!isActiveAndEnabled) return;
+
         if (myItemsRoot == null)
         {
             Debug.LogWarning("[ShopItemManager] myItemsRoot is null. Cannot spawn My Items cards.");
@@ -338,7 +388,7 @@ public class ShopItemManager : MonoBehaviour
 
             // My Items sekmesinde de item'in kendi kategorisine göre Setup çalışsın
             var cat = DetermineCategory(item);
-            StartCoroutine(inst.Setup(item, cat));
+            if (isActiveAndEnabled) StartCoroutine(inst.Setup(item, cat));
 
             _spawned.Add(inst);
         }

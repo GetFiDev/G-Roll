@@ -38,6 +38,10 @@ public class UIMainMenu : MonoBehaviour
             if (go == null) return null;
             var fade = go.GetComponent<UIFadePanel>();
             if (fade == null) fade = go.AddComponent<UIFadePanel>();
+            
+            // Fix: Enforce consistent fade duration, especially for Shop which was defaulting to 0.1s
+            fade.fadeDuration = 0.25f;
+            
             return fade;
         }
 

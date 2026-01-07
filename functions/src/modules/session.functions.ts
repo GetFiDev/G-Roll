@@ -58,6 +58,8 @@ export const requestSession = onCall(async (req) => {
 });
 
 // -------- session end: submit results (idempotent) --------
+import {getActiveSeasonId} from "../utils/helpers";
+
 export const submitSessionResult = onCall(async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
@@ -73,6 +75,9 @@ export const submitSessionResult = onCall(async (req) => {
     const userRef = db.collection("users").doc(uid);
     const sessRef = userRef.collection("sessions").doc(sessionId);
 
+    // Fetch active season OUTSIDE transaction (safe)
+    const activeSeasonId = await getActiveSeasonId();
+
     // Transaction for safe write
     const res = await db.runTransaction(async (tx) => {
         // 1) Session state check
@@ -87,8 +92,42 @@ export const submitSessionResult = onCall(async (req) => {
             return {alreadyProcessed: true, valid: true};
         }
 
-        // 2) User data read (for currency update & maxScore check)
+        // 2) User data read (MUST BE FIRST for referral logic)
         const uSnap = await tx.get(userRef);
+
+        // 3) Referral Data Read (Must occur before writes)
+        const referrerUid = uSnap.get("referredByUid") as string | null;
+        let refUserSnap: FirebaseFirestore.DocumentSnapshot | null = null;
+        let pendingRef: FirebaseFirestore.DocumentReference | null = null;
+        let pendingSnap: FirebaseFirestore.DocumentSnapshot | null = null;
+
+        if (referrerUid && earnedCurrency > 0) {
+            const refUserRef = db.collection("users").doc(referrerUid);
+            refUserSnap = await tx.get(refUserRef); // READ
+
+            if (refUserSnap.exists) {
+                // Determine if we need to read pending doc
+                const eliteExp = refUserSnap.get("elitePassExpiresAt") as Timestamp | null;
+                const nowMs = Date.now();
+                const hasElite = eliteExp ? (eliteExp.toMillis() > nowMs) : false;
+                const rate = hasElite ? 0.10 : 0.05;
+                const bonus = Number((earnedCurrency * rate).toFixed(3));
+
+                if (bonus > 0) {
+                    // Path: users/{referrer}/referralData/pendingReferralEarnings/records/{childUid}
+                    pendingRef = refUserRef
+                        .collection("referralData")
+                        .doc("pendingReferralEarnings")
+                        .collection("records")
+                        .doc(uid);
+
+                    pendingSnap = await tx.get(pendingRef); // READ
+                }
+            }
+        }
+
+        // --- ALL READS DONE ---
+
         const prevMaxCombo = Number(uSnap.get("maxCombo") ?? 0) || 0;
         const prevSessions = Number(uSnap.get("sessionsPlayed") ?? 0) || 0;
         const prevCumEarn = Number(uSnap.get("cumulativeCurrencyEarned") ?? 0) || 0;
@@ -112,9 +151,20 @@ export const submitSessionResult = onCall(async (req) => {
         const newPups = prevPups + Math.max(0, powerUpsCollectedInSession);
         const newMaxCombo = Math.max(prevMaxCombo, Math.max(0, maxComboInSession));
 
+        // --- Seasonal Score Logic ---
+        const safeSeasonal = (uSnap.get("seasonalMaxScores") || {}) as Record<string, number>;
+        const seasonalMaxScores = {...safeSeasonal};
+
+        if (activeSeasonId) {
+            const prevSeasonBest = Number(seasonalMaxScores[activeSeasonId] || 0);
+            const newSeasonBest = Math.max(prevSeasonBest, earnedScore);
+            seasonalMaxScores[activeSeasonId] = newSeasonBest;
+        }
+
         tx.set(userRef, {
             currency: newCurrency,
             maxScore: newBest,
+            seasonalMaxScores,
             sessionsPlayed: newSessions,
             cumulativeCurrencyEarned: newCumEarn,
             totalPlaytimeSec: newPlaySec,
@@ -128,38 +178,26 @@ export const submitSessionResult = onCall(async (req) => {
         // mark session as processed
         tx.set(sessRef, {state: "completed", earnedCurrency, earnedScore, processedAt: Timestamp.now()}, {merge: true});
 
-        // --- Referral Logic ---
-        const referrerUid = uSnap.get("referredByUid") as string | null;
-        if (referrerUid && earnedCurrency > 0) {
-            const refUserRef = db.collection("users").doc(referrerUid);
-            const refUserSnap = await tx.get(refUserRef);
+        // --- Referral Writes ---
+        if (refUserSnap && refUserSnap.exists && pendingRef) {
+            const eliteExp = refUserSnap.get("elitePassExpiresAt") as Timestamp | null;
+            const nowMs = Date.now();
+            const hasElite = eliteExp ? (eliteExp.toMillis() > nowMs) : false;
+            const rate = hasElite ? 0.10 : 0.05;
+            const bonus = Number((earnedCurrency * rate).toFixed(3));
 
-            if (refUserSnap.exists) {
-                const eliteExp = refUserSnap.get("elitePassExpiresAt") as Timestamp | null;
-                const nowMs = Date.now();
-                const hasElite = eliteExp ? (eliteExp.toMillis() > nowMs) : false;
+            if (bonus > 0) {
+                const oldAmount = (pendingSnap && pendingSnap.exists) ? (Number(pendingSnap.get("amount")) || 0) : 0;
+                const childName = (uSnap.get("username") as string) || "Guest";
 
-                // 10% if Elite, 5% if not
-                const rate = hasElite ? 0.10 : 0.05;
-                const bonus = Math.floor(earnedCurrency * rate);
-
-                if (bonus > 0) {
-                    const pendingRef = refUserRef.collection("referralPending").doc(uid);
-                    const pendingSnap = await tx.get(pendingRef);
-
-                    const oldAmount = pendingSnap.exists ? (Number(pendingSnap.get("amount")) || 0) : 0;
-                    const childName = (uSnap.get("username") as string) || "Guest";
-
-                    tx.set(pendingRef, {
-                        amount: oldAmount + bonus,
-                        childUid: uid,
-                        childName: childName,
-                        updatedAt: FieldValue.serverTimestamp()
-                    }, {merge: true});
-                }
+                tx.set(pendingRef, {
+                    amount: oldAmount + bonus,
+                    childUid: uid,
+                    childName: childName,
+                    updatedAt: FieldValue.serverTimestamp()
+                }, {merge: true});
             }
         }
-        // ----------------------
 
         return {alreadyProcessed: false, currency: newCurrency, maxScore: newBest};
     });

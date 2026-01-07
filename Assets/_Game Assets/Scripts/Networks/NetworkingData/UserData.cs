@@ -18,7 +18,7 @@ namespace NetworkingData
         [FirestoreProperty] public int rank { get; set; } = 0;            // int
         [FirestoreProperty] public double maxScore { get; set; } = 0;     // number
         [FirestoreProperty] public string referralKey { get; set; } = ""; // string
-        [FirestoreProperty] public int referrals { get; set; } = 0;  //  int
+        [FirestoreProperty("referralCount")] public int referrals { get; set; } = 0;  //  int
         [FirestoreProperty] public int chapterProgress { get; set; } = 1;
 
         // Energy system (added to match Firestore document)
@@ -29,6 +29,7 @@ namespace NetworkingData
 
 
         [FirestoreProperty] public bool hasElitePass { get; set; } = false;
+        [FirestoreProperty("removeAds")] public bool removeAds { get; set; } = false;
 
         // Timestamp alanları:
         [FirestoreProperty] public Timestamp elitePassExpiresAt { get; set; }
@@ -65,5 +66,6 @@ namespace NetworkingData
         [FirestoreProperty] public int level { get; set; } = 1;
         [FirestoreProperty] public bool isProfileComplete { get; set; } = false;
         [FirestoreProperty] public double referralEarnings { get; set; } = 0; // The pool of unclaimed referral earnings
+        [FirestoreProperty] public System.Collections.Generic.Dictionary<string, int> seasonalMaxScores { get; set; } = new System.Collections.Generic.Dictionary<string, int>(); // seasonId -> maxScore
     }
 }

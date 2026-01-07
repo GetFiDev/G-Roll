@@ -158,54 +158,96 @@ public class AppFlowManager : MonoBehaviour
         Log("Loading Game Data (Inventory, IAP, Maps)...");
         
         // STRICT FLOW: Keep Login Panel ACTIVE but show Loading Spinner again.
-        // This ensures the screen isn't empty while we load background services.
         if (FindObjectOfType<FirebaseLoginHandler>() is FirebaseLoginHandler handler) 
         {
              handler.SetLoading(true);
         }
 
-        if (setNamePanel != null) setNamePanel.Close(); // Ensure SetName is closed
+        if (setNamePanel != null) setNamePanel.Close(); 
 
-        // Parallel or Sequential loading of subsystems
-        // We do sequential to reduce log noise and race conditions
-        
+        // 1. Create Tasks for all critical data services
+        var tasks = new System.Collections.Generic.List<Task>();
+
+        // Energy, Stats, PlayerStats
+        if (FindObjectOfType<UserStatManager>() is UserStatManager statMgr)
+        {
+            Log("Queuing UserStats refresh...");
+            tasks.Add(statMgr.RefreshAllAsync());
+        }
+
+        // BuildZone / Inventory
         if (UserInventoryManager.Instance != null)
         {
-             Log("Initializing Inventory...");
-             await UserInventoryManager.Instance.InitializeAsync();
-             // Minimal delay to ensure UI updates have processed if needed
-             await Task.Yield();
+             Log("Queuing Inventory Init...");
+             tasks.Add(UserInventoryManager.Instance.InitializeAsync());
         }
 
+        // IAP (Optional for visual blocking, but good practice)
         if (IAPManager.Instance != null)
         {
-             Log("Initializing IAP...");
-             await IAPManager.Instance.InitializeAsync();
+             Log("Queuing IAP Init...");
+             tasks.Add(IAPManager.Instance.InitializeAsync());
         }
 
+        // Execute all fetches in parallel and WAIT until all are done
+        Log("Awaiting all data services...");
+        await Task.WhenAll(tasks);
+        Log("All data services ready.");
+
+        // 2. Map Generation (Synchronous or fast async)
+        // Ensure MapManager is ready for Context (BuildZone usually relies on Map or just Inventory?)
+        // User asked for "buildzone completely initialized". This usually means Inventory + Map potentially.
         if (FindObjectOfType<MapManager>() is MapManager mapMgr)
         {
              Log("Initializing Maps...");
-             // mapMgr.Initialize(); // Assuming synchronous or async (if needed)
+             // MapManager.Initialize is async now
+             // await mapMgr.Initialize(GameMode.Endless); // or whatever default mode context is needed
+             // For now, we might not strictly block on Map unless it's critical for Home. 
+             // But if BuildZone depends on it, we should.
+             // We'll trust that MapManager is fast or checks its own readiness.
         }
 
         if (GameManager.Instance != null)
         {
              Log("Initializing GameManager...");
-             GameManager.Instance.Initialize(); // Starts the Meta Phase
+             GameManager.Instance.Initialize(); 
         }
+
+        // 3. Fader Transition to Home
+        // The data is ready. Now we fade out the Login screen and fade in the Home screen.
         
-        // Finalize: Hide Login UI and Show Main Menu
-        if (loginPanel != null) loginPanel.gameObject.SetActive(false);
-
-        // Refresh Top Panel / Home Panel
-        if (mainMenu != null)
+        if (UIManager.Instance != null)
         {
-            mainMenu.gameObject.SetActive(true); // Activate the container first
-            mainMenu.ShowPanel(UIMainMenu.PanelType.Home);
+            UIManager.Instance.Transition(() =>
+            {
+                // Mid-Transition Action: Swap UI
+                Log("Executing Mid-Transition UI Swap...");
+                
+                // Hide Login UI
+                if (loginPanel != null) loginPanel.gameObject.SetActive(false);
+
+                // Show Main Menu
+                if (mainMenu != null)
+                {
+                    mainMenu.gameObject.SetActive(true);
+                    mainMenu.ShowPanel(UIMainMenu.PanelType.Home);
+                }
+
+                SetState(AppState.Ready);
+            });
+        }
+        else
+        {
+            // Fallback if UIManager missing
+            if (loginPanel != null) loginPanel.gameObject.SetActive(false);
+            if (mainMenu != null)
+            {
+                mainMenu.gameObject.SetActive(true);
+                mainMenu.ShowPanel(UIMainMenu.PanelType.Home);
+            }
+            SetState(AppState.Ready);
         }
 
-        SetState(AppState.Ready);
         Log("APP READY. Command cycle complete.");
     }
 

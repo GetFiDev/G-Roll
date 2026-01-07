@@ -29,4 +29,6 @@ __exportStar(require("./modules/autopilot.functions"), exports);
 __exportStar(require("./modules/shop.functions"), exports);
 __exportStar(require("./modules/content.functions"), exports);
 __exportStar(require("./modules/leaderboard.functions"), exports);
+__exportStar(require("./modules/scheduler.functions"), exports);
+__exportStar(require("./modules/ad.functions"), exports);
 //# sourceMappingURL=index.js.map

@@ -6,7 +6,7 @@ using System;
 public class UIFadePanel : MonoBehaviour
 {
     [Header("Fade Settings")]
-    [SerializeField] protected float fadeDuration = 0.1f;
+    [SerializeField] public float fadeDuration = 0.1f;
     [SerializeField] protected Ease fadeEase = Ease.OutQuad;
     [SerializeField] protected bool startHidden = false;
 

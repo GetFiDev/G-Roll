@@ -56,7 +56,10 @@ public class UserDatabaseManager : MonoBehaviour
     // --- Caching for Optimistic Updates ---
     private UserData _cachedUserData;
     private float _lastOptimisticUpdateTimestamp = -999f;
+
     private const float OPTIMISTIC_CACHE_DURATION = 15f; // Duration to prefer local cache over server stale data
+
+    public const string PREF_KEY_REFERRAL_CODE = "MyReferralCodeCache";
 
     private static void StripServerOnlyKeys(System.Collections.Generic.Dictionary<string, object> dict)
     {
@@ -151,6 +154,19 @@ public class UserDatabaseManager : MonoBehaviour
             var result = await callable.CallAsync(data);
             EmitLog("✅ Profile Completed Successfully");
             
+            // Check for referral result
+            if (result.Data is System.Collections.IDictionary dict)
+            {
+               if (dict.Contains("referralApplied") && dict["referralApplied"] is bool applied && !applied)
+               {
+                   string err = dict.Contains("referralError") ? dict["referralError"] as string : "Unknown";
+                   if (!string.IsNullOrEmpty(referralCode))
+                   {
+                        EmitLog($"⚠️ Referral not applied: {err}");
+                   }
+               }
+            }
+
             // Refresh local cache immediately
             await LoadUserData();
             return true;
@@ -209,7 +225,7 @@ public class UserDatabaseManager : MonoBehaviour
     /// <summary>
     /// Authenticate with a credential obtained from a social provider (Play Games, Game Center, etc.)
     /// </summary>
-    public async void LoginWithCredential(Credential credential)
+    public async void LoginWithCredential(Credential credential, string photoUrlToSave = null)
     {
         Reset();
         if (auth == null) { EmitLog("❌ Auth null"); return; }
@@ -221,6 +237,23 @@ public class UserDatabaseManager : MonoBehaviour
             currentUser = r;
             currentLoggedUserID = currentUser?.UserId;
             EmitLog($"✅ Social Login succeed, UID: {currentLoggedUserID}");
+
+            // --- NEW: Update Photo URL if provided ---
+            if (!string.IsNullOrEmpty(photoUrlToSave))
+            {
+                try
+                {
+                    EmitLog($"📸 Saving PhotoURL to Firestore: {photoUrlToSave}");
+                    var patch = new Dictionary<string, object> { { "photoUrl", photoUrlToSave } };
+                    // Direct Firestore update to avoid overwriting other fields
+                    await UserDoc().SetAsync(patch, SetOptions.MergeAll);
+                }
+                catch (Exception ex)
+                {
+                    EmitLog($"⚠️ Failed to save PhotoURL: {ex.Message}");
+                }
+            }
+            // -----------------------------------------
 
             // Daily streak: update once on sign-in
             await UpdateDailyStreakAsync();
@@ -287,30 +320,57 @@ public class UserDatabaseManager : MonoBehaviour
 
         EmitLog("Starting Google Play Games Login...");
         
-        PlayGamesPlatform.Instance.Authenticate((status) =>
+        // Ensure PlayGamesPlatform is activated
+        if (PlayGamesPlatform.Instance == null)
+        {
+            PlayGamesPlatform.DebugLogEnabled = true;
+            PlayGamesPlatform.Activate();
+        }
+
+        // Use ManuallyAuthenticate to FORCE the UI to show up if silent signapp failed
+        PlayGamesPlatform.Instance.ManuallyAuthenticate((status) =>
         {
             if (status == SignInStatus.Success)
             {
-                EmitLog("✅ Play Games Authenticated. Requesting Server Auth Code...");
+                EmitLog("✅ Play Games Authenticated (Manual). Requesting Server Auth Code...");
+
+                // --- NEW: Fetch Profile Image URL ---
+                string photoUrl = string.Empty;
+                try
+                {
+                    // Attempt to get the high-res image URL
+                    photoUrl = PlayGamesPlatform.Instance.GetUserImageUrl(); 
+                    EmitLog($"📸 GPGS Avatar URL found: {photoUrl}");
+                }
+                catch (Exception e)
+                {
+                    EmitLog($"⚠️ Could not fetch GPGS Avatar URL: {e.Message}");
+                }
+                // ------------------------------------
+
                 PlayGamesPlatform.Instance.RequestServerSideAccess(true, (authCode) =>
                 {
                     if (!string.IsNullOrEmpty(authCode))
                     {
                         EmitLog("✅ Auth Code received. Exchanging for Firebase Credential...");
                         Credential credential = PlayGamesAuthProvider.GetCredential(authCode);
-                        LoginWithCredential(credential);
+                        
+                        // Pass the photoUrl to the login handler or save it after login
+                        LoginWithCredential(credential, photoUrl); 
                     }
                     else
                     {
-                        EmitLog("❌ Failed to get Server Auth Code.");
+                        EmitLog("❌ Failed to get Server Auth Code. (Code is null/empty)");
                         EnqueueMain(() => OnLoginFailed?.Invoke("Failed to get Google Auth Code"));
                     }
                 });
             }
             else
             {
-                EmitLog("❌ Play Games Authentication Failed.");
-                EnqueueMain(() => OnLoginFailed?.Invoke("Google Play Games Auth Failed"));
+                string errorMsg = $"❌ Play Games Manual Auth Failed. Status: {status}";
+                EmitLog(errorMsg);
+                Debug.LogError($"[GPGS] {errorMsg}"); 
+                EnqueueMain(() => OnLoginFailed?.Invoke(errorMsg));
             }
         });
     }
@@ -409,6 +469,13 @@ public class UserDatabaseManager : MonoBehaviour
             // Update cache with the (potentially merged) fresh data
             _cachedUserData = data; 
             
+            // --- NEW: Cache Referral Key immediately ---
+            if (!string.IsNullOrEmpty(data.referralKey) && data.referralKey != "-")
+            {
+                PlayerPrefs.SetString(PREF_KEY_REFERRAL_CODE, data.referralKey);
+                PlayerPrefs.Save();
+            }
+
             EmitLog("✅ User data loaded");
             return data;
         }
@@ -416,6 +483,15 @@ public class UserDatabaseManager : MonoBehaviour
         {
             EmitLog("❌ Data load error: " + e.Message);
             return null;
+        }
+    }
+
+    public async Task RefreshUserData()
+    {
+        var data = await LoadUserData();
+        if (data != null)
+        {
+            EnqueueMain(() => OnUserDataSaved?.Invoke(data));
         }
     }
 
@@ -434,7 +510,7 @@ public class UserDatabaseManager : MonoBehaviour
                 { "username",  data.username ?? string.Empty },
                 { "currency",  data.currency },
                 { "streak",    data.streak },
-                { "referrals", data.referrals }
+                { "referralCount", data.referrals }
                 // Do NOT write rank from client
             };
 
@@ -590,8 +666,21 @@ public class UserDatabaseManager : MonoBehaviour
     {
         public string uid;
         public string username;
+        public string photoUrl;
         public int score;
+        public bool hasElitePass;
         public int rank; // server returns no rank; UI will use index+1
+    }
+
+    [Serializable]
+    public class SeasonConfig
+    {
+        public string id;
+        public string name;
+        public string description;
+        public bool isActive;
+        public DateTime startDate;
+        public DateTime endDate;
     }
 
     [Serializable]
@@ -607,7 +696,7 @@ public class UserDatabaseManager : MonoBehaviour
     /// Calls getLeaderboardsSnapshot callable and maps the result.
     /// Prefer this over direct Firestore queries.
     /// </summary>
-    public async Task<LeaderboardPage> GetLeaderboardsSnapshotAsync(int limit = 100, double? startAfterScore = null, bool includeSelf = true)
+    public async Task<LeaderboardPage> GetLeaderboardsSnapshotAsync(string leaderboardId = "all_time", int limit = 100, double? startAfterScore = null, bool includeSelf = true)
     {
         var page = new LeaderboardPage();
 
@@ -622,7 +711,8 @@ public class UserDatabaseManager : MonoBehaviour
             var fn = _funcs.GetHttpsCallable("getLeaderboardsSnapshot");
             var payload = new Dictionary<string, object>
             {
-                { "limit", Mathf.Clamp(limit, 1, 500) },
+                { "leaderboardId", leaderboardId },
+                { "limit", Mathf.Clamp(limit, 1, 100) },
                 { "includeSelf", includeSelf }
             };
             if (startAfterScore.HasValue) payload["startAfterScore"] = startAfterScore.Value;
@@ -642,6 +732,8 @@ public class UserDatabaseManager : MonoBehaviour
                                 uid = m.TryGetString("uid"),
                                 username = string.IsNullOrWhiteSpace(m.TryGetString("username")) ? "Guest" : m.TryGetString("username"),
                                 score = m.TryGetInt("score"),
+                                photoUrl = m.TryGetString("photoUrl"),
+                                hasElitePass = m.TryGetBool("isElite"),
                                 rank = 0
                             };
                             page.items.Add(e);
@@ -670,7 +762,9 @@ public class UserDatabaseManager : MonoBehaviour
                         uid = meD.TryGetString("uid"),
                         username = string.IsNullOrWhiteSpace(meD.TryGetString("username")) ? "You" : meD.TryGetString("username"),
                         score = meD.TryGetInt("score"),
-                        rank = 0
+                        photoUrl = meD.TryGetString("photoUrl"),
+                        hasElitePass = meD.TryGetBool("isElite"),
+                        rank = meD.TryGetInt("rank")
                     };
                 }
             }
@@ -683,6 +777,40 @@ public class UserDatabaseManager : MonoBehaviour
         }
 
         return page;
+    }
+
+    public async Task<List<SeasonConfig>> GetSeasonsAsync()
+    {
+        var list = new List<SeasonConfig>();
+        if (db == null) return list;
+
+        try
+        {
+            var snap = await db.Collection("seasons").GetSnapshotAsync();
+            foreach (var doc in snap.Documents)
+            {
+                var dict = doc.ToDictionary();
+                var s = new SeasonConfig { id = doc.Id };
+                
+                s.name = dict.TryGetValue("name", out var n) ? n as string : doc.Id;
+                s.description = dict.TryGetValue("description", out var d) ? d as string : "";
+                s.isActive = dict.TryGetValue("isActive", out var a) && (bool)a;
+
+                if (dict.TryGetValue("startDate", out var sd) && sd is Timestamp tsStart)
+                    s.startDate = tsStart.ToDateTime();
+                
+                if (dict.TryGetValue("endDate", out var ed) && ed is Timestamp tsEnd)
+                    s.endDate = tsEnd.ToDateTime();
+
+                list.Add(s);
+            }
+            EmitLog($"✅ Fetched {list.Count} seasons.");
+        }
+        catch (Exception e)
+        {
+            EmitLog($"❌ GetSeasonsAsync failed: {e.Message}");
+        }
+        return list;
     }
 
     // --- Helpers ---
@@ -960,14 +1088,14 @@ public class UserDatabaseManager : MonoBehaviour
                 return 0;
             }
 
-            if (snap.TryGetValue("referrals", out object val))
+            if (snap.TryGetValue("referralCount", out object val))
             {
                 if (val is int i) return i;
                 if (val is long l) return (int)l;
                 if (val is double d) return (int)d;
                 if (val is float f) return (int)f;
                 if (val is string s && int.TryParse(s, out var parsed)) return parsed;
-                EmitLog($"ℹ️ GetReferralCountAsync: 'referrals' field type unexpected ({val?.GetType()})");
+                EmitLog($"ℹ️ GetReferralCountAsync: 'referralCount' field type unexpected ({val?.GetType()})");
             }
             return 0;
         }
@@ -976,6 +1104,83 @@ public class UserDatabaseManager : MonoBehaviour
             EmitLog("❌ GetReferralCountAsync error: " + e.Message);
             return 0;
         }
+    }
+
+    // --- New Referral Methods (v2.0) ---
+
+    public async Task<(bool hasPending, float total, List<(string name, float amount)> items)> GetPendingReferralsAsync()
+    {
+        if (_funcs == null || currentUser == null) return (false, 0f, null);
+        
+        try
+        {
+            var callable = _funcs.GetHttpsCallable("getPendingReferrals");
+            var result = await callable.CallAsync();
+            
+            if (result.Data is IDictionary d)
+            {
+                bool has = d.TryGetBool("hasPending");
+                float total = (float)d.TryGetInt("total"); // TryGetInt handles double/long too via extension helper if robust enough, checking helper...
+                // Helper TryGetInt returns int. Total might be float. Let's act carefully.
+                // Re-reading 'total' manually to be safe for floats.
+                if (d.Contains("total"))
+                {
+                    var tObj = d["total"];
+                    total = Convert.ToSingle(tObj);
+                }
+
+                var items = new List<(string, float)>();
+                if (d["items"] is IList arr)
+                {
+                    foreach (var i in arr)
+                    {
+                        if (i is IDictionary itemDict)
+                        {
+                            string n = itemDict.TryGetString("childName");
+                            float a = 0f;
+                            if (itemDict.Contains("amount")) a = Convert.ToSingle(itemDict["amount"]);
+                            items.Add((n, a));
+                        }
+                    }
+                }
+                return (has, total, items);
+            }
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ GetPendingReferralsAsync error: " + e.Message);
+        }
+        return (false, 0f, null);
+    }
+
+    public async Task<float> ClaimReferralEarningsAsync()
+    {
+        if (_funcs == null || currentUser == null) return 0f;
+
+        try
+        {
+            var callable = _funcs.GetHttpsCallable("claimReferralEarnings");
+            var result = await callable.CallAsync();
+            
+            if (result.Data is IDictionary d)
+            {
+                if (d.Contains("claimed"))
+                {
+                    float claimed = Convert.ToSingle(d["claimed"]);
+                    EmitLog($"✅ Claimed Referral Earnings: {claimed}");
+                    
+                    // Trigger refresh of user data to show new wallet balance
+                    await LoadUserData();
+                    
+                    return claimed;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            EmitLog("❌ ClaimReferralEarningsAsync error: " + e.Message);
+        }
+        return 0f;
     }
 
     // --- CHAPTER MAP FETCHING ---

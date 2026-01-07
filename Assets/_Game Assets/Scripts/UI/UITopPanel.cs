@@ -4,7 +4,7 @@ using UnityEngine.UI;
 public class UITopPanel : MonoBehaviour
 {
     public UIBottomPanel bottomPanel;
-    [SerializeField] private UserStatsDisplayer statsDisplayer;
+    public UserStatsDisplayer statsDisplayer;
     public static UITopPanel Instance;
 
     void Awake()

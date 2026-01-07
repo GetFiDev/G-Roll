@@ -29,6 +29,18 @@ public class UIElitePassPanel : MonoBehaviour
     private void OnEnable()
     {
         SelectAnnual();
+        if (IAPManager.Instance != null)
+        {
+            IAPManager.Instance.OnPurchaseSuccess += OnPurchaseSuccess;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (IAPManager.Instance != null)
+        {
+            IAPManager.Instance.OnPurchaseSuccess -= OnPurchaseSuccess;
+        }
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -94,6 +106,21 @@ public class UIElitePassPanel : MonoBehaviour
         if (IAPManager.Instance != null)
         {
             IAPManager.Instance.OnIAPInitialized -= OnIAPInitializedForPurchase; // Safe removal
+            IAPManager.Instance.OnPurchaseSuccess -= OnPurchaseSuccess;
+        }
+    }
+
+    private void OnPurchaseSuccess(string productId)
+    {
+        if (IAPManager.Instance == null) return;
+
+        string annualId = IAPManager.Instance.GetProductId(annualProductType);
+        string monthlyId = IAPManager.Instance.GetProductId(monthlyProductType);
+
+        if (productId == annualId || productId == monthlyId)
+        {
+            Debug.Log($"[UIElitePassPanel] Elite Pass purchased ({productId}). Closing panel.");
+            ClosePanel();
         }
     }
 

@@ -15,7 +15,7 @@ public static class RemoteItemService
         public string itemName;
         public string itemDescription;
         public string itemIconUrl;
-        public double itemDollarPrice;
+        public double itemPremiumPrice;
         public double itemGetPrice;
         public bool itemIsConsumable;
         public bool itemIsRewardedAd;
@@ -58,7 +58,7 @@ public static class RemoteItemService
                 itemName        = GetAs<string>(fields, "itemName", string.Empty),
                 itemDescription = GetAs<string>(fields, "itemDescription", string.Empty),
                 itemIconUrl     = GetAs<string>(fields, "itemIconUrl", string.Empty),
-                itemDollarPrice = GetAs<double>(fields, "itemDollarPrice", 0d),
+                itemPremiumPrice = GetAs<double>(fields, "itemPremiumPrice", 0d),
                 itemGetPrice    = GetAs<double>(fields, "itemGetPrice", 0d),
                 itemIsConsumable    = GetAs<bool>(fields, "itemIsConsumable", false),
                 itemIsRewardedAd    = GetAs<bool>(fields, "itemIsRewardedAd", false),
@@ -96,7 +96,7 @@ public static class RemoteItemService
         return items;
     }
 
-    private static async Task<Texture2D> DownloadTextureAsync(string url)
+    public static async Task<Texture2D> DownloadTextureAsync(string url)
     {
         using (UnityWebRequest uwr = UnityWebRequestTexture.GetTexture(url))
         {
@@ -120,7 +120,7 @@ public static class RemoteItemService
         }
     }
 
-    private static Sprite CreateSprite(Texture2D tex)
+    public static Sprite CreateSprite(Texture2D tex)
     {
         if (tex == null) return null;
         return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);

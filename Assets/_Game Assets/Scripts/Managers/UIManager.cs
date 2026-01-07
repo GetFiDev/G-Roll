@@ -182,6 +182,66 @@ public class UIManager : MonoSingleton<UIManager>
 
     private void OnHighScorePanelClosed() { } // Dummy target for -= check if needed, or just use lambda above
 
+    /// <summary>
+    /// Executes a transition: Fade Out -> Action -> Fade In.
+    /// Useful for switching phases or large UI changes without pop-ins.
+    /// </summary>
+    public void Transition(Action onMidTransition)
+    {
+        StartCoroutine(TransitionCoroutine(onMidTransition));
+    }
+
+    private IEnumerator TransitionCoroutine(Action onMidTransition)
+    {
+        // 1. Activate Fader
+        if (fullscreenFader == null)
+        {
+            onMidTransition?.Invoke();
+            yield break;
+        }
+
+        fullscreenFader.gameObject.SetActive(true);
+        fullscreenFader.blocksRaycasts = true;
+        fullscreenFader.interactable = true;
+
+        // 2. Fade In (Alpha 0 -> 1) i.e., Screen becomes Blocked/Black
+        float t = 0f;
+        float startAlpha = fullscreenFader.alpha;
+        
+        while (t < fullscreenFadeDuration)
+        {
+            t += Time.deltaTime;
+            float normalized = t / fullscreenFadeDuration;
+            fullscreenFader.alpha = Mathf.Lerp(startAlpha, 1f, normalized);
+            yield return null;
+        }
+        fullscreenFader.alpha = 1f;
+
+        // 3. Perform the Action (Swap panels, load scenes, etc.)
+        onMidTransition?.Invoke();
+
+        // 4. Wait a frame to ensure UI updates have processed
+        yield return null;
+
+        // 5. Fade Out (Alpha 1 -> 0) i.e., Screen becomes Clear
+        t = 0f;
+        while (t < fullscreenFadeDuration)
+        {
+            t += Time.deltaTime;
+            float normalized = t / fullscreenFadeDuration;
+            fullscreenFader.alpha = Mathf.Lerp(1f, 0f, normalized);
+            yield return null;
+        }
+        fullscreenFader.alpha = 0f;
+
+        // 6. Cleanup
+        if (disableFaderOnComplete)
+            fullscreenFader.gameObject.SetActive(false);
+        
+        fullscreenFader.blocksRaycasts = false;
+        fullscreenFader.interactable = false;
+    }
+
     private IEnumerator FadeOutFaderCoroutine()
     {
         fullscreenFader.gameObject.SetActive(true);

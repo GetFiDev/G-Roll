@@ -1,12 +1,14 @@
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
+using DG.Tweening;
 using static AchievementService;
 
 public class AchievementDetailPanel : MonoBehaviour
 {
     public GameObject root;
+    public CanvasGroup canvasGroup;
     public Image   iconImage;
     public TMP_Text titleTMP;
     public TMP_Text descTMP;
@@ -63,6 +65,11 @@ public class AchievementDetailPanel : MonoBehaviour
             row.Bind(targetValue, reward, reachable, isClaimed, async () => {
                 int n = await AchievementService.ClaimAllEligibleAsync(def, state);
                 _onAnyClaim?.Invoke();
+                if (n > 0)
+                {
+                    Close();
+                    UITopPanel.Instance.Initialize();
+                }
             });
 
             if (reachable && !isClaimed)
@@ -95,7 +102,13 @@ public class AchievementDetailPanel : MonoBehaviour
             {
                 int n = await AchievementService.ClaimAllEligibleAsync(def, state);
                 _onAnyClaim?.Invoke();
-                using var _ = NotificationBadgeManager.Instance.RefreshAchievementBadges();
+                await NotificationBadgeManager.Instance.RefreshAchievementBadges();
+                
+                if (n > 0)
+                {
+                    Close();
+                    UITopPanel.Instance.Initialize();
+                }
             }
             finally
             {
@@ -114,8 +127,25 @@ public class AchievementDetailPanel : MonoBehaviour
             closeButton.onClick.AddListener(Close);
         }
 
+        // Fade In Logic
         root.SetActive(true);
+        if (canvasGroup == null) canvasGroup = root.GetComponent<CanvasGroup>();
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 0f;
+            canvasGroup.DOFade(1f, 0.3f).SetUpdate(true);
+        }
     }
 
-    public void Close() => root.SetActive(false);
+    public void Close()
+    {
+        if (canvasGroup != null)
+        {
+            canvasGroup.DOFade(0f, 0.3f).SetUpdate(true).OnComplete(() => root.SetActive(false));
+        }
+        else
+        {
+            root.SetActive(false);
+        }
+    }
 }

@@ -75,6 +75,16 @@ public abstract class AdManager
     {
         if (_listener == null) Initialize();
 
+        // Elite Pass Check: Bypass Ads
+        if (UserDatabaseManager.Instance != null && 
+            UserDatabaseManager.Instance.currentUserData != null && 
+            UserDatabaseManager.Instance.currentUserData.hasElitePass)
+        {
+            Debug.Log("Elite Pass active: Skipping Ad (Granting Reward).");
+            onComplete?.Invoke(true);
+            return;
+        }
+
         if (Appodeal.isLoaded(Appodeal.REWARDED_VIDEO))
         {
             _listener.SetRewardedCallback(onComplete);

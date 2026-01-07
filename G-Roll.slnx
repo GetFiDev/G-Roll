@@ -5,10 +5,13 @@
   <Project Path="LeTai.TrueShadow.csproj" />
   <Project Path="ToonyColorsPro.Editor.csproj" />
   <Project Path="Google.Play.Games.Editor.csproj" />
+  <Project Path="StompyRobot.SRDebugger.csproj" />
   <Project Path="LeTai.TrueShadow.Demo.csproj" />
+  <Project Path="StompyRobot.SRF.csproj" />
   <Project Path="Google.Play.Games.csproj" />
   <Project Path="ParticleImage.csproj" />
   <Project Path="Utilities.csproj" />
+  <Project Path="StompyRobot.SRDebugger.Editor.csproj" />
   <Project Path="AllIn1SpriteShaderAssembly.csproj" />
   <Project Path="Assembly-CSharp-firstpass.csproj" />
   <Project Path="Lofelt.NiceVibrations.Editor.csproj" />
@@ -23,6 +26,7 @@
   <Project Path="Sych.ShareAssets.Runtime.iOS.csproj" />
   <Project Path="Sych.ShareAssets.Editor.csproj" />
   <Project Path="LeTai.TrueShadow.Editor.csproj" />
+  <Project Path="StompyRobot.SRF.Editor.csproj" />
   <Project Path="Sych.ShareAssets.Runtime.Android.csproj" />
   <Project Path="ToonyColorsPro.Runtime.csproj" />
   <Project Path="Sirenix.OdinInspector.Modules.UnityMathematics.csproj" />

@@ -47,6 +47,7 @@ public class EquippedItemDisplay : MonoBehaviour
     [SerializeField] private Sprite iconPlayerSpeed;
     private Coroutine _blinkCoroutine;
     private Coroutine _turnRoutine;
+    private Coroutine _retryDataRoutine; // Retry routine for missing data
     private enum FaceState { Front, RotatingToBack, Back, RotatingToFront }
     private FaceState _state = FaceState.Front;
 
@@ -59,6 +60,13 @@ public class EquippedItemDisplay : MonoBehaviour
     {
         _itemId = IdUtil.NormalizeId(itemId);
 
+        // Stop any previous retry routine
+        if (_retryDataRoutine != null)
+        {
+            StopCoroutine(_retryDataRoutine);
+            _retryDataRoutine = null;
+        }
+
         if (string.IsNullOrEmpty(_itemId))
         {
             ApplyEmptyState();
@@ -66,6 +74,21 @@ public class EquippedItemDisplay : MonoBehaviour
         }
 
         var data = ItemDatabaseManager.GetItemData(_itemId);
+
+        // If data is missing, we might be initializing before the database is ready.
+        // Start a retry loop.
+        if (data == null)
+        {
+            // Apply a temporary "loading" or "empty" state while we wait? 
+            // Currently ApplyEquippedState will show the Name as ItemID and no icon.
+            // Let's just ApplyEquippedState so the frame appears, then start retrying.
+            string tempName = _itemId;
+            ApplyEquippedState(tempName);
+            if (iconImage) iconImage.gameObject.SetActive(false); // Hide icon until ready
+            
+            _retryDataRoutine = StartCoroutine(WaitForDataAndRebind(_itemId));
+            return;
+        }
 
         string displayName = data?.name ?? _itemId;
         ApplyEquippedState(displayName);
@@ -78,6 +101,15 @@ public class EquippedItemDisplay : MonoBehaviour
                 iconImage.sprite = data.iconSprite;
                 var col = iconImage.color; col.a = 1f; iconImage.color = col;
                 iconImage.gameObject.SetActive(true);
+            }
+            else if (data != null && !string.IsNullOrEmpty(data.iconUrl))
+            {
+                // Lazy load
+                iconImage.sprite = null;
+                var col = iconImage.color; col.a = 0f; iconImage.color = col; // transparent
+                iconImage.gameObject.SetActive(true);
+                
+                StartCoroutine(DownloadImageAndFadeIn(data));
             }
             else
             {
@@ -290,12 +322,33 @@ public class EquippedItemDisplay : MonoBehaviour
         }
     }
 
-    private void OnEnable()
+    private IEnumerator WaitForDataAndRebind(string itemId)
+    {
+        // Retry every 1 second until data is found or object destroyed
+        WaitForSeconds wait = new WaitForSeconds(1f);
+        while (true)
+        {
+            yield return wait;
+            var data = ItemDatabaseManager.GetItemData(itemId);
+            if (data != null)
+            {
+                _retryDataRoutine = null;
+                Bind(itemId); // Re-call Bind now that we have data
+                yield break;
+            }
+        }
+    }
+
+    private void OnDisable()
     {
         if (HasFaces()) SetFaceVisibility(true);
-        SnapToCanonicalByCurrentFace();
-
+        // Stop any running download/retry routines
+        StopAllCoroutines(); 
+        _blinkCoroutine = null;
+        _turnRoutine = null;
+        _retryDataRoutine = null;
     }
+
     private void SnapToCanonicalByCurrentFace()
     {
         transform.localScale = _baseScale;
@@ -378,6 +431,46 @@ public class EquippedItemDisplay : MonoBehaviour
             var finalCol = iconImage.color; finalCol.a = 1f; iconImage.color = finalCol;
         }
         _blinkCoroutine = null;
+    }
+
+    private IEnumerator DownloadImageAndFadeIn(ItemDatabaseManager.ReadableItemData data)
+    {
+        if (string.IsNullOrEmpty(data.iconUrl)) yield break;
+
+        var task = RemoteItemService.DownloadTextureAsync(data.iconUrl);
+        while (!task.IsCompleted) yield return null;
+
+        if (task.Exception != null || task.Result == null)
+        {
+            Debug.LogWarning($"[EquippedItemDisplay] Failed to load icon for {data.id}");
+            yield break;
+        }
+
+        var texture = task.Result;
+        var sprite = RemoteItemService.CreateSprite(texture);
+        data.iconSprite = sprite;
+
+        if (iconImage != null)
+        {
+            iconImage.sprite = sprite;
+            
+            float duration = 0.5f;
+            float elapsed = 0f;
+            Color c = iconImage.color;
+            c.a = 0f;
+            iconImage.color = c;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                c.a = t;
+                if (iconImage != null) iconImage.color = c;
+                yield return null;
+            }
+            c.a = 1f;
+            if (iconImage != null) iconImage.color = c;
+        }
     }
 
     [System.Serializable]

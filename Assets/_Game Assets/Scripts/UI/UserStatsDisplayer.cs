@@ -28,6 +28,8 @@ public class UserStatsDisplayer : MonoBehaviour
     public Image gemPlaterImage;
     [Tooltip("Sürükle: Profile Picture plater Image")]
     public Image profilePicturePlaterImage;
+    [Tooltip("Sürükle: Plus Icon Image")]
+    public Image plusIconImage;
     
     [Space(10)]
     [Tooltip("Sürükle: Pro Badge Image (Açılıp kapanacak)")]
@@ -46,9 +48,14 @@ public class UserStatsDisplayer : MonoBehaviour
     public Sprite profilePicturePlaterNormal;
     public Sprite profilePicturePlaterPremium;
 
+    public Sprite plusIconNormal;
+    public Sprite plusIconPremium;
+
     [Header("FX")] 
     public ParticleImage currencyGainFx;
     public ParticleImage premiumCurrencyGainFx;
+    public ParticleImage currencySpendFx;
+    public ParticleImage premiumCurrencySpendFx;
 
     [Header("Persistence")]
     public bool persistLastCurrency = true;
@@ -138,6 +145,23 @@ public class UserStatsDisplayer : MonoBehaviour
         if (current > previous + EPS)
         {
             try { premiumCurrencyGainFx.Play(); } catch { }
+        }
+    }
+
+    public void PlaySpendingParticle(bool isPremium, Transform target)
+    {
+        var fx = isPremium ? premiumCurrencySpendFx : currencySpendFx;
+        if (fx != null)
+        {
+            try
+            {
+                fx.attractorTarget = target;
+                fx.Play(); 
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[UserStatsDisplayer] Failed to play spend FX: {e.Message}");
+            }
         }
     }
 
@@ -299,6 +323,9 @@ public class UserStatsDisplayer : MonoBehaviour
 
         if (profilePicturePlaterImage) 
             profilePicturePlaterImage.sprite = isPremium ? profilePicturePlaterPremium : profilePicturePlaterNormal;
+
+        if (plusIconImage)
+            plusIconImage.sprite = isPremium ? plusIconPremium : plusIconNormal;
 
         // 2. Toggle Pro Badge
         if (proBadgeImage)

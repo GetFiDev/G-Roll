@@ -4,7 +4,7 @@
   <groupId>com.google.games</groupId>
   <artifactId>gpgs-plugin-support</artifactId>
   <version>2.1.0</version>
-  <packaging>srcaar</packaging>
+  <packaging>aar</packaging>
   <dependencies>
     <dependency>
       <groupId>com.google.android.gms</groupId>

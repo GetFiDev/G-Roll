@@ -27,7 +27,8 @@ public static class ItemDatabaseManager
         // 2) Remote (asıl kaynak) – her açılışta denenecek
         try
         {
-            var fetched = await RemoteItemService.FetchAllItemsWithIconsAsync();
+            // Changed from FetchAllItemsWithIconsAsync to FetchAllItemsAsync for lazy loading
+            var fetched = await RemoteItemService.FetchAllItemsAsync();
             if (fetched != null && fetched.Count > 0)
             {
                 result = fetched;
@@ -127,7 +128,7 @@ public static class ItemDatabaseManager
         public string iconUrl;
         public Sprite iconSprite;
 
-        public double dollarPrice;
+        public double premiumPrice;
         public double getPrice;
         public bool isConsumable;
         public bool isRewardedAd;
@@ -137,7 +138,7 @@ public static class ItemDatabaseManager
 
         public override string ToString()
         {
-            return $"{id} - {name} | ${dollarPrice} / get:{getPrice} | " +
+            return $"{id} - {name} | Premium:{premiumPrice} / get:{getPrice} | " +
                    $"consumable:{isConsumable} ad:{isRewardedAd} ref:{referralThreshold} | {stats}";
         }
     }
@@ -169,7 +170,7 @@ public static class ItemDatabaseManager
             iconUrl = src.itemIconUrl ?? string.Empty,
             iconSprite = src.iconSprite,
 
-            dollarPrice = src.itemDollarPrice,
+            premiumPrice = src.itemPremiumPrice,
             getPrice = src.itemGetPrice,
             isConsumable = src.itemIsConsumable,
             isRewardedAd = src.itemIsRewardedAd,

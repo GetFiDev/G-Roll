@@ -77,15 +77,30 @@ public class UIHomePanel : MonoBehaviour
 
     private async Task CheckPendingReferralsAsync()
     {
-        if (referralEarningsPanel == null) return;
-        
-        // Don't show if already active (maybe user didn't close it?)
-        // if (referralEarningsPanel.gameObject.activeSelf) return; 
+        if (referralEarningsPanel == null)
+        {
+             Debug.LogWarning("[UIHomePanel] referralEarningsPanel reference is MISSING in Inspector!");
+             return;
+        }
 
         var res = await ReferralRemoteService.GetPendingReferrals();
+        Debug.Log($"[UIHomePanel] CheckPending: hasPending={res.hasPending}, total={res.total}");
+
         if (res.hasPending && res.total > 0)
         {
-            referralEarningsPanel.Initialize(res.total);
+            referralEarningsPanel.Open((float)res.total, async () => 
+            {
+                if (UserDatabaseManager.Instance != null)
+                {
+                    await UserDatabaseManager.Instance.ClaimReferralEarningsAsync();
+                    
+                    // Refresh Top Panel to show new currency balance
+                    if (UITopPanel.Instance != null)
+                    {
+                        UITopPanel.Instance.Initialize();
+                    }
+                }
+            });
         }
     }
 

@@ -4,6 +4,7 @@ using TMPro;
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Sych.ShareAssets.Runtime;
 
 public class UIReferralPanel : MonoBehaviour
@@ -16,6 +17,10 @@ public class UIReferralPanel : MonoBehaviour
 
     [Header("Counter UI")]
     public TextMeshProUGUI friendsCountText; // "--" while fetching, then "N friend(s)"
+    
+    [Header("Pending Earnings Popup")]
+    public UIReferralEarningsPanel earningsPanelPrefab;
+    private UIReferralEarningsPanel _currentPopup;
 
     [Header("Referral Rewards Strip")]
     [Tooltip("HorizontalLayoutGroup parent that will contain small referral reward icons.")]
@@ -75,10 +80,14 @@ public class UIReferralPanel : MonoBehaviour
             yield break;
         }
 
-        // Swallow errors (optional: log)
+        // Swallow errors but ensure UI resets from "--" state if it failed
         if (task.IsFaulted)
         {
             Debug.LogWarning(task.Exception?.GetBaseException()?.Message);
+            // Fallback: show 0 or keep "--", but maybe better to show 0 if partial data?
+            // Actually if it faulted, we might not have data. 
+            // Let's set to "0 friends" or "Error" to indicate state change.
+            if (friendsCountText) friendsCountText.text = "Error"; 
             yield break;
         }
 
@@ -101,17 +110,56 @@ public class UIReferralPanel : MonoBehaviour
         }
 
         int referralCount = items != null ? items.Count : 0;
+        // Use Global Count if available (more accurate for paging)
+        if (manager != null) 
+        {
+            // Use Global Count if available, but ensure it's at least as large as the local list
+            // (In case legacy data has missing 'referralCount' field on user doc)
+            referralCount = Mathf.Max(referralCount, manager.GlobalReferralCount);
+        }
 
         // Refresh the referral rewards strip using the same token guard
         RefreshReferralRewardsStrip(referralCount, token);
 
         // Update counter text (only if this refresh is the latest)
+        Debug.Log($"[UIReferralPanel] End Refresh. Token={token}, Seq={_refreshSeq}. Count={referralCount}");
         if (_refreshSeq == token && friendsCountText)
         {
-            int count = items != null ? items.Count : 0;
+            int count = referralCount;
             friendsCountText.text = count + " " + (count == 1 ? "friend" : "friends");
         }
+
+        // Check Pending Earnings & Popup
+        if (_refreshSeq == token && manager.PendingTotal > 0)
+        {
+            // Only open if not already open
+            if (_currentPopup == null && earningsPanelPrefab != null)
+            {
+                _currentPopup = Instantiate(earningsPanelPrefab, transform.parent); // Spawn in parent (mid-screen?)
+                _currentPopup.transform.SetAsLastSibling(); // Top
+                _currentPopup.Open(manager.PendingTotal, OnPopupClaimAndRefresh);
+            }
+        }
     }
+
+    private async Task OnPopupClaimAndRefresh()
+    {
+        if (manager == null) return;
+        
+        // Perform claim via manager
+        float claimed = await manager.ClaimEarningsAsync();
+        
+        if (claimed > 0)
+        {
+            Debug.Log($"[UIReferralPanel] Successfully claimed {claimed} from popup.");
+            // Refresh main panel to update total earned (lifetime) if we were showing it somewhere 
+            // (we decided not to show Global Lifetime, but maybe per-user items updated? 
+            // Actually spec says lifetime ledger updates for each user. 
+            // So if we reload list, 'TotalEarned' per user might increase!)
+            StartRefresh(); 
+        }
+    }
+
 
     #region Referral Rewards Strip
 
@@ -269,15 +317,77 @@ public class UIReferralPanel : MonoBehaviour
 
             if (icon != null)
             {
-                // Use item icon from ItemDatabaseManager; fall back to existing icon sprite if missing
-                var sprite = data.iconSprite != null ? data.iconSprite : icon.sprite;
-                if (sprite != null)
+                // Logic: 
+                // 1. Try ItemDatabaseManager sprite (preloaded?) -> usually null now
+                // 2. Try Local Cache (downloaded previously)
+                // 3. If missing, trigger download
+                
+                Sprite finalSprite = null;
+
+                if (data.iconSprite != null)
                 {
-                    icon.sprite = unlocked ? sprite : GetGrayscaleSprite(sprite);
+                    finalSprite = data.iconSprite;
+                }
+                else if (!string.IsNullOrEmpty(data.iconUrl))
+                {
+                    if (_iconCache.TryGetValue(data.iconUrl, out var cached))
+                    {
+                        finalSprite = cached;
+                    }
+                    else
+                    {
+                        // Trigger async load
+                        // We use the default icon for now, and update when loaded
+                        StartCoroutine(LoadIconRoutine(data.iconUrl, icon, unlocked));
+                        finalSprite = icon.sprite; // Keep default/prefab sprite temporarily
+                    }
+                }
+                else
+                {
+                    // No URL, no Sprite -> fallback to prefab default
+                    finalSprite = icon.sprite;
+                }
+
+                if (finalSprite != null)
+                {
+                    icon.sprite = finalSprite;
+                }
+
+                // Apply tint state
+                icon.color = unlocked ? Color.white : new Color(0.2f, 0.2f, 0.2f, 1f); 
+            }
+        }
+    }
+
+    // Cache for downloaded icons to avoid re-downloading every frame/refresh
+    private static readonly Dictionary<string, Sprite> _iconCache = new Dictionary<string, Sprite>();
+
+    private System.Collections.IEnumerator LoadIconRoutine(string url, Image targetImage, bool isUnlocked)
+    {
+        // Avoid parallel downloads for same URL? ideally yes, but simple cache check above handles existing.
+        // If multiple items request same URL same frame, we might double download. Acceptable for now.
+        
+        var task = RemoteItemService.DownloadTextureAsync(url);
+        yield return new WaitUntil(() => task.IsCompleted);
+
+        if (task.IsCompletedSuccessfully && task.Result != null)
+        {
+            var tex = task.Result;
+            var sprite = RemoteItemService.CreateSprite(tex);
+            if (sprite != null)
+            {
+                // Cache it
+                if (!_iconCache.ContainsKey(url)) _iconCache[url] = sprite;
+                
+                // Update UI if target still exists
+                if (targetImage != null)
+                {
+                     targetImage.sprite = sprite;
+                     // Re-apply correct color just in case
+                     targetImage.color = isUnlocked ? Color.white : new Color(0.2f, 0.2f, 0.2f, 1f);
                 }
             }
         }
-
     }
 
     #endregion
@@ -427,4 +537,5 @@ public class UIReferralPanel : MonoBehaviour
         Debug.Log($"Sharing (simulated): {text} " + (imagePath != null ? $"[Image: {imagePath}]" : ""));
 #endif
     }
-}
+
+    }

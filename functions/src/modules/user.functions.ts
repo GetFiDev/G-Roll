@@ -63,7 +63,9 @@ async function grantReferralThresholdItems(
             // Logic: Each item is granted exactly once when threshold met?
             // Or is it "if (newCount == thresh)"? usually ONCE.
             if (newCount === thresh) {
-                const itemId = d.ref.parent.id; // item id is parent collection name
+                const itemId = d.ref.parent.parent?.id;
+                if (!itemId) continue;
+
                 const invRef = db.collection("users").doc(referrerUid).collection("inventory").doc(itemId);
                 tx.set(invRef, {
                     owned: true,
@@ -103,18 +105,22 @@ export async function applyReferralCodeToUser(uid: string, code: string) {
             throw new HttpsError("already-exists", "Already applied a referral code");
         }
 
-        // 3. Mark user
+        // 3. Get Referrer Data (READ BEFORE WRITE)
+        const refUserRef = db.collection("users").doc(referrerUid);
+        const rSnap = await tx.get(refUserRef);
+        if (!rSnap.exists) return; // Weird, but stop if referrer invalid
+
+        // --- ALL READS DONE (mostly) ---
+
+        // 4. Mark user (New User Update)
         tx.set(userRef, {
             referredByUid: referrerUid,
+            referredByKey: upper,
             referralAppliedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
         }, {merge: true});
 
-        // 4. Update Referrer
-        const refUserRef = db.collection("users").doc(referrerUid);
-        const rSnap = await tx.get(refUserRef);
-        if (!rSnap.exists) return; // Weird
-
+        // 5. Update Referrer (Referral Count)
         const prevCount = Number(rSnap.get("referralCount") ?? 0) || 0;
         const newCount = prevCount + 1;
         tx.set(refUserRef, {
@@ -122,23 +128,29 @@ export async function applyReferralCodeToUser(uid: string, code: string) {
             updatedAt: FieldValue.serverTimestamp()
         }, {merge: true});
 
-        // 5. Add to referralsChildren subcollection (for listing)
-        const childRef = refUserRef.collection("referralsChildren").doc(uid);
-        tx.set(childRef, {
-            appliedAt: FieldValue.serverTimestamp(),
-            earnedTotal: 0
+        // 6. Initialize Lifetime Earnings Record (New Structure)
+        // Path: users/{referrer}/referralData/currentReferralEarnings/records/{newUid}
+        const lifetimeRef = refUserRef
+            .collection("referralData")
+            .doc("currentReferralEarnings")
+            .collection("records")
+            .doc(uid);
+
+        const childName = (uSnap.get("username") as string) || "Guest";
+
+        tx.set(lifetimeRef, {
+            childName: childName,
+            totalEarned: 0,
+            joinedAt: FieldValue.serverTimestamp()
         });
 
-        // 6. Grant Reward (to new user) -> 100 currency default
-        const cur = Number(uSnap.get("currency") ?? 0) || 0;
+        // 7. Grant Reward (to new user) -> REMOVED per request
+        // const cur = Number(uSnap.get("currency") ?? 0) || 0;
+        // tx.set(userRef, {
+        //    currency: cur + 100
+        // }, {merge: true});
 
-        // Fix: Also set referredByKey
-        tx.set(userRef, {
-            currency: cur + 100,
-            referredByKey: upper
-        }, {merge: true});
-
-        // 7. Check Thresholds for Referrer
+        // 8. Check Thresholds for Referrer
         await grantReferralThresholdItems(tx, referrerUid, newCount);
     });
     return {ok: true, applied: upper};
@@ -178,7 +190,7 @@ export const createUserProfile = functionsV1.auth.user().onCreate(async (user) =
         "coinMultiplierPercent": 0,
         "gameplaySpeedMultiplierPercent": 0,
         "magnetPowerPercent": 0,
-        "playerAcceleration": 0.1,
+        "playerAcceleration": 0,
         "playerSizePercent": 0,
     });
 
@@ -239,15 +251,15 @@ export const createUserProfile = functionsV1.auth.user().onCreate(async (user) =
 
         // Social / Referral
         referralKey: "", // Will be generated on SetName
-        referrals: 0,
+        referralCount: 0, // Unified to match v2.0 spec (was referrals)
         referralEarnings: 0,
         referredByUid: "",
         referredByKey: "",
 
 
         // Energy System
-        energyCurrent: 6,
-        energyMax: 6,
+        energyCurrent: 5,
+        energyMax: 5,
         energyRegenPeriodSec: 14400, // 4 hours
         energyUpdatedAt: now,
 
@@ -338,17 +350,20 @@ export const completeUserProfile = onCall(async (req) => {
     // but safe because isProfileComplete is already true (so user can't retry this step infinitely).
     // Actually, we should try to do it even if separate.
     let referralApplied = false;
+    let referralError = "";
+
     if (referralCode.length > 0) {
         try {
             const res = await applyReferralCodeToUser(uid, referralCode);
             if (res.ok) referralApplied = true;
         } catch (e: any) {
             console.warn(`[completeUserProfile] Referral '${referralCode}' failed: ${e.message}`);
+            referralError = e.message;
             // We do NOT fail the profile completion just because referral failed.
         }
     }
 
-    return {success: true, username: usernameRaw, referralApplied};
+    return {success: true, username: usernameRaw, referralApplied, referralError};
 });
 
 // List Referred Users
@@ -379,11 +394,14 @@ export const listReferredUsers = onCall(async (req) => {
         if (includeEarnings) {
             const rcRef = usersCol
                 .doc(uid)
-                .collection("referralsChildren")
+                .collection("referralData")
+                .doc("currentReferralEarnings")
+                .collection("records")
                 .doc(childUid);
+
             const rcSnap = await rcRef.get();
             if (rcSnap.exists) {
-                const et = rcSnap.get("earnedTotal");
+                const et = rcSnap.get("totalEarned"); // New field name: totalEarned
                 earnedTotal = typeof et === "number" ? et : 0;
             }
         }
@@ -567,7 +585,11 @@ export const getPendingReferrals = onCall(async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-    const pendingCol = db.collection("users").doc(uid).collection("referralPending");
+    const pendingCol = db.collection("users")
+        .doc(uid)
+        .collection("referralData")
+        .doc("pendingReferralEarnings")
+        .collection("records");
     const snap = await pendingCol.limit(50).get();
 
     if (snap.empty) {
@@ -597,17 +619,20 @@ export const claimReferralEarnings = onCall(async (req) => {
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
     const userRef = db.collection("users").doc(uid);
-    const pendingCol = userRef.collection("referralPending");
-    const activityCol = userRef.collection("referralsChildren"); // Correct path for lifetime stats
+    // New Path: users/{uid}/referralData/pendingReferralEarnings/records
+    const pendingCol = userRef
+        .collection("referralData")
+        .doc("pendingReferralEarnings")
+        .collection("records");
 
-    // Transaction to ensure atomicity
-    // We limit to 50 items to avoid transaction limits (500 ops). 
-    // If user has > 50 pending, they will need to claim multiple times or we loop?
-    // User said "pool transfers to account". We'll do one batch. 
-    // If there are more, the next check will find them.
+    // New Path: users/{uid}/referralData/currentReferralEarnings/records
+    const lifetimeCol = userRef
+        .collection("referralData")
+        .doc("currentReferralEarnings")
+        .collection("records");
 
     return await db.runTransaction(async (tx) => {
-        const pSnap = await tx.get(pendingCol.limit(100)); // Process up to 100
+        const pSnap = await tx.get(pendingCol.limit(100));
         if (pSnap.empty) {
             return {claimed: 0, items: []};
         }
@@ -618,62 +643,82 @@ export const claimReferralEarnings = onCall(async (req) => {
         }
 
         const currentCurrency = Number(uSnap.get("currency") ?? 0) || 0;
-        const currentTotalEarned = Number(uSnap.get("totalReferralEarnings") ?? 0) || 0; // Optional global stat
+        const currentTotalEarned = Number(uSnap.get("referralEarnings") ?? 0) || 0;
 
         let batchTotal = 0;
-        const claimedItems: any[] = [];
+        const breakdown: any[] = [];
+        const lifetimeUpdates: { ref: FirebaseFirestore.DocumentReference, amt: number }[] = [];
 
+        // 1. Process Pending Docs
         for (const doc of pSnap.docs) {
             const d = doc.data();
-            const childUid = doc.id; // docId is childUid based on submitSessionResult logic
+            const childUid = doc.id;
             const amt = Number(d.amount) || 0;
+            const cName = d.childName || "Unknown";
 
             if (amt <= 0) {
-                tx.delete(doc.ref); // cleanup empty garbage
+                tx.delete(doc.ref);
                 continue;
             }
 
             batchTotal += amt;
-            claimedItems.push({childUid, amount: amt});
+            breakdown.push({
+                childUid,
+                childName: cName,
+                amount: amt
+            });
 
-            // 1. Update Lifetime Activity for this child
-            // We need to read the activity doc to increment. 
-            // BUT: Reading inside loop inside TX? 
-            // If we have 100 pending, we do 100 reads of activity docs + 100 writes.
-            // + 1 read of pending + 1 read user + 1 write user + 100 delete pending.
-            // Total ops = 100(read act) + 100(write act) + 100(delete pending) + 2(user) = 302 ops. 
-            // Max is 500. So 100 items limit is safe.
+            // Prepare lifetime update
+            const lifetimeRef = lifetimeCol.doc(childUid);
+            // We need to read lifetime doc to increment it? 
+            // Yes, inside TX.
+            // CAUTION: Reading inside loop. 100 items limit is okay for 500 ops.
+            // Optimize: We could use FieldValue.increment if we didn't need to read 'joinedAt'.
+            // Actually, we can use set({totalEarned: FieldValue.increment(amt)}, {merge:true}) without reading!
+            // This saves 100 reads.
 
-            const actRef = activityCol.doc(childUid);
-            const actSnap = await tx.get(actRef);
+            // However, verify if logic requires reading. Plan said "Update... increment".
+            // Using FieldValue.increment is safer and cheaper.
+            lifetimeUpdates.push({ref: lifetimeRef, amt});
 
-            if (actSnap.exists) {
-                const prevEarned = Number(actSnap.get("earnedTotal") ?? 0) || 0;
-                tx.set(actRef, {
-                    earnedTotal: prevEarned + amt,
-                    lastClaimedAt: FieldValue.serverTimestamp()
-                }, {merge: true});
-            } else {
-                tx.set(actRef, {
-                    earnedTotal: amt,
-                    appliedAt: FieldValue.serverTimestamp(), // Should exist but fallback
-                    lastClaimedAt: FieldValue.serverTimestamp()
-                }, {merge: true});
-            }
-
-            // 2. Delete pending doc
+            // Delete pending
             tx.delete(doc.ref);
         }
 
-        // 3. Update User Wallet
+        // Fix float precision for batchTotal
+        batchTotal = Number(batchTotal.toFixed(3));
+
         if (batchTotal > 0) {
+            // 2. Create Transaction Record
+            // Path: users/{uid}/referralData/referralTransactions/records/{autoId}
+            const txRef = userRef
+                .collection("referralData")
+                .doc("referralTransactions")
+                .collection("records")
+                .doc();
+
+            tx.set(txRef, {
+                claimedAt: FieldValue.serverTimestamp(),
+                totalAmount: batchTotal,
+                breakdown: breakdown
+            });
+
+            // 3. Update Lifetime Docs (Batch)
+            for (const item of lifetimeUpdates) {
+                tx.set(item.ref, {
+                    totalEarned: FieldValue.increment(item.amt),
+                    // We don't overwrite childName/joinedAt, just increment total
+                }, {merge: true});
+            }
+
+            // 4. Update User Properties
             tx.set(userRef, {
                 currency: currentCurrency + batchTotal,
-                totalReferralEarnings: currentTotalEarned + batchTotal,
+                referralEarnings: currentTotalEarned + batchTotal, // Update global stat
                 updatedAt: FieldValue.serverTimestamp()
             }, {merge: true});
         }
 
-        return {claimed: batchTotal, count: claimedItems.length};
+        return {claimed: batchTotal, count: breakdown.length};
     });
 });

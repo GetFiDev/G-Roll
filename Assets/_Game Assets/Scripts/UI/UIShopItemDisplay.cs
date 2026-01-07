@@ -44,6 +44,7 @@ public class UIShopItemDisplay : MonoBehaviour
 
     [Header("Action Icons")]
     [SerializeField] private Sprite iconCurrency;  // GET para ikonu
+    [SerializeField] private Sprite iconPremium;   // Premium (Gem) ikonu
     [SerializeField] private Sprite iconEquip;     // Equip ikonu
     [SerializeField] private Sprite iconUnequip;   // Unequip ikonu
     [SerializeField] private Sprite iconReferral;  // Referral ikonu
@@ -209,9 +210,27 @@ public class UIShopItemDisplay : MonoBehaviour
         {
             _originalIconSprite = data.iconSprite;
             iconImage.sprite = data.iconSprite;
+            
+            // If already loaded, show immediately fully opaque
             var col = iconImage.color;
             col.a = 1f;
             iconImage.color = col;
+            iconImage.enabled = true;
+        }
+        else if (data != null && !string.IsNullOrEmpty(data.iconUrl))
+        {
+            // LAZY LOAD:
+            // 1. Hide image initially (transparent)
+            _originalIconSprite = null;
+            iconImage.sprite = null;
+            
+            var col = iconImage.color;
+            col.a = 0f; // Start transparent
+            iconImage.color = col;
+            iconImage.enabled = true; // Enabled but invisible
+
+            // 2. Start download & fade-in routine
+            StartCoroutine(DownloadImageAndFadeIn(data));
         }
         else
         {
@@ -278,9 +297,9 @@ public class UIShopItemDisplay : MonoBehaviour
 
         // Premium görseli gereken durumlar:
         // 1) Kategori Premium ise
-        // 2) Kategori BullMarket ama item gerçek parayla alınabiliyorsa (dollarPrice > 0)
+        // 2) Kategori BullMarket ama item premium parayla alınıyorsa (premiumPrice > 0)
         bool shouldUsePremiumVisual = (category == ShopCategory.Premium)
-                                      || (category == ShopCategory.BullMarket && data != null && data.dollarPrice > 0);
+                                      || (category == ShopCategory.BullMarket && data != null && data.premiumPrice > 0);
 
         if (shouldUsePremiumVisual)
         {
@@ -420,11 +439,11 @@ public class UIShopItemDisplay : MonoBehaviour
                     label = "Watch Ad";
                     icon = iconAd;
                 }
-                else if (Category == ShopCategory.Premium || (Category == ShopCategory.BullMarket && d != null && d.dollarPrice > 0))
+                else if (Category == ShopCategory.Premium || (Category == ShopCategory.BullMarket && d != null && d.premiumPrice > 0))
                 {
-                    // $ fiyat
-                    if (d != null) label = "$" + d.dollarPrice.ToString("F2");
-                    icon = null; // dolar için ikon göstermiyoruz
+                    // Premium (Gem) fiyat
+                    if (d != null) label = d.premiumPrice.ToString("F0"); // Genelde tam sayı
+                    icon = iconPremium; 
                 }
                 else
                 {
@@ -486,13 +505,13 @@ public class UIShopItemDisplay : MonoBehaviour
                 return d.getPrice > 0 ? $"{d.getPrice:F2} GET" : "GET 0";
 
             case ShopCategory.Premium:
-                // Gerçek para
-                return d.dollarPrice > 0 ? $"${d.dollarPrice:F2}" : "$0.00";
+                // Premium para
+                return d.premiumPrice > 0 ? d.premiumPrice.ToString("F0") : "0";
 
             case ShopCategory.BullMarket:
                 // Tüketilebilir; 3 yöntemin herhangi biri olabilir (etiketi basit tut)
                 if (d.isRewardedAd) return "Watch Ad";
-                if (d.dollarPrice > 0) return $"${d.dollarPrice:F2}";
+                if (d.premiumPrice > 0) return d.premiumPrice.ToString("F0");
                 if (d.getPrice > 0) return $"{d.getPrice:F2} GET";
                 return "Consumable";
         }
@@ -582,6 +601,57 @@ public class UIShopItemDisplay : MonoBehaviour
             var finalCol = iconImage.color; finalCol.a = 1f; iconImage.color = finalCol;
         }
         _blinkCoroutine = null;
+    }
+
+    private IEnumerator DownloadImageAndFadeIn(ItemDatabaseManager.ReadableItemData data)
+    {
+        // Safety check
+        if (string.IsNullOrEmpty(data.iconUrl)) yield break;
+
+        // Download (this is async but we wrap in coroutine by waiting on Task)
+        var task = RemoteItemService.DownloadTextureAsync(data.iconUrl);
+        while (!task.IsCompleted) yield return null;
+
+        if (task.Exception != null || task.Result == null)
+        {
+            // Fail silently or maybe show placeholder
+            Debug.LogWarning($"[UIShopItemDisplay] Failed to load icon for {data.id}");
+            // Optional: fallback to blink or default?
+            yield break;
+        }
+
+        var texture = task.Result;
+        var sprite = RemoteItemService.CreateSprite(texture);
+
+        // Cache it on the data object so next time it's instant
+        data.iconSprite = sprite;
+        _originalIconSprite = sprite;
+
+        // Assign to UI
+        if (iconImage != null)
+        {
+            iconImage.sprite = sprite;
+            
+            // Fade In Effect: 0 -> 1 over 0.5s
+            float duration = 0.5f;
+            float elapsed = 0f;
+            Color c = iconImage.color;
+            c.a = 0f;
+            iconImage.color = c;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                c.a = t;
+                if (iconImage != null) iconImage.color = c;
+                yield return null;
+            }
+            
+            // Ensure full alpha at end
+            c.a = 1f;
+            if (iconImage != null) iconImage.color = c;
+        }
     }
 
     private void Clear(Transform root)
@@ -713,12 +783,45 @@ public class UIShopItemDisplay : MonoBehaviour
 
         // Satın alma yöntemi seçimi
         UserInventoryManager.PurchaseMethod method;
-        if (Category == ShopCategory.Premium || (Category == ShopCategory.BullMarket && Data.dollarPrice > 0))
-            method = UserInventoryManager.PurchaseMethod.IAP;
+        if (Category == ShopCategory.Premium || (Category == ShopCategory.BullMarket && Data.premiumPrice > 0))
+            method = UserInventoryManager.PurchaseMethod.Premium;
         else if (Data.isRewardedAd)
             method = UserInventoryManager.PurchaseMethod.Ad;
         else
             method = UserInventoryManager.PurchaseMethod.Get;
+
+        // --- NEW: Spend FX Logic ---
+        // "eğer para yetiyorsa o itemi almaya; normal satın alma akışı başlayacak. 
+        // bu normal satın alma akışı ile birlikte ui top panelde referansını ekleyeceğimiz uiparticleların attactionu satın alınan itemin sarın alma butonuna set edilecek ve playe basılacak."
+        bool canAffordLocal = true;
+        bool isPremium = (method == UserInventoryManager.PurchaseMethod.Premium);
+        
+        // Ads don't cost currency, so no spend FX
+        if (method != UserInventoryManager.PurchaseMethod.Ad)
+        {
+            if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.currentUserData != null)
+            {
+                var ud = UserDatabaseManager.Instance.currentUserData;
+                double cost = isPremium ? Data.premiumPrice : Data.getPrice;
+                
+                // Check balance
+                double balance = isPremium ? ud.premiumCurrency : ud.currency;
+                
+                if (balance < cost)
+                {
+                    canAffordLocal = false;
+                }
+            }
+        }
+
+        if (canAffordLocal && method != UserInventoryManager.PurchaseMethod.Ad)
+        {
+            if (UITopPanel.Instance != null && UITopPanel.Instance.statsDisplayer != null && actionButton != null)
+            {
+                // Play particle flowing TO the button
+                UITopPanel.Instance.statsDisplayer.PlaySpendingParticle(isPremium, actionButton.transform);
+            }
+        }
 
         // Yeni API: token/receipt göndermiyoruz; UserInventoryManager sunucu yanıtını normalize ediyor
         ShowStatus("Purchase in progress...");

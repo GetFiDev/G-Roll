@@ -44,8 +44,17 @@ async function applyDailyStreakIncrement(uid: string): Promise<{
         let todayCounted = false;
 
         if (lastDate !== today) {
-            totalDays = prevTotal + 1;
-            unclaimedDays = prevUnclaimed + 1;
+            if (!sSnap.exists) {
+                // First time ever: Start streak at 0, NO reward (unclaimed=0)
+                // Next day it will become 1 (total) and 1 (unclaimed).
+                totalDays = 0;
+                unclaimedDays = 0;
+            } else {
+                // Ongoing streak or broken streak logic could go here if we tracked breaks
+                // For now, simple increment logic from existing code:
+                totalDays = prevTotal + 1;
+                unclaimedDays = prevUnclaimed + 1;
+            }
             todayCounted = true;
         }
 

@@ -29,6 +29,31 @@ async function getGoogleAuth() {
     }
 }
 
+// Helper: Fetch all premium non-consumable items
+async function getPremiumItems() {
+    try {
+        const snaps = await db.collectionGroup("itemdata")
+            .where("itemPremiumPrice", ">", 0)
+            .get();
+
+        const items: { id: string, name: string }[] = [];
+        snaps.forEach(d => {
+            const data = d.data();
+            const isConsumable = !!data.itemIsConsumable;
+            if (!isConsumable) {
+                // itemdata doc's parent is the itemId document (e.g. items/item_x/itemdata)
+                // So one level up is the doc with ID.
+                const itemId = d.ref.parent.parent?.id;
+                if (itemId) items.push({id: itemId, name: data.itemName});
+            }
+        });
+        return items;
+    } catch (e) {
+        console.error("getPremiumItems failed", e);
+        return [];
+    }
+}
+
 // Helper to verify Apple Receipt
 // Helper to verify Apple Receipt
 async function verifyAppleStore(receipt: string): Promise<{
@@ -393,6 +418,10 @@ export const verifyPurchase = onCall(async (req) => {
         }
         const durationMs = days * 24 * 60 * 60 * 1000;
 
+        // Subscription: Grant Benefits
+        // 1. Fetch Premium Items to Grant
+        const premiumItems = await getPremiumItems();
+
         await db.runTransaction(async (tx) => {
             const snap = await tx.get(userRef);
             const currentExp = snap.exists ? (snap.get("elitePassExpiresAt") as Timestamp) : null;
@@ -401,21 +430,52 @@ export const verifyPurchase = onCall(async (req) => {
                 baseTime = currentExp.toMillis();
             }
             const newExp = Timestamp.fromMillis(baseTime + durationMs);
+            const curPremium = Number(snap.get("premiumCurrency") ?? 0) || 0;
 
+            // Grant 400 Gems + 10 Max Energy + Active Status
             tx.set(userRef, {
                 hasElitePass: true,
                 elitePassExpiresAt: newExp,
+                premiumCurrency: curPremium + 400, // Grant 400
+                energyMax: 10, // Boost Energy
                 updatedAt: FieldValue.serverTimestamp()
             }, {merge: true});
+
+            // Grant Items
+            for (const item of premiumItems) {
+                const invRef = userRef.collection("inventory").doc(item.id);
+                // We check existing within TX? 
+                // Optimally we should read them. But blindly setting merged with source='elite_pass' 
+                // might overwrite 'owned: true' from a REAL purchase if we are not careful?
+                // Requirement: "ancak subscribe olmadan önce aldığı item premium item varsa onlar durur".
+                // If user bought it, source is likely 'purchase' or undefined. 
+                // We should ONLY update if NOT owned.
+
+                const invSnap = await tx.get(invRef);
+                if (!invSnap.exists || !invSnap.get("owned")) {
+                    tx.set(invRef, {
+                        owned: true,
+                        source: "elite_pass", // Marker to remove later
+                        acquiredAt: FieldValue.serverTimestamp(),
+                        itemIsConsumable: false
+                    }, {merge: true});
+                }
+            }
         });
-        result.message = "Elite Pass Extended";
+        result.message = "Elite Pass Extended: 400 Gems Added, Energy Max 10, Items Unlocked";
+        result.rewards["premiumCurrency"] = 400;
     }
     // Non-Consumables
     else if (productId.includes("removeads")) {
-        await userRef.update({
+        console.log(`[verifyPurchase] Granting Remove Ads for ${uid} (Product: ${productId})`);
+
+        // Use set({merge:true}) instead of update() to be safe against missing docs
+        // Also explicitly set removeAds to true
+        await userRef.set({
             removeAds: true,
             updatedAt: FieldValue.serverTimestamp()
-        });
+        }, {merge: true});
+
         result.message = "Ads Removed";
     }
 

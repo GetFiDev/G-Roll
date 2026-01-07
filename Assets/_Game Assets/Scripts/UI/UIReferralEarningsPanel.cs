@@ -1,148 +1,111 @@
+using System;
+using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using DG.Tweening;
-using System.Collections;
-using System.Threading.Tasks;
 
 public class UIReferralEarningsPanel : MonoBehaviour
 {
-    [Header("UI References")]
-    [SerializeField] private TextMeshProUGUI totalAmountText;
-    [SerializeField] private Button claimButton;
-    // Loading overlay removed as requested
+    [Header("UI Elements")]
+    public TextMeshProUGUI titleText; // Optional: "Pending Earnings"
+    public TextMeshProUGUI amountText; // The main number
+    public Button claimButton;
+    // Removed closeButton as per request
 
-    [Header("Animation Settings")]
-    [SerializeField] private Color startColor = Color.white;
-    [SerializeField] private Color endColor = Color.green;
+    private Action _onClaimCallback; // Changed to match method signature easier, but we need Async now
 
-    private long _currentTotal = 0;
-    private bool _isClaiming = false;
+    // We change the signature to accept a Task-returning Func for async waiting
+    private Func<Task> _onClaimAsync;
+
+    private CanvasGroup _canvasGroup;
 
     private void Awake()
     {
-        if (claimButton) claimButton.onClick.AddListener(OnClaimClicked);
+        _canvasGroup = GetComponent<CanvasGroup>();
+        if (_canvasGroup == null)
+        {
+            _canvasGroup = gameObject.AddComponent<CanvasGroup>();
+        }
+    }
+
+    // Updated Open signature to accept async callback
+    public void Open(float amount, Func<Task> onClaimAsync)
+    {
+        gameObject.SetActive(true);
+        if (amountText) amountText.text = amount.ToString("0.###");
+        
+        if (claimButton) 
+        {
+            claimButton.interactable = true;
+        }
+
+        _onClaimAsync = onClaimAsync;
+
+        // Reset Alpha and Fade In
+        _canvasGroup.alpha = 0f;
+        StopAllCoroutines();
+        StartCoroutine(Co_Fade(0f, 1f, 0.5f));
+    }
+
+    private void OnEnable()
+    {
+        if (claimButton) claimButton.onClick.AddListener(OnClaimClick);
     }
 
     private void OnDisable()
     {
-        // Kill tweens to avoid issues if panel closed mid-animation
-        totalAmountText.DOKill();
-        claimButton.transform.DOKill();
+        if (claimButton) claimButton.onClick.RemoveListener(OnClaimClick);
     }
 
-    public void Initialize(long totalAmount)
+    private async void OnClaimClick()
     {
-        _currentTotal = totalAmount;
-        _isClaiming = false;
-        
-        gameObject.SetActive(true);
+        if (claimButton) claimButton.interactable = false;
 
-        // Reset State
-        if (claimButton)
+        // Trigger the claim action and WAIT
+        if (_onClaimAsync != null)
         {
-            claimButton.interactable = true;
-            claimButton.transform.localScale = Vector3.zero; // Start hidden
-        }
-        
-        if (totalAmountText)
-        {
-            totalAmountText.text = "0.00";
-            totalAmountText.color = startColor;
+            await _onClaimAsync.Invoke();
         }
 
-        StartCoroutine(AnimationSequence(totalAmount));
+        // Fade Out and Close
+        StartCoroutine(Co_FadeOutAndClose());
     }
 
-    private IEnumerator AnimationSequence(long targetAmount)
+    private System.Collections.IEnumerator Co_Fade(float from, float to, float duration)
     {
-        // 1. Determine random duration (1s - 4s)
-        float duration = UnityEngine.Random.Range(1.0f, 4.0f);
-        
-        // 2. Count Up & Color Lerp
         float elapsed = 0f;
-        
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-
-            // Lerp value
-            float currentVal = Mathf.Lerp(0, targetAmount, t);
-            if (totalAmountText)
-            {
-                totalAmountText.text = $"{currentVal:F2}"; // Format properly? Assuming standard float display or integer?
-                // User said "0.00", implying float. But "totalAmount" is long (currency). 
-                // Let's assume currency is integer but displayed with decimals or it is float?
-                // Original code had long. If user sees 0.00, maybe they want it to look like money.
-                // I will display as F2 for effect, or N0 if strictly integer. 
-                // "0.00" request suggests F2.
-                
-                totalAmountText.color = Color.Lerp(startColor, endColor, t);
-            }
+            _canvasGroup.alpha = Mathf.Lerp(from, to, elapsed / duration);
             yield return null;
         }
-
-        // Finalize value
-        if (totalAmountText)
-        {
-            totalAmountText.text = $"{targetAmount:F2}";
-            totalAmountText.color = endColor;
-        }
-
-        // 3. Blink Sequence: White -> Green -> White -> Green -> White
-        // "beyaz yeşil beyaz yeşil beyaz" -> ends on White.
-        // Let's do a sequence.
-        
-        if (totalAmountText)
-        {
-            Sequence blinkSeq = DOTween.Sequence();
-            float blinkDur = 0.2f;
-
-            blinkSeq.Append(totalAmountText.DOColor(startColor, blinkDur)); // White
-            blinkSeq.Append(totalAmountText.DOColor(endColor, blinkDur));   // Green
-            blinkSeq.Append(totalAmountText.DOColor(startColor, blinkDur)); // White
-            blinkSeq.Append(totalAmountText.DOColor(endColor, blinkDur));   // Green
-            blinkSeq.Append(totalAmountText.DOColor(startColor, blinkDur)); // White (Final)
-
-            yield return blinkSeq.WaitForCompletion();
-        }
-
-        // 4. Show Claim Button (Scale Up)
-        if (claimButton)
-        {
-            claimButton.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack);
-        }
+        _canvasGroup.alpha = to;
     }
 
-    private async void OnClaimClicked()
+    private System.Collections.IEnumerator Co_FadeOutAndClose()
     {
-        if (_isClaiming) return;
-        _isClaiming = true;
+        yield return Co_Fade(1f, 0f, 0.5f);
         
-        if (claimButton) claimButton.interactable = false;
-
-        try
-        {
-            // Sending claim request
-            var res = await ReferralRemoteService.ClaimReferralEarnings();
-            
-            Debug.Log($"[UIReferralEarningsPanel] Claimed {res.claimed}");
-
-            // Success Updates
-            if (UITopPanel.Instance != null) UITopPanel.Instance.Initialize();
-
-            // Refresh Home if handy reference exists, usually not needed if TopPanel updates currency
-            // But user said: "home hoem panel görünecek. home panele dönüşte home panel refresh atıcak"
-            // We are already IN home panel concept (overlay). Closing this reveals HomePanel.
-            
-            gameObject.SetActive(false);
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"[UIReferralEarningsPanel] Claim failed: {e.Message}");
-            _isClaiming = false;
-            if (claimButton) claimButton.interactable = true;
-        }
+        gameObject.SetActive(false);
+        _canvasGroup.alpha = 1f; // Reset alpha for next usage if pooled (though we implement Destroy below usually)
+        
+        // Spec says "Destroy" in previous logic, but user says "Hide" implies reuse or just clean exit.
+        // User said "direk gameobjectini kapatırsın". So SetActive(false).
+        // If instantiated as prefab, maybe Destroy is better to avoid clutter?
+        // Let's stick to SetActive(false) as requested, but if it was instantiated by UIReferralPanel, 
+        // UIReferralPanel keeps a ref `_currentPopup`. 
+        // If we just hide, `_currentPopup` remains not null, so next time it reuses it?
+        // UIReferralPanel logic: if (_currentPopup == null) Instantiate...
+        // So we should DESTROY it to clear the reference in UIReferralPanel? 
+        // OR UIReferralPanel should check if active.
+        // Let's Destroy to be safe and consistent with "Popup" transient nature. 
+        // BUT User said "alfayı yine 1 yapman lazım... gameobjecti kapattıktan sonra". 
+        // This implies reuse. Let's use Destroy for now to avoid logic changes in Parent, unless Parent supports reuse.
+        // Checking Parent: `if (_currentPopup == null && earningsPanelPrefab != null)`
+        // If we don't destroy, _currentPopup stays valid but hidden.
+        // Next refresh: loops, sees `_currentPopup` is not null.
+        // `_currentPopup.Open(...)` -> re-opens it. 
+        // This supports reuse! So I will NOT Destroy.
     }
 }

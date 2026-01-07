@@ -193,7 +193,7 @@ public class UserInventoryManager : MonoBehaviour
         return _equipped.Contains(IdUtil.NormalizeId(itemId));
     }
 
-    public enum PurchaseMethod { Get, Ad, IAP }
+    public enum PurchaseMethod { Get, Ad, IAP, Premium }
 
     /// <summary>
     /// Try to purchase an item with a specific method (currency/ad/iap).

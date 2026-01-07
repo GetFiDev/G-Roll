@@ -1,110 +1,196 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
+using Firebase.Functions;
+using Firebase.Extensions;
+using System.Threading.Tasks;
+using System;
 
 public class UIAdProduct : MonoBehaviour
 {
     [Header("Configuration")]
-    [SerializeField] private string productId = "ad_reward_gems";
-    [SerializeField] private int dailyLimit = 5;
-    [SerializeField] private int rewardAmount = 50;
+    [Tooltip("The ID of the ad product as defined in Cloud Firestore.")]
+    [SerializeField] private string adId;
+
+    [Header("Reward")]
+    [Tooltip("Optional: Drag an AdRewardGranter component here to grant rewards on success.")]
+    [SerializeField] private AdRewardGranter rewardGranter;
 
     [Header("UI References")]
-    [SerializeField] private Button watchAdButton;
-    [SerializeField] private TextMeshProUGUI statusText; // "Claim Free" or "Come Back Tomorrow"
-    [SerializeField] private TextMeshProUGUI countText;  // "1/5"
-    [SerializeField] private TextMeshProUGUI rewardAmountText;
+    [SerializeField] private TextMeshProUGUI usageDisplayTmpugui;
+    [SerializeField] private Button actionButton;
 
-    private UserDatabaseManager _userDb;
+    private int _dailyLimit = 0;
+    private int _usedToday = 0;
+    private bool _isLoading = false;
 
-    private void Start()
+    private FirebaseFunctions _functions;
+
+    private void OnEnable()
     {
-        _userDb = UserDatabaseManager.Instance;
+        // Ensure Firebase is ready before calling. 
+        // If UserDatabaseManager handles initialization, we can check it or wait.
+        if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.IsFirebaseReady)
+        {
+            InitializeAndFetch();
+        }
+        else
+        {
+            StartCoroutine(WaitForFirebase());
+        }
+    }
+
+    private IEnumerator WaitForFirebase()
+    {
+        while (UserDatabaseManager.Instance == null || !UserDatabaseManager.Instance.IsFirebaseReady)
+        {
+            yield return new WaitForSeconds(0.5f);
+        }
+        InitializeAndFetch();
+    }
+
+    private void InitializeAndFetch()
+    {
+        _functions = FirebaseFunctions.GetInstance("us-central1");
         
-        if (watchAdButton != null)
+        if (actionButton != null)
         {
-            watchAdButton.onClick.AddListener(OnWatchAdClicked);
+            actionButton.onClick.RemoveAllListeners();
+            actionButton.onClick.AddListener(OnWatchAdClicked);
+            // Disable until we know data, or let it be generic? 
+            // Better to disable to avoid premature clicks.
+            actionButton.interactable = false;
         }
 
-        if (rewardAmountText != null)
-        {
-            rewardAmountText.text = rewardAmount.ToString();
-        }
-
-        // Subscribe to updates to refresh UI (e.g. after claim)
-        if (_userDb != null)
-        {
-            _userDb.OnUserDataSaved += OnUserDataUpdated;
-            RefreshUI();
-        }
+        FetchAdDetails();
     }
 
-    private void OnDestroy()
+    private void FetchAdDetails()
     {
-        if (_userDb != null)
+        if (_isLoading) return;
+        _isLoading = true;
+
+        var func = _functions.GetHttpsCallable("getAdProductDetails");
+        var data = new Dictionary<string, object>
         {
-            _userDb.OnUserDataSaved -= OnUserDataUpdated;
-        }
+            { "adId", adId }
+        };
+
+        func.CallAsync(data).ContinueWithOnMainThread(task =>
+        {
+            _isLoading = false;
+            if (task.IsFaulted || task.IsCanceled)
+            {
+                Debug.LogError($"[UIAdProduct] Fetch failed or canceled: {task.Exception}");
+                return;
+            }
+
+            // Parse result
+            // Returns: { adId, dailyLimit, usedToday }
+            if (task.Result.Data is IDictionary result)
+            {
+                if (result.Contains("dailyLimit")) 
+                    _dailyLimit = Convert.ToInt32(result["dailyLimit"]);
+                
+                if (result.Contains("usedToday")) 
+                    _usedToday = Convert.ToInt32(result["usedToday"]);
+
+                UpdateUI();
+            }
+        });
     }
 
-    private void OnUserDataUpdated(NetworkingData.UserData data)
+    private void UpdateUI()
     {
-        RefreshUI();
-    }
-
-    private void RefreshUI()
-    {
-        if (_userDb == null) return;
-
-        int currentCount = _userDb.GetDailyAdClaimCount(productId);
-        bool canClaim = _userDb.CanClaimAdProduct(productId, dailyLimit);
-
-        if (countText != null)
+        if (usageDisplayTmpugui != null)
         {
-            // Count indicates how many claimed, or remaining? Usually "Claimed/Limit"
-            countText.text = $"{currentCount}/{dailyLimit}";
+            // Format: "used/limit" -> e.g. "1/5"
+            // User requested: users/{uid}/adusagedata/{ad_id}/used_today + "/" + /appdata/adDatas/{documentname}/data/daily_limit
+            usageDisplayTmpugui.text = $"{_usedToday}/{_dailyLimit}";
         }
 
-        if (statusText != null)
+        if (actionButton != null)
         {
-            statusText.text = canClaim ? "Claim Free" : "Come back tomorrow";
-        }
-
-        if (watchAdButton != null)
-        {
-            watchAdButton.interactable = canClaim;
+            // Can claim if used < limit
+            bool canClaim = _usedToday < _dailyLimit;
+            actionButton.interactable = canClaim;
         }
     }
 
     private void OnWatchAdClicked()
     {
-        if (_userDb == null) return;
+        if (_usedToday >= _dailyLimit) return;
+        
+        actionButton.interactable = false; // Prevent double clicks
 
-        if (!_userDb.CanClaimAdProduct(productId, dailyLimit))
-        {
-            Debug.Log("[UIAdProduct] Daily limit reached.");
-            return;
-        }
-
-        // Disable button while showing/processing
-        watchAdButton.interactable = false;
-
+#if UNITY_EDITOR
+        // Mock success in editor
+        Debug.Log("[UIAdProduct] Editor Mock Ad Success");
+        OnAdSuccess();
+#else
+        // Using "product_reward" as placement ID. Assuming standard AdManager.
         AdManager.ShowRewarded("product_reward", (success) =>
         {
             if (success)
             {
-                // Grant Reward & Record Claim
-                _ = _userDb.RecordAdClaimAsync(productId, rewardAmount); 
-                // UI Refresh will happen via OnUserDataSaved event in RecordAdClaimAsync
+                // Must run on main thread if callback is not on main thread?
+                // Unity callbacks usually are main thread.
+                OnAdSuccess();
             }
             else
             {
-                // Ad failed or closed early
-                watchAdButton.interactable = true; // Re-enable to try again
-                Debug.Log("[UIAdProduct] Ad failed or skipped.");
+                Debug.Log("[UIAdProduct] Ad failed/skipped.");
+                actionButton.interactable = true; // Re-enable
+            }
+        });
+#endif
+    }
+
+    private void OnAdSuccess()
+    {
+        Debug.Log("[UIAdProduct] Ad Success! Processing rewards...");
+
+        // 1. Grant Reward (if granter is assigned)
+        if (rewardGranter != null)
+        {
+            rewardGranter.GrantReward(() => {
+                Debug.Log("[UIAdProduct] Reward granted callback.");
+            });
+        }
+        else
+        {
+            Debug.LogWarning("[UIAdProduct] No AdRewardGranter assigned!");
+        }
+
+        // 2. Optimistic Update of Usage
+        _usedToday++;
+        UpdateUI();
+
+        // 3. Server Call for Usage Tracking
+        IncrementOnServer();
+    }
+
+    private void IncrementOnServer()
+    {
+        var func = _functions.GetHttpsCallable("incrementAdUsage");
+        var data = new Dictionary<string, object>
+        {
+            { "adId", adId }
+        };
+
+        func.CallAsync(data).ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogError($"[UIAdProduct] Increment ad usage failed: {task.Exception}");
+                // We don't rollback locally because user already watched the ad and got reward.
+                // Discrepancy will resolve on next fetch.
+            }
+            else
+            {
+                Debug.Log("[UIAdProduct] Usage incremented on server.");
             }
         });
     }

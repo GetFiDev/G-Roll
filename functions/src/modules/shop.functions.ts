@@ -11,7 +11,7 @@ const BASE_STATS: Record<string, number> = {
     // Add others if needed with 0 defaults or specific values
     "coinMultiplierPercent": 0,
     "gameplaySpeedMultiplierPercent": 0,
-    "playerAcceleration": 0.1, // DTO says float default 0.1?
+    "playerAcceleration": 0,
     "maxScore": 0,
     "playerSizePercent": 0,
     "magnetPowerPercent": 0
@@ -148,7 +148,7 @@ export const createItem = onCall(async (req) => {
     // yazılacak veri (tüm alanlar)
     const docData = {
         itemDescription: str(p.itemDescription, "item description demo"),
-        itemDollarPrice: num(p.itemDollarPrice, 0),
+        // REMOVED: itemDollarPrice: num(p.itemDollarPrice, 0),
         itemGetPrice: num(p.itemGetPrice, 0.05),
         itemPremiumPrice: num(p.itemPremiumPrice, 0),
         itemIconUrl: str(
@@ -268,24 +268,19 @@ export const purchaseItem = onCall(async (req) => {
     const {
         itemId: rawItemId,
         method,
-        platform,
-        receipt,
-        orderId,
+        // REMOVED: platform, receipt, orderId for IAP
         adToken,
     } = (req.data || {}) as {
         itemId?: string;
         method?: string;
-        platform?: string;
-        receipt?: string;
-        orderId?: string;
         adToken?: string;
     };
 
     const itemId = normId(rawItemId);
     if (!itemId) throw new HttpsError("invalid-argument", "itemId required.");
     const m = String(method || "").toUpperCase();
-    if (!["GET", "IAP", "AD", "PREMIUM"].includes(m)) {
-        throw new HttpsError("invalid-argument", "Invalid method. Use GET | IAP | AD | PREMIUM.");
+    if (!["GET", "AD", "PREMIUM"].includes(m)) {
+        throw new HttpsError("invalid-argument", "Invalid method. Use GET | AD | PREMIUM.");
     }
 
     const itemRef = db.collection("appdata").doc("items").collection(itemId).doc("itemdata");
@@ -295,17 +290,6 @@ export const purchaseItem = onCall(async (req) => {
     const now = Timestamp.now();
 
     // ---- Pre-verify tokens ----
-    const verifyIapReceipt = async (platform?: string, receipt?: string, orderId?: string) => {
-        if (!platform || !receipt || !orderId) {
-            throw new HttpsError("invalid-argument", "platform, receipt and orderId are required for IAP.");
-        }
-        const lockRef = userRef.collection("iapReceipts").doc(orderId);
-        const existing = await lockRef.get();
-        if (existing.exists) {
-            throw new HttpsError("already-exists", "This purchase receipt was already processed.");
-        }
-        await lockRef.set({usedAt: now, platform, previewHash: String(receipt).slice(0, 32)}, {merge: true});
-    };
     const verifyAdGrant = async (adToken?: string) => {
         if (!adToken) throw new HttpsError("invalid-argument", "adToken required for AD method.");
         const grantRef = userRef.collection("adGrants").doc(adToken);
@@ -316,9 +300,8 @@ export const purchaseItem = onCall(async (req) => {
         await grantRef.set({usedAt: now}, {merge: true});
     };
 
-    if (m === "IAP") {
-        await verifyIapReceipt(platform, receipt, orderId);
-    } else if (m === "AD") {
+    // Verify Ad Token if needed
+    if (m === "AD") {
         await verifyAdGrant(adToken);
     }
 
@@ -335,19 +318,31 @@ export const purchaseItem = onCall(async (req) => {
 
         const isReferralOnly = Number(item.itemReferralThreshold ?? 0) > 0;
         if (isReferralOnly) {
-            throw new HttpsError("failed-precondition", "Referral-only item cannot be purchased.");
+            // Check if user has enough referrals
+            const userRefCount = Number(userSnap.get("referralCount") ?? 0) || 0;
+            const threshold = Number(item.itemReferralThreshold);
+            if (userRefCount < threshold) {
+                throw new HttpsError("failed-precondition", `Need ${threshold} referrals (have ${userRefCount}).`);
+            }
+            // If met, allow proceeding (will treat as Price=0 or special grant)
+            // Continue execution... logic below handles price=0 properly for GET/PREMIUM 
+            // if we set them to 0 effectively or they are 0.
         }
 
         const isConsumable = !!item.itemIsConsumable;
         const priceGet = Number(item.itemGetPrice ?? 0) || 0;
         const pricePremium = Number(item.itemPremiumPrice ?? 0) || 0;
-        const priceUsd = Number(item.itemDollarPrice ?? 0) || 0;
+        // REMOVED: const priceUsd = Number(item.itemDollarPrice ?? 0) || 0;
         const isAd = !!item.itemIsRewardedAd;
 
-        if (m === "GET" && priceGet <= 0) throw new HttpsError("failed-precondition", "Not purchasable with GET.");
-        if (m === "IAP" && priceUsd <= 0) throw new HttpsError("failed-precondition", "Not an IAP item.");
+        if (m === "GET" && priceGet <= 0 && !isReferralOnly) {
+            throw new HttpsError("failed-precondition", "Not purchasable with GET.");
+        }
+        // REMOVED: if (m === "IAP" && priceUsd <= 0) ...
         if (m === "AD" && !isAd) throw new HttpsError("failed-precondition", "Not ad-reward purchasable.");
-        if (m === "PREMIUM" && pricePremium <= 0) throw new HttpsError("failed-precondition", "Not purchasable with premium.");
+        if (m === "PREMIUM" && pricePremium <= 0 && !isReferralOnly) {
+            throw new HttpsError("failed-precondition", "Not purchasable with premium.");
+        }
 
         const alreadyOwned = invSnap.exists && !!invSnap.get("owned");
         if (alreadyOwned && !isConsumable) {
@@ -413,7 +408,7 @@ export const purchaseItem = onCall(async (req) => {
             method: m,
             priceGet: m === "GET" ? priceGet : 0,
             pricePremium: m === "PREMIUM" ? pricePremium : 0,
-            priceUsd: m === "IAP" ? priceUsd : 0,
+            priceUsd: 0, // No real money items anymore
             isConsumable,
             expiresAt: newExpiry,
             at: now,

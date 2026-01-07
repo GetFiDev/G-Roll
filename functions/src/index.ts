@@ -15,3 +15,5 @@ export * from "./modules/autopilot.functions";
 export * from "./modules/shop.functions";
 export * from "./modules/content.functions";
 export * from "./modules/leaderboard.functions";
+export * from "./modules/scheduler.functions";
+export * from "./modules/ad.functions";
