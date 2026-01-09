@@ -1,11 +1,19 @@
 using System.Collections;
 using UnityEngine;
 using System;
-// Re-adding correct usings if any were lost or just ensuring file start match
-
 
 public class GameplayManager : MonoBehaviour
 {
+    /// <summary>
+    /// Event triggered when a collectible (Coin/Booster) with a notification string is collected.
+    /// Payload: The notification text to display.
+    /// </summary>
+    public static event Action<string> OnCollectibleNotification;
+
+    public static void TriggerCollectibleNotification(string message)
+    {
+        OnCollectibleNotification?.Invoke(message);
+    }
     [Header("Channels (Assign in Inspector)")]
     [SerializeField] private VoidEventChannelSO requestStartGameplay;
     [SerializeField] private VoidEventChannelSO requestReturnToMeta;
@@ -21,6 +29,8 @@ public class GameplayManager : MonoBehaviour
 
     [Header("Camera")]
     [SerializeField] private Transform targetCamera; // boşsa Camera.main kullanılır
+
+    [SerializeField] private GameplayCameraManager cameraManager;
     [SerializeField] private TouchManager gameplayTouch;
 
 
@@ -140,6 +150,21 @@ public class GameplayManager : MonoBehaviour
             // --- Clean session baseline: reset multipliers to 1 before applying stats ---
             logicApplier.SetGameplaySpeedMultiplier(1f);
             logicApplier.SetPlayerSpeedMultiplier(1f);
+
+        }
+
+        // Camera Manager Initialization
+        if (cameraManager != null && playerGO != null)
+        {
+            // Transition trigger is now bound to LogicApplier.OnRunStarted inside Initialize
+            cameraManager.Initialize(playerGO.transform, logicApplier);
+            
+            // Wait for Loading UI to be fully gone using a safe polling approach
+            if (UIManager.Instance != null && UIManager.Instance.gameplayLoading != null)
+            {
+                // We assume gameplayLoading sets itself inactive when done
+                yield return new WaitUntil(() => !UIManager.Instance.gameplayLoading.gameObject.activeInHierarchy);
+            }
         }
 
         // Logic'i hazırla ve Visual'ı bağla, ardından koşuyu başlat
@@ -199,6 +224,13 @@ public class GameplayManager : MonoBehaviour
         }
 
         _sessionCurrencyTotal = 0d; // reset session currency accumulator
+
+        // Trigger Intro Animation (Look back -> Jump -> Look forward)
+        // Matches the 1.25s camera transition duration
+        if (playerMov != null)
+        {
+            playerMov.PlayIntroSequence(1.25f);
+        }
 
         logicApplier?.StartRun();
 
@@ -268,10 +300,22 @@ public class GameplayManager : MonoBehaviour
         visualApplier?.Unbind();
         logicApplier?.StopRun();
         
-        // Show loading or wait? The user said "SubmitSessionResult" function tamamlanmadan dönme.
-        // Usually we might want a spinner, but blocking return to meta is the key.
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowGameplayLoading(true);
+        }
+
+        float timeBeforeSubmit = Time.realtimeSinceStartup;
         
         await SubmitSessionToServer(earnedCurrency, earnedScore, success);
+
+        // Ensure we wait at least 2 seconds total for the loading screen to be seen
+        float elapsed = Time.realtimeSinceStartup - timeBeforeSubmit;
+        if (elapsed < 2.0f)
+        {
+            int waitMs = (int)((2.0f - elapsed) * 1000);
+            if (waitMs > 0) await System.Threading.Tasks.Task.Delay(waitMs);
+        }
 
         // Check for New High Score AFTER server submission (just to be safe, though local check is fine)
         if (earnedScore > _initialMaxScore)

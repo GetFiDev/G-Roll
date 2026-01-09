@@ -55,6 +55,7 @@ MonoBehaviour:
   requiredTag: Player
   countsAsPowerUp: 1
   powerUpKind: instantfill
+  notificationString: Instant Fill!
 --- !u!135 &2035459677021616363
 SphereCollider:
   m_ObjectHideFlags: 0

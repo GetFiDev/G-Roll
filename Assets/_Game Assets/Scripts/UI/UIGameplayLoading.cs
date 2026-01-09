@@ -32,9 +32,11 @@ public class UIGameplayLoading : MonoBehaviour
     private void OnEnable()
     {
         if (loadingBar) loadingBar.value = 0f;
-        if (loadingText) loadingText.text = "Loading…";
+        
+        // Reset text only if monitoring (otherwise SetSubmissionMode handles it)
+        if (_monitorMapLoader && loadingText) loadingText.text = "Loading...";
 
-        if (mapLoader != null)
+        if (_monitorMapLoader && mapLoader != null)
             mapLoader.OnReady += HandleMapsReady;
     }
 
@@ -43,11 +45,30 @@ public class UIGameplayLoading : MonoBehaviour
         if (mapLoader != null)
             mapLoader.OnReady -= HandleMapsReady;
         _isCompleting = false;
+        _monitorMapLoader = true; // Reset for next usage (e.g. next Start Game)
+    }
+
+    private bool _monitorMapLoader = true;
+
+    public void SetSubmissionMode(bool isSubmission)
+    {
+        _monitorMapLoader = !isSubmission;
+        if (loadingText)
+        {
+            loadingText.text = isSubmission ? "Saving..." : "Loading...";
+        }
+        if (loadingBar && isSubmission)
+        {
+             // For saving, maybe max out or indeterminate? Let's keep it at current or 100?
+             // Or just let it stay at 0 or wherever it is. 
+             // Ideally saving is a spinner, but bar is fine.
+             loadingBar.value = 1f; 
+        }
     }
 
     private void Update()
     {
-        if (mapLoader == null) return;
+        if (mapLoader == null || !_monitorMapLoader) return;
 
         // Hazır değilse sahte ilerleme ile fakeCap’e yürüsün
         if (!mapLoader.IsReady && !_isCompleting && loadingBar)

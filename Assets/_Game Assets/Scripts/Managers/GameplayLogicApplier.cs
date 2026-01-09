@@ -70,7 +70,8 @@ public class GameplayLogicApplier : MonoBehaviour
     private Coroutine boosterRoutine;
 
     // Olaylar (Visual Applier buraya bağlanır)
-    public event Action OnRunStarted;
+    public event Action OnGameReady; // Triggers when session is theoretically ready (camera transition)
+    public event Action OnRunStarted; // Triggers when physics/gameplay actually starts
     public event Action OnRunStopped;
     public event Action<float> OnScoreChanged;                  // yeni Score
     public event Action<float,float> OnCoinsChanged;            // total, delta
@@ -146,6 +147,9 @@ public class GameplayLogicApplier : MonoBehaviour
         baseSpeed   = Mathf.Clamp(startSpeed, 0f, maxSpeed);
         CurrentSpeed = baseSpeed * Mathf.Max(0f, gameplaySpeedMultiplier);
         lastCamZ     = targetCamera.position.z;
+
+        // NEW: Signal that game is ready (Transition can start)
+        OnGameReady?.Invoke();
 
         if (armedForFirstMove)
         {
@@ -390,9 +394,10 @@ public class GameplayLogicApplier : MonoBehaviour
         CurrentSpeed = baseSpeed * Mathf.Max(0f, gameplaySpeedMultiplier);
 
         // kamera Z ileri
-        Vector3 pos = targetCamera.position;
-        pos.z += CurrentSpeed * Time.deltaTime;
-        targetCamera.position = pos;
+        // Camera movement is now handled by GameplayCameraManager
+        // Vector3 pos = targetCamera.position;
+        // pos.z += CurrentSpeed * Time.deltaTime;
+        // targetCamera.position = pos;
 
         lastCamZ = targetCamera.position.z;
     }

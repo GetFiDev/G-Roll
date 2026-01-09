@@ -28,6 +28,9 @@ public class Coin : MonoBehaviour, IPlayerInteractable
         }
     }
 
+    [Header("UI Notification")]
+    public string notificationString;
+
     private void TryCollect()
     {
         if (_collected) return; // double-collect güvenliği
@@ -40,6 +43,12 @@ public class Coin : MonoBehaviour, IPlayerInteractable
             // Eğer AddCoins overload'u pozisyon alıyorsa onu kullan, yoksa değerli olanı çağır
             try { gm.AddCoins(value, transform.position, 1); }
             catch { gm.AddCoins(value); }
+        }
+
+        // Trigger Notification
+        if (!string.IsNullOrEmpty(notificationString))
+        {
+            GameplayManager.TriggerCollectibleNotification(notificationString);
         }
 
         if (vfxOnCollect)

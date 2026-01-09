@@ -26,6 +26,9 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
     // Booster davranışı buraya yazılacak
     protected abstract void Apply(PlayerController player);
 
+    [Header("UI Notification")]
+    public string notificationString;
+
     public void OnPlayerEnter(PlayerController player, Collider other)
     {
         if (_used && oneShot) return;
@@ -44,6 +47,12 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
         _used = true;
         Apply(player);
         PlayFx();
+
+        // Trigger Notification
+        if (!string.IsNullOrEmpty(notificationString))
+        {
+            GameplayManager.TriggerCollectibleNotification(notificationString);
+        }
 
         // Notify gameplay logic for Power-Up tracking (achievement: Power-Up Explorer)
         if (countsAsPowerUp)

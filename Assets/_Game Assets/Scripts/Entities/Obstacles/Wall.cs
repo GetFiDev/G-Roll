@@ -16,7 +16,7 @@ public class Wall : MonoBehaviour
             NotifyPlayer(collision.collider);
     }
 
-    private void NotifyPlayer(Collider other)
+    protected virtual void NotifyPlayer(Collider other)
     {
         var player = other.GetComponentInParent<PlayerController>();
         if (player == null) return;

@@ -179,6 +179,8 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    private bool _isIntroPlaying = false; // Blocks input and movement during intro
+
     private void Update()
     {
         // Teleport sırasında normal hareket/rotasyon akışını durdur
@@ -190,6 +192,11 @@ public class PlayerMovement : MonoBehaviour
             {
                 transform.rotation = _frozenRotation;
             }
+            
+            // INTRO: If intro is playing, we only allow logic that happens inside the tween sequence.
+            // External movement/rotation logic is completely blocked.
+            if (_isIntroPlaying) return;
+
             // Dış hızlanma: dakika başına verilen değeri saniyeye çevirip base hıza ekle
             if (!Mathf.Approximately(_externalAccelPer60, 0f))
             {
@@ -205,10 +212,85 @@ public class PlayerMovement : MonoBehaviour
 
     private void Move()
     {
-        if (_isFrozen) return;
+        if (_isFrozen || _isIntroPlaying) return;
         // Efektif hız = base movementSpeed * logic'ten gelen playerSpeedMultiplier
         Speed = movementSpeed * Mathf.Max(0f, _playerSpeedMultiplier);
         transform.position += _movementDirection * (Time.deltaTime * Speed);
+    }
+    
+    /// <summary>
+    /// Plays the Intro Animation: Look Back -> Wait(0.25s) -> Anticipation Turn -> Jump Spin -> Land.
+    /// Blocks all input and movement during the duration.
+    /// </summary>
+    public void PlayIntroSequence(float duration = 1.25f)
+    {
+        if (!IsAlive()) return;
+        
+        _isIntroPlaying = true;
+        
+        // 1. Look Back immediately
+        transform.rotation = Quaternion.Euler(0, 180, 0);
+        
+        // Visual root for scaling/squash
+        Transform scaleTarget = visualRoot != null ? visualRoot : transform;
+        Transform posTarget = transform;
+        
+        float startY = posTarget.position.y;
+        float apexY = startY + 1.5f; // Jump height for intro
+        
+        float initialDelay = 0.25f;
+        float activeDuration = duration - initialDelay; // Time left for jump/turn
+        float halfDur = activeDuration * 0.5f;
+        
+        var seq = DOTween.Sequence();
+        
+        // --- PHASE 1: WAIT (0.25s) ---
+        seq.AppendInterval(initialDelay);
+        
+        // --- PHASE 2: JUMP UP + ANTICIPATION TURN (Wind up) ---
+        // Move Y Up
+        seq.Append(posTarget.DOMoveY(apexY, halfDur).SetEase(Ease.OutQuad));
+        // Scale Up (Stretch)
+        if (enableJumpArcScale)
+            seq.Join(scaleTarget.DOScale(Vector3.one * jumpArcScalePeak, halfDur).SetEase(jumpArcEaseUp));
+        
+        // ANTICIPATION: Rotate slightly opposite (180 -> ~200) briefly at start of jump
+        float windUpDuration = halfDur * 0.4f;
+        seq.Join(transform.DORotate(new Vector3(0, 200, 0), windUpDuration).SetEase(Ease.OutSine));
+        
+        // SPIN: From 200 -> 0 (Forward) 
+        // Start after windup
+        float spinDuration = activeDuration - windUpDuration; // Spin covers rest of rise + fall
+        // But let's snap it slightly before landing to be clean
+        spinDuration *= 0.9f; 
+        
+        seq.Insert(initialDelay + windUpDuration, transform.DORotate(Vector3.zero, spinDuration, RotateMode.FastBeyond360).SetEase(Ease.InOutBack));
+        
+        // --- FALL DOWN ---
+        // Move Y Down (Append automatically adds after Move Y Up)
+        seq.Append(posTarget.DOMoveY(startY, halfDur).SetEase(Ease.InQuad));
+        // Scale Down (Normal)
+        if (enableJumpArcScale)
+            seq.Join(scaleTarget.DOScale(Vector3.one, halfDur).SetEase(jumpArcEaseDown));
+        
+        // LANDING
+        seq.AppendCallback(() => 
+        { 
+            PlayLandingParticle(); 
+            _isIntroPlaying = false; 
+            
+            // Ensure we are perfectly aligned forward
+            transform.rotation = Quaternion.identity;
+        });
+        
+        // Squash on land
+        if (landingSquash)
+        {
+            seq.Append(scaleTarget.DOScale(squashScale, squashDuration));
+            seq.Append(scaleTarget.DOScale(Vector3.one, squashDuration));
+        }
+
+        seq.SetLink(gameObject);
     }
 
     private void RotateTowardsMovement()
@@ -231,7 +313,7 @@ public class PlayerMovement : MonoBehaviour
     private void SetDirection(Vector3 dir)
     {
         EnsureFirstMoveNotified();
-        if (!IsAlive() || _isFrozen) return;
+        if (!IsAlive() || _isFrozen || _isIntroPlaying) return;
         if (dir.sqrMagnitude < 0.0001f) return;
         
         // Enforce cardinal-only movement
@@ -255,7 +337,7 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
         
-        if (_isFrozen) return;
+        if (_isFrozen || _isIntroPlaying) return;
 
         // Filter accidental "Up" swipes after side swipes
         if (swipeDirection == SwipeDirection.Up && 
@@ -564,7 +646,7 @@ public class PlayerMovement : MonoBehaviour
     public void Jump(float jumpHeight)
     {
         EnsureFirstMoveNotified();
-        if (!IsAlive() || _isFrozen) return;
+        if (!IsAlive() || _isFrozen || _isIntroPlaying) return;
         if (_jumpTween != null && _jumpTween.IsActive()) return;
 
         IsJumping = true;
@@ -682,6 +764,10 @@ public class PlayerMovement : MonoBehaviour
         try
         {
             var pos = transform.position + landingParticleOffset;
+            
+            // Expose removed: Layout always demands global Y = 0
+            pos.y = 0f;
+
             var fx = Instantiate(landingParticlePrefab);
             fx.transform.SetPositionAndRotation(pos, Quaternion.Euler(-90f, 0f, 0f));
             fx.Play(true);

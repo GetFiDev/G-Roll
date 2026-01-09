@@ -86,7 +86,9 @@ public class UIManager : MonoSingleton<UIManager>
                 Fade(gamePlay, false);
                 Fade(levelEnd, false);
                 Fade(overlay, true);
-                Fade(gameplayLoading, false);
+                Fade(overlay, true);
+                // Delay hiding gameplay loading to ensure main menu is visible
+                StartCoroutine(HideGameplayLoadingDelayed());
                 break;
             case GamePhase.Gameplay:
                 Fade(mainMenu, false);
@@ -102,7 +104,18 @@ public class UIManager : MonoSingleton<UIManager>
         }
     }
 
-    public void ShowGameplayLoading()
+    private IEnumerator HideGameplayLoadingDelayed()
+    {
+        yield return new WaitForSeconds(2.0f); // Wait for fade/transition (Extended by 1.5s per user request)
+        if (gameplayLoading != null)
+        {
+            var fp = gameplayLoading.GetComponent<UIFadePanel>();
+            if (fp != null) fp.Hide();
+            else gameplayLoading.gameObject.SetActive(false);
+        }
+    }
+
+    public void ShowGameplayLoading(bool isSubmission = false)
     {
         void Fade(Component comp, bool show)
         {
@@ -112,9 +125,14 @@ public class UIManager : MonoSingleton<UIManager>
             if (show) fp.Show(); else fp.Hide();
         }
 
+        if (gameplayLoading != null)
+        {
+             gameplayLoading.SetSubmissionMode(isSubmission);
+        }
+
         Fade(mainMenu, false);
         Fade(gamePlay, true); // HUD stays visible? Original code said yes.
-        Fade(levelEnd, false);
+        // Fade(levelEnd, false); // Don't hide levelEnd explicitly, let phase change handle it to avoid transparent gap
         Fade(gameplayLoading, true);
     }
 
