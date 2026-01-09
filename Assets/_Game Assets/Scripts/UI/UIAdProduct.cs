@@ -121,14 +121,27 @@ public class UIAdProduct : MonoBehaviour
 
     private void OnWatchAdClicked()
     {
-        if (_usedToday >= _dailyLimit) return;
+        TriggerAdFromExternal(null);
+    }
+
+    /// <summary>
+    /// Triggers the ad flow programmatically.
+    /// </summary>
+    /// <param name="onExternalSuccess">Optional callback executed specific to this call on success.</param>
+    public void TriggerAdFromExternal(Action onExternalSuccess)
+    {
+        if (_usedToday >= _dailyLimit) 
+        {
+            Debug.Log("[UIAdProduct] Daily limit reached. Cannot show ad.");
+            return;
+        }
         
-        actionButton.interactable = false; // Prevent double clicks
+        if (actionButton != null) actionButton.interactable = false; // Prevent double clicks
 
 #if UNITY_EDITOR
         // Mock success in editor
         Debug.Log("[UIAdProduct] Editor Mock Ad Success");
-        OnAdSuccess();
+        OnAdSuccess(onExternalSuccess);
 #else
         // Using "product_reward" as placement ID. Assuming standard AdManager.
         AdManager.ShowRewarded("product_reward", (success) =>
@@ -137,18 +150,18 @@ public class UIAdProduct : MonoBehaviour
             {
                 // Must run on main thread if callback is not on main thread?
                 // Unity callbacks usually are main thread.
-                OnAdSuccess();
+                OnAdSuccess(onExternalSuccess);
             }
             else
             {
                 Debug.Log("[UIAdProduct] Ad failed/skipped.");
-                actionButton.interactable = true; // Re-enable
+                if (actionButton != null) actionButton.interactable = true; // Re-enable
             }
         });
 #endif
     }
 
-    private void OnAdSuccess()
+    private void OnAdSuccess(Action onExternalSuccess = null)
     {
         Debug.Log("[UIAdProduct] Ad Success! Processing rewards...");
 
@@ -161,7 +174,8 @@ public class UIAdProduct : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("[UIAdProduct] No AdRewardGranter assigned!");
+             // If no local granter, maybe external logic handles it.
+             // Debug.LogWarning("[UIAdProduct] No AdRewardGranter assigned!");
         }
 
         // 2. Optimistic Update of Usage
@@ -170,6 +184,9 @@ public class UIAdProduct : MonoBehaviour
 
         // 3. Server Call for Usage Tracking
         IncrementOnServer();
+        
+        // 4. External Callback
+        onExternalSuccess?.Invoke();
     }
 
     private void IncrementOnServer()

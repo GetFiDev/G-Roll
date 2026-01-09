@@ -250,7 +250,60 @@ public class GameplayManager : MonoBehaviour
         if (UIManager.Instance != null && UIManager.Instance.levelEnd != null)
             UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelEndCompleted;
 
+        // Determine success based on call context? 
+        // Actually EndSession handles state, but EndSession(bool success) needs a param.
+        // Option 1: Store pending success state.
+        // Option 2: Rely on "If I called StartSuccessFlow, imply Success".
+        // But HandleLevelEndCompleted is one function.
+        // Let's modify it to check or just pass true/false? 
+        // We can't pass args to event handler easily without custom event args.
+        // Easier: Check stats.levelSuccess? No, it's set INSIDE EndSession.
+        
+        // HACK: StartFailFlow calls EndSession(false), StartSuccessFlow should call EndSession(true).
+        // Since we share the callback, we have ambiguity.
+        // Solution: Create separate callback for success OR store a flag.
+        
+        // Since we are adding StartSuccessFlow, let's look at `EndSession`:
+        // It uses `stats.levelSuccess`.
+        
+        // Let's assume HandleLevelEndCompleted defaults to FALSE (Fail) as per original code.
+        // We will create HandleLevelWinCompleted for the success path.
+        
         EndSession(false);
+    }
+
+    private void HandleLevelWinCompleted()
+    {
+         if (UIManager.Instance != null && UIManager.Instance.levelEnd != null)
+            UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelWinCompleted;
+            
+         EndSession(true);
+    }
+
+    /// <summary>
+    /// Standart SUCCESS akışı: LevelWin UI sekansını başlat. Sekans bittiğinde EndSession(true) çağrılır.
+    /// </summary>
+    public void StartSuccessFlow()
+    {
+        if (!sessionActive) return;
+
+        // 1) Koşuyu durdur (Player logic de durabilir)
+        logicApplier?.StopRun();
+
+        // 2) Level End sekansını (Success moduyla) göster
+        if (UIManager.Instance != null)
+        {
+            if (UIManager.Instance.levelEnd != null)
+            {
+                UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelEndCompleted;
+                UIManager.Instance.levelEnd.OnSequenceCompleted += HandleLevelWinCompleted;
+            }
+            
+            var score = logicApplier != null ? logicApplier.Score : 0f;
+            var coins = logicApplier != null ? logicApplier.Coins : 0f;
+            UIManager.Instance.levelEnd?.SetResultValues(score, coins);
+            UIManager.Instance?.ShowLevelEnd(true);
+        }
     }
 
     /// <summary>

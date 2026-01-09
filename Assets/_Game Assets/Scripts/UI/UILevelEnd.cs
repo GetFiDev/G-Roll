@@ -13,6 +13,21 @@ public class UILevelEnd : MonoBehaviour
     [SerializeField] private GameObject resultPanel;
     [SerializeField] private CanvasGroup resultGroup;
 
+    [Header("Chapter - Level Completed Panel")]
+    [SerializeField] private GameObject levelCompletedPanel;
+    [SerializeField] private CanvasGroup levelCompletedGroup;
+    [SerializeField] private TextMeshProUGUI completedScoreText;
+    [SerializeField] private TextMeshProUGUI completedCoinText;
+    [SerializeField] private TextMeshProUGUI completedX2CoinText;
+    [SerializeField] private GameObject claimX2Button; // To hide if ad not available or already claimed
+
+    [Header("Chapter - Failed Panel")]
+    [SerializeField] private GameObject chapterFailedPanel;
+    [SerializeField] private CanvasGroup chapterFailedGroup;
+    [SerializeField] private TextMeshProUGUI failedScoreText;
+    [SerializeField] private TextMeshProUGUI failedCoinText;
+    [SerializeField] private GameObject failedClaimButton;
+
     [Header("Sequence Settings")]
     [SerializeField] private float fadeDuration = 0.5f;
     [SerializeField] private float autoAdvanceDelay = 0.0f; // 0 => sadece butonla ilerle
@@ -44,28 +59,57 @@ public class UILevelEnd : MonoBehaviour
     {
         if (sessionFailedPanel != null) sessionFailedGroup = sessionFailedPanel.GetComponent<CanvasGroup>();
         if (resultPanel != null) resultGroup = resultPanel.GetComponent<CanvasGroup>();
+        if (levelCompletedPanel != null) levelCompletedGroup = levelCompletedPanel.GetComponent<CanvasGroup>();
+        if (chapterFailedPanel != null) chapterFailedGroup = chapterFailedPanel.GetComponent<CanvasGroup>();
     }
 
     public void ShowSequence(bool isSuccess)
     {
-        // Bu UI sadece roguelike fail akışı için kullanılıyor; isSuccess true gelirse yine de result'a geçeriz.
+        // Determin current mode logic
+        // We assume GameplayManager sets mode beforehand or we check it here?
+        // Ideally GameplayManager triggers this.
+        // For simplicity: If isSuccess -> assume Chapter Win (Endless never calls success)
+        // If !isSuccess -> Check mode? Or uses generic fail?
+        
+        GameMode mode = GameplayManager.Instance ? GameplayManager.Instance.CurrentMode : GameMode.Endless;
+
         gameObject.SetActive(true);
-
-        // İlk durumda: SessionFailed ekranda, Result kapalı
-        PreparePanel(sessionFailedPanel, sessionFailedGroup, visible:true);
-        PreparePanel(resultPanel, resultGroup, visible:false);
-
         _isRunning = true;
         _atResult = false;
 
-        // Result sayacı başlangıç görünümü (0'dan başlasın)
-        if (resultScoreText) resultScoreText.text = scoreAsInteger ? "0" : 0f.ToString("F2");
-        if (resultCoinText)  resultCoinText.text  = coinAsInteger  ? "0" : 0f.ToString("F2");
-        if (resultCoinDoubleText) resultCoinDoubleText.text = coinAsInteger ? "0" : 0f.ToString("F2");
+        // Reset Panels
+        PreparePanel(sessionFailedPanel, sessionFailedGroup, false);
+        PreparePanel(resultPanel, resultGroup, false);
+        PreparePanel(levelCompletedPanel, levelCompletedGroup, false);
+        PreparePanel(chapterFailedPanel, chapterFailedGroup, false);
 
-        // Auto-advance veya kullanıcı girişini bekle
-        if (autoAdvanceDelay > 0f)
-            Invoke(nameof(ProceedToResult), autoAdvanceDelay);
+        if (isSuccess && mode == GameMode.Chapter)
+        {
+            // --- CHAPTER WIN FLOW ---
+            PreparePanel(levelCompletedPanel, levelCompletedGroup, true);
+            AnimateChapterCompletion(true);
+        }
+        else if (!isSuccess && mode == GameMode.Chapter)
+        {
+            // --- CHAPTER FAIL FLOW ---
+            PreparePanel(chapterFailedPanel, chapterFailedGroup, true);
+            AnimateChapterCompletion(false);
+        }
+        else
+        {
+            // --- ENDLESS / DEFAULT FAIL FLOW ---
+            // İlk durumda: SessionFailed ekranda, Result kapalı
+            PreparePanel(sessionFailedPanel, sessionFailedGroup, visible:true);
+            
+             // Result sayacı başlangıç görünümü (0'dan başlasın)
+            if (resultScoreText) resultScoreText.text = scoreAsInteger ? "0" : 0f.ToString("F2");
+            if (resultCoinText)  resultCoinText.text  = coinAsInteger  ? "0" : 0f.ToString("F2");
+            if (resultCoinDoubleText) resultCoinDoubleText.text = coinAsInteger ? "0" : 0f.ToString("F2");
+
+            // Auto-advance veya kullanıcı girişini bekle
+            if (autoAdvanceDelay > 0f)
+                Invoke(nameof(ProceedToResult), autoAdvanceDelay);
+        }
     }
 
     private void PreparePanel(GameObject panel, CanvasGroup cg, bool visible)
@@ -232,6 +276,118 @@ public class UILevelEnd : MonoBehaviour
         if (resultScoreText) resultScoreText.transform.DOKill();
         if (resultCoinText)  resultCoinText.transform.DOKill();
         if (resultCoinDoubleText) resultCoinDoubleText.transform.DOKill();
+        
+        if (completedScoreText) completedScoreText.transform.DOKill();
+        if (completedCoinText) completedCoinText.transform.DOKill();
+        if (completedX2CoinText) completedX2CoinText.transform.DOKill();
+
+        if (failedScoreText) failedScoreText.transform.DOKill();
+        if (failedCoinText) failedCoinText.transform.DOKill();
+
         CancelInvoke();
+    }
+
+    // --- CHAPTER LOGIC ---
+
+    private void AnimateChapterCompletion(bool isSuccess)
+    {
+         if (!_hasTargets) return;
+
+        if (isSuccess)
+        {
+            // --- SUCCESS ---
+            // Score
+            if (completedScoreText)
+            {
+                completedScoreText.transform.DOKill();
+                completedScoreText.text = scoreAsInteger ? "0" : 0f.ToString("F2");
+                DOVirtual.Float(0f, _targetScore, countUpDuration, v =>
+                {
+                   completedScoreText.text = scoreAsInteger ? Mathf.FloorToInt(v).ToString() : v.ToString("F2");
+                });
+            }
+
+            // Coins
+            if (completedCoinText)
+            {
+                completedCoinText.transform.DOKill();
+                completedCoinText.text = coinAsInteger ? "0" : 0f.ToString("F2");
+                DOVirtual.Float(0f, _targetCoins, countUpDuration, v =>
+                {
+                   completedCoinText.text = coinAsInteger ? Mathf.FloorToInt(v).ToString() : v.ToString("F2");
+                });
+            }
+
+            // Coins X2
+            if (completedX2CoinText)
+            {
+                float targetX2 = _targetCoins * 2f;
+                completedX2CoinText.transform.DOKill();
+                completedX2CoinText.text = coinAsInteger ? "0" : 0f.ToString("F2");
+                DOVirtual.Float(0f, targetX2, countUpDuration, v =>
+                {
+                   completedX2CoinText.text = coinAsInteger ? Mathf.FloorToInt(v).ToString() : v.ToString("F2");
+                });
+            }
+        }
+        else
+        {
+            // --- FAIL ---
+             // Failed Score
+            if (failedScoreText)
+            {
+                failedScoreText.transform.DOKill();
+                failedScoreText.text = scoreAsInteger ? "0" : 0f.ToString("F2");
+                DOVirtual.Float(0f, _targetScore, countUpDuration, v =>
+                {
+                   failedScoreText.text = scoreAsInteger ? Mathf.FloorToInt(v).ToString() : v.ToString("F2");
+                });
+            }
+
+            // Failed Coins
+            if (failedCoinText)
+            {
+                failedCoinText.transform.DOKill();
+                failedCoinText.text = coinAsInteger ? "0" : 0f.ToString("F2");
+                DOVirtual.Float(0f, _targetCoins, countUpDuration, v =>
+                {
+                   failedCoinText.text = coinAsInteger ? Mathf.FloorToInt(v).ToString() : v.ToString("F2");
+                });
+            }
+        }
+    }
+
+    public void OnChapterFailClaimButton()
+    {
+        // Fail durumunda sadece normal parayı al ve çık
+        CompleteAndClose();
+    }
+
+    public void OnClaimX2Button()
+    {
+         if (!_isRunning) return;
+         if (claimX2Button == null) return;
+
+         var adProduct = claimX2Button.GetComponent<UIAdProduct>();
+         if (adProduct == null)
+         {
+             Debug.LogError("[UILevelEnd] claimX2Button MUST have a UIAdProduct component!");
+             return;
+         }
+         
+         // Disable button (UIAdProduct handles basic interactable state but we can be safe)
+         var btn = claimX2Button.GetComponent<UnityEngine.UI.Button>();
+         if (btn) btn.interactable = false;
+
+         // Trigger Ad via UIAdProduct (handles limits/recording)
+         adProduct.TriggerAdFromExternal(() => 
+         {
+             // SUCCESS CALLBACK
+             // Add 1x more (total 2x)
+             GameplayManager.Instance.AddCoins(_targetCoins); 
+                 
+             // Close
+             CompleteAndClose();
+         });
     }
 }
