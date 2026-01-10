@@ -4,6 +4,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.EventSystems; // Added for UI check
 using DG.Tweening;
 using MapDesignerTool; // For IMapConfigurable
+using ETouch = UnityEngine.InputSystem.EnhancedTouch;
 
 [RequireComponent(typeof(MapGridCellUtility))]
 public class GridPlacer : MonoBehaviour
@@ -162,16 +163,89 @@ public class GridPlacer : MonoBehaviour
         }
     }
 
+    void OnEnable()
+    {
+        if (!ETouch.EnhancedTouchSupport.enabled)
+            ETouch.EnhancedTouchSupport.Enable();
+    }
+
     // --- HELPER: UI Check ---
     bool IsPointerOverUI()
     {
-        // Simple check for EventSystem
+        // Check touch first
+        var touches = ETouch.Touch.activeTouches;
+        if (touches.Count > 0)
+        {
+            for (int i = 0; i < touches.Count; i++)
+            {
+                if (EventSystem.current != null && 
+                    EventSystem.current.IsPointerOverGameObject(touches[i].finger.index))
+                    return true;
+            }
+            return false;
+        }
+        
+        // Fallback to mouse
         if (EventSystem.current != null)
         {
-            // For mouse/touch input
             return EventSystem.current.IsPointerOverGameObject();
         }
         return false;
+    }
+
+    /// <summary>
+    /// Returns true if a primary click/tap was started this frame.
+    /// For touch: single finger tap began and ended quickly (tap gesture).
+    /// For mouse: left button was pressed.
+    /// Also outputs the screen position of the click/tap.
+    /// </summary>
+    bool WasScreenTapped(out Vector2 screenPos)
+    {
+        screenPos = Vector2.zero;
+        
+        // Check touch first
+        var touches = ETouch.Touch.activeTouches;
+        if (touches.Count == 1)
+        {
+            var touch = touches[0];
+            // For a tap, we detect when the touch just began
+            // We'll use 'Began' phase for immediate response (like wasPressedThisFrame)
+            if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
+            {
+                screenPos = touch.screenPosition;
+                return true;
+            }
+        }
+        
+        // Fallback to mouse
+        var mouse = Mouse.current;
+        if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+        {
+            screenPos = mouse.position.ReadValue();
+            return true;
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the current pointer position (touch or mouse).
+    /// </summary>
+    Vector2 GetCurrentPointerPosition()
+    {
+        var touches = ETouch.Touch.activeTouches;
+        if (touches.Count > 0)
+        {
+            return touches[0].screenPosition;
+        }
+        
+        var mouse = Mouse.current;
+        if (mouse != null)
+        {
+            return mouse.position.ReadValue();
+        }
+        
+        return Vector2.zero;
     }
 
     // --- PUBLIC API FOR UI ---
@@ -412,15 +486,14 @@ public class GridPlacer : MonoBehaviour
     // --------- Modify loop ---------
     void TickModify()
     {
-        var mouse = Mouse.current;
-        if (mouse == null || cam == null) return;
+        if (cam == null) return;
 
         // Check UI block
         if (IsPointerOverUI()) return;
 
-        if (mouse.leftButton.wasPressedThisFrame)
+        if (WasScreenTapped(out var tapPos))
         {
-            Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+            Ray ray = cam.ScreenPointToRay(tapPos);
             if (Physics.Raycast(ray, out var hit, 5000f))
             {
                 // Did we hit an object?
@@ -854,9 +927,9 @@ public class GridPlacer : MonoBehaviour
     void TickPortalPairing()
     {
         if (!enablePortalPairing) return;
-        var mouse = Mouse.current; if (mouse == null || cam == null) return;
+        if (cam == null) return;
 
-        // Update preview line to mouse or to the hovered portal
+        // Update preview line to pointer or to the hovered portal
         if (firstPortal != null && pairLine != null)
         {
             pairLine.enabled = true;
@@ -869,22 +942,22 @@ public class GridPlacer : MonoBehaviour
                 endPos = hitPortal.transform.position + Vector3.up * portalPairYOffset;
             else
             {
-                // fallback: project mouse to grid plane height
+                // fallback: project pointer to grid plane height
                 var plane = new Plane(transform.up, transform.position);
-                Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+                Ray ray = cam.ScreenPointToRay(GetCurrentPointerPosition());
                 if (!plane.Raycast(ray, out float enter)) return;
                 endPos = ray.GetPoint(enter) + Vector3.up * portalPairYOffset;
             }
             pairLine.SetPosition(1, endPos);
         }
 
-        // Left click behavior: select first, then second → pair
-        if (mouse.leftButton.wasPressedThisFrame)
+        // Tap/click behavior: select first, then second → pair
+        if (WasScreenTapped(out var tapPos))
         {
             // Check UI block
             if (IsPointerOverUI()) return;
 
-            var tp = RaycastPortal();
+            var tp = RaycastPortalAt(tapPos);
             if (tp != null)
             {
                 if (firstPortal == null)
@@ -903,7 +976,13 @@ public class GridPlacer : MonoBehaviour
 
     Teleport RaycastPortal()
     {
-        Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+        return RaycastPortalAt(GetCurrentPointerPosition());
+    }
+
+    Teleport RaycastPortalAt(Vector2 screenPos)
+    {
+        if (cam == null) return null;
+        Ray ray = cam.ScreenPointToRay(screenPos);
         if (Physics.Raycast(ray, out var hit, 5000f, portalMask))
         {
             var tp = hit.collider.GetComponentInParent<Teleport>();
@@ -925,7 +1004,7 @@ public class GridPlacer : MonoBehaviour
 
     void TickButtonDoorPairing()
     {
-        var mouse = Mouse.current; if (mouse == null || cam == null) return;
+        if (cam == null) return;
 
         // Update preview line
         if (firstButtonDoor != null && buttonDoorPairLine != null)
@@ -940,18 +1019,18 @@ public class GridPlacer : MonoBehaviour
             else
             {
                 var plane = new Plane(transform.up, transform.position);
-                Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+                Ray ray = cam.ScreenPointToRay(GetCurrentPointerPosition());
                 if (!plane.Raycast(ray, out float enter)) return;
                 endPos = ray.GetPoint(enter) + Vector3.up * 0.25f;
             }
             buttonDoorPairLine.SetPosition(1, endPos);
         }
 
-        if (mouse.leftButton.wasPressedThisFrame)
+        if (WasScreenTapped(out var tapPos))
         {
             if (IsPointerOverUI()) return;
 
-            var bd = RaycastButtonDoor();
+            var bd = RaycastButtonDoorAt(tapPos);
             if (bd != null)
             {
                 if (firstButtonDoor == null)
@@ -984,7 +1063,13 @@ public class GridPlacer : MonoBehaviour
 
     ButtonDoorLinkRuntime RaycastButtonDoor()
     {
-        Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+        return RaycastButtonDoorAt(GetCurrentPointerPosition());
+    }
+
+    ButtonDoorLinkRuntime RaycastButtonDoorAt(Vector2 screenPos)
+    {
+        if (cam == null) return null;
+        Ray ray = cam.ScreenPointToRay(screenPos);
         if (Physics.Raycast(ray, out var hit, 5000f))
         {
             var bd = hit.collider.GetComponentInParent<ButtonDoorLinkRuntime>();

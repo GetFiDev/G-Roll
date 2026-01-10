@@ -75,61 +75,70 @@ public class OrbitCamera : MonoBehaviour
     void HandleTouchInput()
     {
         var touches = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches;
+        
+        // DPI-based normalization for consistent feel across devices
+        float dpiScale = Screen.dpi > 0 ? 160f / Screen.dpi : 1f;
 
-        // 1 Finger: Pan
+        // 1 Finger: Rotate (Orbit)
         if (touches.Count == 1)
         {
             var touch = touches[0];
             Vector2 d = touch.delta;
+            
+            // Only rotate if we've moved (with dead zone)
+            if (d.sqrMagnitude > 1f)
+            {
+                // Significantly reduced sensitivity for touch rotation
+                // Normalize by screen size for consistent feel
+                float screenNormalizer = 1f / Mathf.Max(Screen.width, Screen.height);
+                float rotSensitivity = orbitSpeed * 0.15f * dpiScale * screenNormalizer * Screen.height;
+                
+                yaw   += d.x * rotSensitivity * Time.deltaTime;
+                pitch -= d.y * rotSensitivity * Time.deltaTime;
+                pitch = Mathf.Clamp(pitch, pitchMin, pitchMax);
+            }
+        }
+        // 2 Fingers: Pan & Zoom (no rotation)
+        else if (touches.Count >= 2)
+        {
+            var t1 = touches[0];
+            var t2 = touches[1];
 
-            // Adjust sensitivity for touch (pixels) vs mouse
-            // Using existing panSpeed, but touch deltas can be large.
-            // Pan logic from Mouse
-            if (_cam != null)
+            // --- Calculate pinch delta first to determine gesture type ---
+            Vector2 t1PrevPos = t1.screenPosition - t1.delta;
+            Vector2 t2PrevPos = t2.screenPosition - t2.delta;
+
+            float prevDist = Vector2.Distance(t1PrevPos, t2PrevPos);
+            float currDist = Vector2.Distance(t1.screenPosition, t2.screenPosition);
+            float deltaDist = prevDist - currDist;
+            
+            // --- Zoom (Pinch) ---
+            // Only apply zoom if pinch delta is significant
+            if (Mathf.Abs(deltaDist) > 2f)
+            {
+                // Normalized zoom sensitivity
+                float zoomSensitivity = zoomSpeed * 0.002f * dpiScale;
+                distance = Mathf.Clamp(distance + deltaDist * zoomSensitivity, minDistance, maxDistance);
+            }
+
+            // --- Pan (Two finger Drag) ---
+            // Average delta of both fingers
+            Vector2 avgDelta = (t1.delta + t2.delta) * 0.5f;
+            
+            // Only pan if average movement is significant
+            if (avgDelta.sqrMagnitude > 1f && _cam != null)
             {
                 float vfovRad = _cam.fieldOfView * Mathf.Deg2Rad;
                 float panDistance = Mathf.Max(distance, 15f);
                 float worldPerPixelY = 2f * panDistance * Mathf.Tan(vfovRad * 0.5f) / Mathf.Max(1, Screen.height);
                 float worldPerPixelX = worldPerPixelY * _cam.aspect;
                 
-                // Invert X/Y for natural drag (finger drags functionality, so camera moves opposite? 
-                // "Palm view" usually means dragging the world, so moving finger RIGHT moves camera LEFT.
-                // Existing code: move = (-right * dx) + (-up * dy). This moves camera LEFT when mouse moves RIGHT. 
-                // This matches "drag the world".
+                // Significantly reduced pan sensitivity for touch
+                float panSensitivity = panSpeed * 0.3f * dpiScale;
                 
-                Vector3 move = (-transform.right * d.x * worldPerPixelX) + (-transform.up * d.y * worldPerPixelY);
-                pivot.position += move * panSpeed; // panSpeed might need tuning for mobile
+                Vector3 move = (-transform.right * avgDelta.x * worldPerPixelX) + (-transform.up * avgDelta.y * worldPerPixelY);
+                pivot.position += move * panSensitivity;
             }
-        }
-        // 2 Fingers: Orbit & Zoom
-        else if (touches.Count >= 2)
-        {
-            var t1 = touches[0];
-            var t2 = touches[1];
-
-            // --- Orbit (Two finger Drag) ---
-            // Average delta
-            Vector2 avgDelta = (t1.delta + t2.delta) * 0.5f;
-            
-            // Apply Orbit
-            yaw   += avgDelta.x * orbitSpeed * Time.deltaTime * 0.05f; // reduced sensitivity for touch
-            pitch -= avgDelta.y * orbitSpeed * Time.deltaTime * 0.05f;
-            pitch = Mathf.Clamp(pitch, pitchMin, pitchMax);
-
-            // --- Zoom (Pinch) ---
-            Vector2 t1PrevPos = t1.screenPosition - t1.delta;
-            Vector2 t2PrevPos = t2.screenPosition - t2.delta;
-
-            float prevDist = Vector2.Distance(t1PrevPos, t2PrevPos);
-            float currDist = Vector2.Distance(t1.screenPosition, t2.screenPosition);
-            float deltaDist = prevDist - currDist; // + means pincing IN (zoom out? no distance increases)
-            
-            // Logic: Pinch In (fingers closer) -> distance increases (Zoom Out)
-            // Logic: Pinch Out (fingers apart) -> distance decreases (Zoom In)
-            // deltaDist > 0 (Prev > Curr) -> Pinch In -> Zoom Out (Increase distance)
-            
-            // Scale zoom speed for touch
-            distance = Mathf.Clamp(distance + deltaDist * (zoomSpeed * 0.01f), minDistance, maxDistance);
         }
     }
 
