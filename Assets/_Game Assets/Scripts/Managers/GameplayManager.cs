@@ -55,6 +55,9 @@ public class GameplayManager : MonoBehaviour
     private float _playerSpeedAdd   = 0f;    // float additive speed
     private int   _playerSizePct    = 0;     // integer percent
 
+    // Revive tracking
+    private int _usedRevives = 0;
+
     public static GameplayManager Instance;
 
     private void Awake()
@@ -100,6 +103,11 @@ public class GameplayManager : MonoBehaviour
     /// GameManager sunucudan sessionId aldığında çağırır. Faz zaten Gameplay'e alınmış olmalı.
     /// </summary>
     public GameMode CurrentMode { get; private set; } = GameMode.Endless;
+
+    /// <summary>
+    /// Current session ID for revive and other operations that need it.
+    /// </summary>
+    public string CurrentSessionId => _currentSessionId;
 
     /// <summary>
     /// GameManager sunucudan sessionId aldığında çağırır. Faz zaten Gameplay'e alınmış olmalı.
@@ -224,6 +232,7 @@ public class GameplayManager : MonoBehaviour
         }
 
         _sessionCurrencyTotal = 0d; // reset session currency accumulator
+        _usedRevives = 0; // reset revive count for new session
 
         // Trigger Intro Animation (Look back -> Jump -> Look forward)
         // Matches the 1.25s camera transition duration
@@ -443,13 +452,13 @@ public class GameplayManager : MonoBehaviour
                 maxComboInSession = logicApplier.GetMaxComboInSession();
                 playtimeSec = logicApplier.GetPlaytimeSec();
                 powerUpsCollectedInSession = logicApplier.GetPowerUpsCollectedInSession();
-                Debug.Log($"[GameplayManager] Submit extras: combo={maxComboInSession:F2} playtimeSec={playtimeSec} powerUps={powerUpsCollectedInSession}");
+                Debug.Log($"[GameplayManager] Submit extras: combo={maxComboInSession:F2} playtimeSec={playtimeSec} powerUps={powerUpsCollectedInSession} revives={_usedRevives}");
             }
 
             // Use PERMANENT UserDatabaseManager submission instead of logicApplier
             if (UserDatabaseManager.Instance != null)
             {
-                await UserDatabaseManager.Instance.SubmitGameplaySessionAsync(_currentSessionId, earnedCurrency, earnedScore, maxComboInSession, playtimeSec, powerUpsCollectedInSession, CurrentMode, success);
+                await UserDatabaseManager.Instance.SubmitGameplaySessionAsync(_currentSessionId, earnedCurrency, earnedScore, maxComboInSession, playtimeSec, powerUpsCollectedInSession, _usedRevives, CurrentMode, success);
             }
             else
             {
@@ -526,6 +535,67 @@ public class GameplayManager : MonoBehaviour
          {
              logicApplier.FillBoosterToMax();
          }
+    }
+
+    // ---- REVIVE SYSTEM ----
+
+    /// <summary>
+    /// Number of revives used in current session (for session result submission).
+    /// </summary>
+    public int UsedRevives => _usedRevives;
+
+    /// <summary>
+    /// Called by ReviveController after player position is reset and hazards are cleared.
+    /// Resumes gameplay from current state, waiting for first player input.
+    /// </summary>
+    public void ResumeAfterRevive()
+    {
+        if (!sessionActive)
+        {
+            Debug.LogWarning("[GameplayManager] Cannot revive - session not active.");
+            return;
+        }
+
+        _usedRevives++;
+        Debug.Log($"[GameplayManager] Resuming after revive #{_usedRevives}");
+
+        // Hide the level end UI
+        HideLevelEnd();
+
+        // Get player references
+        var playerMov = playerGO?.GetComponent<PlayerMovement>();
+
+        // Resume logic applier (it will wait for first move)
+        if (logicApplier != null)
+        {
+            logicApplier.PrepareForRevive();
+        }
+
+        // Short intro animation before resuming
+        if (playerMov != null)
+        {
+            playerMov.PlayIntroSequence(0.5f);
+        }
+
+        // Start run again (will wait for first input)
+        logicApplier?.StartRun();
+    }
+
+    /// <summary>
+    /// Hide level end UI without triggering OnSequenceCompleted.
+    /// Used by revive system.
+    /// </summary>
+    public void HideLevelEnd()
+    {
+        if (UIManager.Instance != null && UIManager.Instance.levelEnd != null)
+        {
+            // Unsubscribe to prevent EndSession being called
+            UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelEndCompleted;
+            UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelWinCompleted;
+            
+            // Hide the UI
+            UIManager.Instance.levelEnd.gameObject.SetActive(false);
+        }
     }
 
 }

@@ -199,6 +199,25 @@ public class GameplayLogicApplier : MonoBehaviour
         OnRunStopped?.Invoke();
     }
 
+    /// <summary>
+    /// Prepares the game state for resuming after a revive.
+    /// Score and combo are preserved, but the run is paused waiting for first player input.
+    /// </summary>
+    public void PrepareForRevive()
+    {
+        Debug.Log("[GameplayLogicApplier] Preparing for revive...");
+        
+        // Stop running but don't reset everything
+        isRunning = false;
+        
+        // Reset speeds but preserve score/combo
+        baseSpeed = Mathf.Clamp(startSpeed, 0f, maxSpeed);
+        CurrentSpeed = baseSpeed * Mathf.Max(0f, gameplaySpeedMultiplier);
+        
+        // Arm for first move (same as initial start)
+        armedForFirstMove = true;
+    }
+
     // SubmitSessionResultAsync removed. Logic moved to UserDatabaseManager.SubmitGameplaySessionAsync.
 
 

@@ -50,6 +50,20 @@ public class UILevelEnd : MonoBehaviour
     private float _targetCoins = 0f;
     private bool _hasTargets = false;
 
+    [Header("Revive Panel (Endless Only)")]
+    [SerializeField] private GameObject revivePanel;
+    [SerializeField] private UnityEngine.UI.Button skipReviveButton;
+    [SerializeField] private UnityEngine.UI.Button currencyReviveButton;
+    [SerializeField] private TextMeshProUGUI currencyRevivePriceText;
+    [SerializeField] private UnityEngine.UI.Button adReviveButton;
+    [SerializeField] private UIAdProduct adReviveProduct;
+    [SerializeField] private Color affordableColor = Color.white;
+    [SerializeField] private Color notAffordableColor = Color.red;
+
+    // Revive state
+    private int _reviveCount = 0;
+    private const float BASE_REVIVE_PRICE = 0.5f;
+
     public event Action OnSequenceCompleted; // GameplayManager dinler → EndSession(false)
 
     private bool _isRunning;
@@ -98,17 +112,19 @@ public class UILevelEnd : MonoBehaviour
         else
         {
             // --- ENDLESS / DEFAULT FAIL FLOW ---
-            // İlk durumda: SessionFailed ekranda, Result kapalı
+            // Show session failed panel with revive options
             PreparePanel(sessionFailedPanel, sessionFailedGroup, visible:true);
             
-             // Result sayacı başlangıç görünümü (0'dan başlasın)
+            // Show revive panel within session failed
+            ShowRevivePanel();
+            
+            // Result sayacı başlangıç görünümü (0'dan başlasın)
             if (resultScoreText) resultScoreText.text = scoreAsInteger ? "0" : 0f.ToString("F2");
             if (resultCoinText)  resultCoinText.text  = coinAsInteger  ? "0" : 0f.ToString("F2");
             if (resultCoinDoubleText) resultCoinDoubleText.text = coinAsInteger ? "0" : 0f.ToString("F2");
 
-            // Auto-advance veya kullanıcı girişini bekle
-            if (autoAdvanceDelay > 0f)
-                Invoke(nameof(ProceedToResult), autoAdvanceDelay);
+            // NO auto-advance in revive mode - user must choose
+            // (Revive panel buttons handle navigation)
         }
     }
 
@@ -389,5 +405,228 @@ public class UILevelEnd : MonoBehaviour
              // Close
              CompleteAndClose();
          });
+    }
+
+    // ---- REVIVE SYSTEM ----
+
+    /// <summary>
+    /// Reset revive state for a new session.
+    /// Call this when a new endless run starts.
+    /// </summary>
+    public void ResetReviveState()
+    {
+        _reviveCount = 0;
+        UpdateReviveUI();
+    }
+
+    /// <summary>
+    /// Current price for revive (doubles each time).
+    /// </summary>
+    public float GetCurrentRevivePrice()
+    {
+        return BASE_REVIVE_PRICE * Mathf.Pow(2f, _reviveCount);
+    }
+
+    /// <summary>
+    /// Update revive UI state (price, button interactability).
+    /// </summary>
+    private void UpdateReviveUI()
+    {
+        float price = GetCurrentRevivePrice();
+        bool canAfford = false;
+
+        if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.currentUserData != null)
+        {
+            canAfford = UserDatabaseManager.Instance.currentUserData.currency >= price;
+        }
+
+        // Update price text
+        if (currencyRevivePriceText != null)
+        {
+            currencyRevivePriceText.text = price.ToString("F1");
+            currencyRevivePriceText.color = canAfford ? affordableColor : notAffordableColor;
+        }
+
+        // Update currency button interactability
+        if (currencyReviveButton != null)
+        {
+            currencyReviveButton.interactable = canAfford;
+        }
+
+        // Ad revive button is handled by UIAdProduct (checks daily limit)
+    }
+
+    /// <summary>
+    /// Show the revive panel with updated UI.
+    /// Called when endless mode fails.
+    /// </summary>
+    private void ShowRevivePanel()
+    {
+        if (revivePanel != null)
+        {
+            revivePanel.SetActive(true);
+            UpdateReviveUI();
+        }
+    }
+
+    // --- Revive Button Handlers (assign in Inspector) ---
+
+    /// <summary>
+    /// Skip revive and proceed to result screen.
+    /// </summary>
+    public void OnSkipReviveClicked()
+    {
+        Debug.Log("[UILevelEnd] Skip revive clicked.");
+        
+        // Hide revive panel
+        if (revivePanel != null) revivePanel.SetActive(false);
+        
+        // Proceed to result
+        ProceedToResult();
+    }
+
+    /// <summary>
+    /// Attempt currency-based revive via Cloud Function.
+    /// </summary>
+    public async void OnCurrencyReviveClicked()
+    {
+        float price = GetCurrentRevivePrice();
+        
+        if (UserDatabaseManager.Instance == null || UserDatabaseManager.Instance.currentUserData == null)
+        {
+            Debug.LogError("[UILevelEnd] Cannot revive - no user data.");
+            return;
+        }
+
+        // Quick client check (server will verify anyway)
+        if (UserDatabaseManager.Instance.currentUserData.currency < price)
+        {
+            Debug.LogWarning("[UILevelEnd] Cannot afford revive.");
+            return;
+        }
+
+        Debug.Log($"[UILevelEnd] Currency revive clicked. Price: {price}");
+
+        // Disable button while processing
+        if (currencyReviveButton != null) currencyReviveButton.interactable = false;
+
+        // Call Cloud Function for secure currency deduction
+        try
+        {
+            string sessionId = GameplayManager.Instance?.CurrentSessionId ?? "";
+            var result = await SpendCurrencyForReviveAsync(sessionId, _reviveCount);
+            
+            if (result.ok)
+            {
+                // Update local cache
+                if (UserDatabaseManager.Instance.currentUserData != null)
+                {
+                    UserDatabaseManager.Instance.currentUserData.currency = (float)result.newCurrency;
+                }
+                
+                _reviveCount++;
+                
+                // Hide revive panel and trigger revive
+                if (revivePanel != null) revivePanel.SetActive(false);
+                
+                // Execute revive
+                GameplayManager.Instance?.ResumeAfterRevive();
+                _isRunning = false;
+                gameObject.SetActive(false);
+            }
+            else
+            {
+                Debug.LogWarning($"[UILevelEnd] Revive failed: {result.reason}");
+                // Re-enable button
+                if (currencyReviveButton != null) currencyReviveButton.interactable = true;
+                UpdateReviveUI(); // Refresh UI
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[UILevelEnd] Currency revive error: {ex.Message}");
+            if (currencyReviveButton != null) currencyReviveButton.interactable = true;
+        }
+    }
+
+    private struct ReviveResult
+    {
+        public bool ok;
+        public string reason;
+        public double spent;
+        public double newCurrency;
+        public int reviveIndex;
+    }
+
+    private async System.Threading.Tasks.Task<ReviveResult> SpendCurrencyForReviveAsync(string sessionId, int reviveIndex)
+    {
+        var functions = Firebase.Functions.FirebaseFunctions.GetInstance("us-central1");
+        var callable = functions.GetHttpsCallable("spendCurrencyForRevive");
+        
+        var data = new System.Collections.Generic.Dictionary<string, object>
+        {
+            { "sessionId", sessionId },
+            { "reviveIndex", reviveIndex }
+        };
+        
+        var res = await callable.CallAsync(data);
+        
+        if (res.Data is System.Collections.IDictionary dict)
+        {
+            return new ReviveResult
+            {
+                ok = dict.Contains("ok") && (bool)dict["ok"],
+                reason = dict.Contains("reason") ? dict["reason"]?.ToString() : null,
+                spent = dict.Contains("spent") ? System.Convert.ToDouble(dict["spent"]) : 0,
+                newCurrency = dict.Contains("newCurrency") ? System.Convert.ToDouble(dict["newCurrency"]) : 0,
+                reviveIndex = dict.Contains("reviveIndex") ? System.Convert.ToInt32(dict["reviveIndex"]) : 0
+            };
+        }
+        
+        return new ReviveResult { ok = false, reason = "parse_error" };
+    }
+
+    /// <summary>
+    /// Attempt ad-based revive.
+    /// </summary>
+    public void OnAdReviveClicked()
+    {
+        Debug.Log("[UILevelEnd] Ad revive clicked.");
+
+        if (adReviveProduct == null)
+        {
+            Debug.LogError("[UILevelEnd] adReviveProduct is not assigned!");
+            return;
+        }
+
+        // Disable button while ad is loading
+        if (adReviveButton != null) adReviveButton.interactable = false;
+
+        // Trigger ad via UIAdProduct
+        adReviveProduct.TriggerAdFromExternal(() =>
+        {
+            // Ad watched successfully
+            Debug.Log("[UILevelEnd] Ad revive success!");
+            
+            _reviveCount++;
+
+            // Hide revive panel and trigger revive
+            if (revivePanel != null) revivePanel.SetActive(false);
+            
+            // Execute revive
+            if (ReviveController.Instance != null)
+            {
+                ReviveController.Instance.ExecuteAdRevive(() => {
+                    _isRunning = false;
+                    gameObject.SetActive(false);
+                });
+            }
+            else
+            {
+                GameplayManager.Instance?.ResumeAfterRevive();
+                _isRunning = false;
+                gameObject.SetActive(false);
+            }
+        });
     }
 }

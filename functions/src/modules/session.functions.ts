@@ -68,6 +68,7 @@ export const submitSessionResult = onCall(async (req) => {
     const sessionId = (p.sessionId || "").toString().trim();
     const earnedCurrency = Number(p.earnedCurrency) || 0;
     const earnedScore = Number(p.earnedScore) || 0;
+    const usedRevives = Number(p.usedRevives) || 0;
 
     if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required");
 
@@ -176,7 +177,13 @@ export const submitSessionResult = onCall(async (req) => {
         }, {merge: true});
 
         // mark session as processed
-        tx.set(sessRef, {state: "completed", earnedCurrency, earnedScore, processedAt: Timestamp.now()}, {merge: true});
+        tx.set(sessRef, {
+            state: "completed",
+            earnedCurrency,
+            earnedScore,
+            usedRevives,
+            processedAt: Timestamp.now()
+        }, {merge: true});
 
         // --- Referral Writes ---
         if (refUserSnap && refUserSnap.exists && pendingRef) {
@@ -219,4 +226,78 @@ export const submitSessionResult = onCall(async (req) => {
         console.warn("[ach] post-session evaluate failed", e);
     }
     return res;
+});
+
+// -------- spendCurrencyForRevive (callable) --------
+// Secure server-side currency deduction for revives
+export const spendCurrencyForRevive = onCall(async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const p = (req.data as Record<string, any>) || {};
+    const sessionId = (p.sessionId || "").toString().trim();
+    const reviveIndex = Number(p.reviveIndex) || 0; // 0-based: 0 = first revive, 1 = second, etc.
+
+    if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required");
+    if (reviveIndex < 0) throw new HttpsError("invalid-argument", "Invalid reviveIndex");
+
+    // Calculate price: 0.5 * 2^reviveIndex
+    const BASE_REVIVE_PRICE = 0.5;
+    const price = BASE_REVIVE_PRICE * Math.pow(2, reviveIndex);
+
+    const userRef = db.collection("users").doc(uid);
+    const sessRef = userRef.collection("sessions").doc(sessionId);
+
+    const result = await db.runTransaction(async (tx) => {
+        // 1) Verify session exists and belongs to user
+        const sessSnap = await tx.get(sessRef);
+        if (!sessSnap.exists) {
+            throw new HttpsError("not-found", "Session not found");
+        }
+        const sessData = sessSnap.data() || {};
+        if (sessData.state === "completed") {
+            throw new HttpsError("failed-precondition", "Session already completed");
+        }
+
+        // 2) Check user currency
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists) {
+            throw new HttpsError("not-found", "User not found");
+        }
+        const currentCurrency = Number(userSnap.get("currency") ?? 0) || 0;
+
+        if (currentCurrency < price) {
+            return {
+                ok: false,
+                reason: "insufficient_currency",
+                required: price,
+                current: currentCurrency
+            };
+        }
+
+        // 3) Deduct currency
+        const newCurrency = currentCurrency - price;
+        tx.set(userRef, {
+            currency: newCurrency,
+            updatedAt: FieldValue.serverTimestamp()
+        }, {merge: true});
+
+        // 4) Track revive in session
+        const currentRevives = Number(sessData.revivesUsed ?? 0) || 0;
+        tx.set(sessRef, {
+            revivesUsed: currentRevives + 1,
+            lastReviveAt: Timestamp.now()
+        }, {merge: true});
+
+        console.log(`[spendCurrencyForRevive] uid=${uid} session=${sessionId} price=${price} newCurrency=${newCurrency}`);
+
+        return {
+            ok: true,
+            spent: price,
+            newCurrency: newCurrency,
+            reviveIndex: reviveIndex
+        };
+    });
+
+    return result;
 });

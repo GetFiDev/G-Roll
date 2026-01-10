@@ -2,6 +2,8 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {db} from "../firebase";
 import {FieldValue, Timestamp} from "@google-cloud/firestore";
 import {snapNum, utcDateString} from "../utils/helpers";
+import {upsertUserAch} from "./achievements.functions";
+import {ACH_TYPES} from "../utils/constants";
 
 const streakConfigRef = db.collection("appdata").doc("streakdata");
 const userStreakRef = (uid: string) => db.collection("users").doc(uid).collection("meta").doc("streak");
@@ -74,6 +76,15 @@ async function applyDailyStreakIncrement(uid: string): Promise<{
 
         return {totalDays, unclaimedDays, rewardPerDay, todayCounted};
     });
+
+    // Update HABIT_MAKER achievement if a new day was counted
+    if (todayCounted && totalDays > 0) {
+        try {
+            await upsertUserAch(uid, ACH_TYPES.HABIT_MAKER, totalDays);
+        } catch (e) {
+            console.warn("[streak] Failed to update HABIT_MAKER achievement:", e);
+        }
+    }
 
     const d = new Date(now.toMillis());
     d.setUTCHours(24, 0, 0, 0);

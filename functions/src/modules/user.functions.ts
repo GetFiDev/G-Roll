@@ -3,8 +3,8 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {db} from "../firebase";
 import {FieldValue, Timestamp} from "@google-cloud/firestore";
 import {randomReferralKey} from "../utils/helpers"; // Removed normId
-import {ALPHABET} from "../utils/constants"; // Removed ACH_TYPES
-// Removed upsertUserAch
+import {ALPHABET, ACH_TYPES} from "../utils/constants"; // Removed ACH_TYPES -> re-added
+import {upsertUserAch} from "./achievements.functions";
 
 // -------- Helper Functions --------
 // Helper: Pure Read Check for available referral key
@@ -89,7 +89,7 @@ export async function applyReferralCodeToUser(uid: string, code: string) {
         if (!validChars.has(c)) throw new HttpsError("invalid-argument", "Bad chars");
     }
 
-    await db.runTransaction(async (tx) => {
+    const result = await db.runTransaction(async (tx) => {
         // 1. Resolve code -> referrerUid
         const kRef = db.collection("referralKeys").doc(upper);
         const kSnap = await tx.get(kRef);
@@ -108,7 +108,7 @@ export async function applyReferralCodeToUser(uid: string, code: string) {
         // 3. Get Referrer Data (READ BEFORE WRITE)
         const refUserRef = db.collection("users").doc(referrerUid);
         const rSnap = await tx.get(refUserRef);
-        if (!rSnap.exists) return; // Weird, but stop if referrer invalid
+        if (!rSnap.exists) return {referrerUid: null, newCount: 0}; // Weird, but stop if referrer invalid
 
         // --- ALL READS DONE (mostly) ---
 
@@ -152,7 +152,18 @@ export async function applyReferralCodeToUser(uid: string, code: string) {
 
         // 8. Check Thresholds for Referrer
         await grantReferralThresholdItems(tx, referrerUid, newCount);
+
+        return {referrerUid, newCount};
     });
+
+    // Update SIGNAL_BOOST achievement for the referrer
+    if (result?.referrerUid && result.newCount > 0) {
+        try {
+            await upsertUserAch(result.referrerUid, ACH_TYPES.SIGNAL_BOOST, result.newCount);
+        } catch (e) {
+            console.warn("[referral] Failed to update SIGNAL_BOOST achievement:", e);
+        }
+    }
     return {ok: true, applied: upper};
 }
 

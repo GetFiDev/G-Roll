@@ -132,17 +132,21 @@ public static class SessionRemoteService
         public double maxScore;
     }
 
-    public static async Task<SubmitResultResponse> SubmitResultAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected, string mode = "endless", bool success = false)
+    public static async Task<SubmitResultResponse> SubmitResultAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected, int usedRevives, string mode = "endless", bool success = false)
     {
         try
         {
-            Debug.Log($"[SessionRemoteService] submitSessionResult → call sessionId={sessionId} currency={earnedCurrency} score={earnedScore} mode={mode} suc={success}");
+            Debug.Log($"[SessionRemoteService] submitSessionResult → call sessionId={sessionId} currency={earnedCurrency} score={earnedScore} mode={mode} revives={usedRevives} suc={success}");
             var call = Fn.GetHttpsCallable("submitSessionResult");
             var res = await call.CallAsync(new Dictionary<string, object>
             {
                 { "sessionId", sessionId },
                 { "earnedCurrency", earnedCurrency },
                 { "earnedScore", earnedScore },
+                { "maxCombo", maxCombo },
+                { "playtimeSec", playtimeSec },
+                { "powerUpsCollected", powerUpsCollected },
+                { "usedRevives", usedRevives },
                 { "mode", mode },
                 { "success", success }
             });

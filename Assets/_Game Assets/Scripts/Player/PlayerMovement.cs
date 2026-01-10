@@ -310,7 +310,7 @@ public class PlayerMovement : MonoBehaviour
 
     private bool IsAlive() => this != null && isActiveAndEnabled;
 
-    private void SetDirection(Vector3 dir)
+    public void SetDirection(Vector3 dir)
     {
         EnsureFirstMoveNotified();
         if (!IsAlive() || _isFrozen || _isIntroPlaying) return;

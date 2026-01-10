@@ -53,7 +53,16 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
     public event Action<string> OnPurchaseSuccess; // productId
     public event Action<string> OnPurchaseFailedEvent; // message
 
-    private bool _isInitializationStarted = false;
+    // --- Robust Initialization State ---
+    private TaskCompletionSource<bool> _initTcs;
+    private Coroutine _timeoutCoroutine;
+    private int _retryCount = 0;
+    private bool _isInitializing = false;
+    private readonly object _initLock = new object();
+    
+    private const int MAX_RETRIES = 3;
+    private const float INIT_TIMEOUT_SEC = 30f;
+    private const float BASE_BACKOFF_SEC = 2f;
 
     // --- Default Catalog Parsing ---
     [Serializable]
@@ -101,8 +110,6 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
                     {
                         if (p.googlePrice != null)
                         {
-                            // Assuming num is the price. We default to '$' prefix as planned.
-                            // Ideally we could check currency code but that's complex here.
                             string priceStr = $"$ {p.googlePrice.num:0.00}";
                             _defaultPrices[p.id] = priceStr;
                         }
@@ -127,56 +134,182 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
         Instance = this;
         DontDestroyOnLoad(gameObject);
         
+        // Reset all initialization state to ensure clean start
+        _controller = null;
+        _extensions = null;
+        _initTcs = null;
+        _retryCount = 0;
+        _isInitializing = false;
+        _initializeStarted = false;
+        
         LoadCatalog();
+        Debug.Log($"[IAPManager] Awake complete. Instance={this.GetHashCode()}");
     }
-
-    // Start() removed for strict initialization by AppFlowManager
-    // private void Start() { }
 
     /// <summary>
     /// Explicit initialization called by AppFlowManager.
+    /// Now properly awaits until initialization completes or all retries are exhausted.
     /// </summary>
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         Debug.Log("[IAPManager] InitializeAsync called.");
-        InitializePurchasing();
-        // Unity IAP init is callback-based. We don't await the callback here to avoid blocking chain.
-        // The app can continue loading while IAP connects in background.
-        return Task.CompletedTask;
+        
+        if (IsInitialized())
+        {
+            Debug.Log("[IAPManager] Already initialized.");
+            return;
+        }
+
+        // If already initializing, wait for the existing task
+        lock (_initLock)
+        {
+            if (_isInitializing && _initTcs != null && !_initTcs.Task.IsCompleted)
+            {
+                Debug.Log("[IAPManager] Initialization already in progress, waiting...");
+            }
+            else
+            {
+                _isInitializing = true;
+                _initTcs = new TaskCompletionSource<bool>();
+                _retryCount = 0;
+            }
+        }
+
+        // Wait for the initialization task (whether we started it or someone else did)
+        _ = InitializeWithRetryAsync();
+        
+        try
+        {
+            await _initTcs.Task;
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[IAPManager] InitializeAsync exception: {e}");
+        }
     }
 
+    /// <summary>
+    /// Fire-and-forget initialization for backward compatibility (e.g., retry from purchase button)
+    /// </summary>
     public void InitializePurchasing()
     {
         if (IsInitialized()) return;
-
-        // Strict Manual Initialization Rule
-        // We assume no Codeless IAP is present. Checking .Instance might lazily create it!
-        // if (CodelessIAPStoreListener.Instance != null) { ... }
-
-        if (_isInitializationStarted) 
+        
+        lock (_initLock)
         {
-             // Check if it's been too long? For now just log.
-             Debug.Log("[IAPManager] Initialization already in progress...");
-             return;
+            if (_isInitializing) 
+            {
+                Debug.Log("[IAPManager] Initialization already in progress...");
+                return;
+            }
+            _isInitializing = true;
+            _initTcs = new TaskCompletionSource<bool>();
+            _retryCount = 0;
         }
+        
+        _ = InitializeWithRetryAsync();
+    }
 
-        Debug.Log("[IAPManager] Initializing Unity IAP...");
-        _isInitializationStarted = true;
-        StartCoroutine(InitializationTimeout());
+    private async Task InitializeWithRetryAsync()
+    {
+        // Start Unity IAP initialization (only once)
+        StartUnityIAPInit();
+        
+        while (_retryCount < MAX_RETRIES && !IsInitialized())
+        {
+            _retryCount++;
+            Debug.Log($"[IAPManager] Waiting for initialization... attempt {_retryCount}/{MAX_RETRIES}");
+            
+            // Wait for either success or timeout
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(INIT_TIMEOUT_SEC));
+            
+            // Create a task that completes when initialization succeeds
+            var initCompletedTask = WaitForInitializationAsync();
+            
+            var completedTask = await Task.WhenAny(initCompletedTask, timeoutTask);
+            
+            if (IsInitialized())
+            {
+                Debug.Log("[IAPManager] Initialization successful!");
+                _initTcs?.TrySetResult(true);
+                _isInitializing = false;
+                return;
+            }
+            
+            // Not initialized yet, log and continue waiting
+            if (_retryCount < MAX_RETRIES)
+            {
+                float backoffSec = BASE_BACKOFF_SEC * Mathf.Pow(2, _retryCount - 1); // 2, 4, 8 seconds
+                Debug.LogWarning($"[IAPManager] Still waiting for callback... will check again in {backoffSec:0.0}s");
+                await Task.Delay(TimeSpan.FromSeconds(backoffSec));
+            }
+        }
+        
+        // All retries exhausted
+        if (!IsInitialized())
+        {
+            Debug.LogError($"[IAPManager] Initialization did not complete after {MAX_RETRIES} wait cycles. IAP may not work.");
+            _initTcs?.TrySetResult(false);
+            _isInitializing = false;
+        }
+    }
+
+    private async Task WaitForInitializationAsync()
+    {
+        // Poll until initialized or timeout (this is a simple polling approach)
+        float elapsed = 0f;
+        while (!IsInitialized() && elapsed < INIT_TIMEOUT_SEC)
+        {
+            await Task.Delay(100); // Check every 100ms
+            elapsed += 0.1f;
+        }
+    }
+
+    private bool _initializeStarted = false;
+
+    // Static state that persists across Editor play sessions (for FakeStore)
+    private static IStoreController s_cachedController;
+    private static IExtensionProvider s_cachedExtensions;
+    private static bool s_unityIAPInitialized;
+
+    private void StartUnityIAPInit()
+    {
+        // Prevent calling Initialize multiple times in the same session
+        if (_initializeStarted)
+        {
+            Debug.Log("[IAPManager] Initialize already called, skipping...");
+            return;
+        }
+        _initializeStarted = true;
+        
+        Debug.Log($"[IAPManager] [{this.GetHashCode()}] Starting Unity IAP initialization...");
+        
+#if UNITY_EDITOR
+        // In Editor, Unity IAP's static state persists between play sessions.
+        // If we already initialized in a previous play, reuse the cached controller.
+        if (s_unityIAPInitialized && s_cachedController != null && s_cachedExtensions != null)
+        {
+            Debug.Log("[IAPManager] Reusing cached Unity IAP controller from previous Editor session.");
+            OnInitialized(s_cachedController, s_cachedExtensions);
+            return;
+        }
+#endif
 
         var module = StandardPurchasingModule.Instance();
 #if UNITY_EDITOR
         module.useFakeStoreAlways = true;
+        // Use DeveloperUser mode - no UI dialogs, auto-succeeds
+        module.useFakeStoreUIMode = FakeStoreUIMode.DeveloperUser;
 #endif
         var builder = ConfigurationBuilder.Instance(module);
 
-        // Debug Log Products
+        // Add products
         void AddP(string id, ProductType t) {
-            Debug.Log($"[IAPManager] Adding Product to Builder: {id} ({t})");
+            Debug.Log($"[IAPManager] Adding Product: {id} ({t})");
             builder.AddProduct(id, t);
         }
 
-        // Subs
+        // Subscriptions
         AddP(ID_ElitePass, ProductType.Subscription);
         AddP(ID_ElitePassAnnual, ProductType.Subscription);
 
@@ -196,17 +329,6 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
         UnityPurchasing.Initialize(this, builder);
     }
 
-    private IEnumerator InitializationTimeout()
-    {
-        yield return new WaitForSeconds(10f);
-        if (_isInitializationStarted && !IsInitialized())
-        {
-            Debug.LogError("[IAPManager] Initialization Timed Out (10s)! Force-resetting state.");
-            _isInitializationStarted = false;
-            OnInitializeFailed(InitializationFailureReason.AppNotKnown, "Timeout");
-        }
-    }
-
     public bool IsInitialized()
     {
         return _controller != null && _extensions != null;
@@ -214,7 +336,7 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
 
     public bool IsInitializing()
     {
-        return _isInitializationStarted;
+        return _isInitializing;
     }
 
     public string GetProductId(IAPProductType type)
@@ -254,14 +376,12 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
             {
                 string price = product.metadata.localizedPriceString;
                 
-                // Fallback / Fix logic for missing currency symbol:
-                // Some platforms/stores might return just "0.99" without a symbol.
+                // Fallback / Fix logic for missing currency symbol
                 bool hasSymbol = false;
                 if (!string.IsNullOrEmpty(price))
                 {
                     foreach (char c in price)
                     {
-                        // Check if character implies a currency (Symbol or Letter code like USD)
                         if (char.IsLetter(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.CurrencySymbol)
                         {
                             hasSymbol = true;
@@ -273,9 +393,8 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
                 if (!hasSymbol)
                 {
                     string iso = product.metadata.isoCurrencyCode;
-                    string symbol = iso; // Fallback to ISO code
+                    string symbol = iso;
 
-                    // Common symbols map
                     switch (iso)
                     {
                         case "USD": symbol = "$"; break;
@@ -313,6 +432,7 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
             if (IsInitializing())
             {
                 Debug.LogWarning("[IAPManager] Buy failed: Initialization in progress. Please wait...");
+                // Optionally show a UI message
             }
             else
             {
@@ -322,7 +442,7 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
             return;
         }
 
-        // Debounce at Manager level as well (1 second)
+        // Debounce (1 second)
         if (_lastPurchaseInitiationTimes.TryGetValue(productId, out float lastTime))
         {
             if (Time.time - lastTime < 1.0f)
@@ -360,7 +480,7 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
         {
             if (_extensions == null)
             {
-                 Debug.LogWarning("[IAPManager] Restore failed: Extensions reference missing (Codeless initialization?).");
+                 Debug.LogWarning("[IAPManager] Restore failed: Extensions reference missing.");
                  return;
             }
 
@@ -377,14 +497,35 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
         }
     }
 
-    // --- IStoreListener ---
+    // --- IStoreListener Callbacks ---
 
     public void OnInitialized(IStoreController controller, IExtensionProvider extensions)
     {
-        Debug.Log("[IAPManager] Initialization Successful!");
+        Debug.Log($"[IAPManager] [{this.GetHashCode()}] OnInitialized CALLBACK RECEIVED! Products: {controller?.products?.all?.Length ?? 0}");
         _controller = controller;
         _extensions = extensions;
-        _isInitializationStarted = false;
+        _retryCount = 0;
+        _initializeStarted = false; // Reset so we can reinit if needed later
+        
+#if UNITY_EDITOR
+        // Cache for reuse across Editor play sessions
+        s_cachedController = controller;
+        s_cachedExtensions = extensions;
+        s_unityIAPInitialized = true;
+#endif
+        
+        // Stop any pending timeout coroutine
+        if (_timeoutCoroutine != null)
+        {
+            StopCoroutine(_timeoutCoroutine);
+            _timeoutCoroutine = null;
+        }
+        
+        // Signal completion
+        _initTcs?.TrySetResult(true);
+        _isInitializing = false;
+        
+        Debug.Log($"[IAPManager] Initialization successful! IsInitialized={IsInitialized()}");
         OnIAPInitialized?.Invoke();
     }
 
@@ -395,8 +536,9 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
 
     public void OnInitializeFailed(InitializationFailureReason error, string message)
     {
-        Debug.LogError($"[IAPManager] [{this.GetHashCode()}] Initialization Failed: {error}. Message: {message}");
-        _isInitializationStarted = false;
+        Debug.LogError($"[IAPManager] [{this.GetHashCode()}] OnInitializeFailed CALLBACK: {error}. Message: {message}");
+        _initializeStarted = false; // Reset so we can retry
+        // Don't set TCS here - let the retry loop handle it
     }
 
     private float _lastCallbackTime;
@@ -410,7 +552,6 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
         var product = args.purchasedProduct;
 
         // Idempotency: Ensure we don't process the same transaction twice.
-        // This is robust against duplicate callbacks regardless of timing.
         if (!string.IsNullOrEmpty(product.transactionID) && _processedTransactionIDs.Contains(product.transactionID))
         {
              Debug.LogWarning($"[IAPManager] Ignoring duplicate ProcessPurchase for TransactionID: {product.transactionID}");
@@ -422,9 +563,9 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
             _processedTransactionIDs.Add(product.transactionID);
         }
 
-        Debug.Log($"[IAPManager] [{this.GetHashCode()}] ProcessPurchase: {product.definition.id} (TxID: {product.transactionID})");
+        Debug.Log($"[IAPManager] ProcessPurchase: {product.definition.id} (TxID: {product.transactionID})");
         
-        // Start verification coroutine/async task
+        // Start verification
         VerifyAndConfirm(product);
 
         return PurchaseProcessingResult.Pending;
@@ -445,7 +586,7 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
         if (Time.realtimeSinceStartup - _lastCallbackTime < 0.2f) return;
         _lastCallbackTime = Time.realtimeSinceStartup;
 
-        Debug.LogError($"[IAPManager] [{this.GetHashCode()}] Purchase Failed: {productId}, Reason: {reason}, Desc: {message}");
+        Debug.LogError($"[IAPManager] Purchase Failed: {productId}, Reason: {reason}, Desc: {message}");
         if (UIManager.Instance && UIManager.Instance.overlay) UIManager.Instance.overlay.HideProcessingPanel();
         OnPurchaseFailedEvent?.Invoke($"Purchase failed: {message}");
     }
@@ -454,8 +595,6 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
     {
         try
         {
-            // Call Remote Service
-            // Note: receipt might vary by platform.
             var receipt = product.receipt;
             
             var result = await IAPRemoteService.VerifyPurchaseAsync(product.definition.id, receipt);
@@ -465,10 +604,9 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
                 Debug.Log($"[IAPManager] Server verified purchase of {product.definition.id}. Confirming...");
                 
                 // Grant logic is handled by server (database update).
-                // Client might need to refresh local inventory/stats.
                 if (UserInventoryManager.Instance) await UserInventoryManager.Instance.RefreshAsync();
                 
-                // Refresh UserData to sync subscription status (e.g. Elite Pass)
+                // Refresh UserData to sync subscription status
                 if (UserDatabaseManager.Instance) await UserDatabaseManager.Instance.LoadUserData();
                 
                 // Confirm to Unity IAP so it doesn't queue it again
@@ -488,10 +626,6 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
             else
             {
                 Debug.LogError($"[IAPManager] Server verification failed: {result.message}");
-                // IMPORTANT: Do NOT confirm if verification fails, so it retries later? 
-                // Or confirm to unblock the queue if it's a hard error?
-                // For now, let's NOT confirm, so player can try restore or the app retries on restart.
-                // For now, let's NOT confirm, so player can try restore or the app retries on restart.
                 OnPurchaseFailedEvent?.Invoke($"Verification failed: {result.message}");
                 if (UIManager.Instance && UIManager.Instance.overlay) UIManager.Instance.overlay.HideProcessingPanel();
             }
@@ -502,15 +636,5 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
              OnPurchaseFailedEvent?.Invoke("Verification error");
              if (UIManager.Instance && UIManager.Instance.overlay) UIManager.Instance.overlay.HideProcessingPanel();
         }
-    }
-    private string GetGameObjectPath(GameObject obj)
-    {
-        string path = "/" + obj.name;
-        while (obj.transform.parent != null)
-        {
-            obj = obj.transform.parent.gameObject;
-            path = "/" + obj.name + path;
-        }
-        return path;
     }
 }

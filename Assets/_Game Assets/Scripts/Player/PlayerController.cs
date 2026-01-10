@@ -141,4 +141,24 @@ public class PlayerController : MonoBehaviour
         // Dön ve yerine koy
         transform.SetPositionAndRotation(_startPosition, _startRotation);
     }
+
+    /// <summary>
+    /// Revive için player state'ini resetle. Pozisyon dışarıdan ayarlanır.
+    /// Başlangıç pozisyonuna dönmez, sadece wall hit ve freeze durumunu temizler.
+    /// </summary>
+    public void ResetPlayerForRevive()
+    {
+        _wallHit = false;
+        
+        if (playerMovement != null) 
+        {
+            playerMovement._isFrozen = false;
+            playerMovement.StopImmediately();
+        }
+        
+        if (playerAnimator != null) 
+            playerAnimator.Freeze(false);
+        
+        Debug.Log("[PlayerController] Player reset for revive.");
+    }
 }

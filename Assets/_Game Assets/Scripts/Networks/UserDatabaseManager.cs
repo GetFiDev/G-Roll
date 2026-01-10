@@ -1291,14 +1291,14 @@ public class UserDatabaseManager : MonoBehaviour
     }
 
     // --- GAMEPLAY SESSION SUBMISSION (Persistent) ---
-    public async Task SubmitGameplaySessionAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected, GameMode mode, bool success)
+    public async Task SubmitGameplaySessionAsync(string sessionId, double earnedCurrency, double earnedScore, double maxCombo, int playtimeSec, int powerUpsCollected, int usedRevives, GameMode mode, bool success)
     {
         string modeStr = mode.ToString().ToLower();
-        EmitLog($"[UserDatabaseManager] Submitting session: {sessionId} Cur:{earnedCurrency} Score:{earnedScore} Mode:{modeStr} Suc:{success}");
+        EmitLog($"[UserDatabaseManager] Submitting session: {sessionId} Cur:{earnedCurrency} Score:{earnedScore} Mode:{modeStr} Revives:{usedRevives} Suc:{success}");
 
         try
         {
-            var resp = await SessionRemoteService.SubmitResultAsync(sessionId, earnedCurrency, earnedScore, maxCombo, playtimeSec, powerUpsCollected, modeStr, success);
+            var resp = await SessionRemoteService.SubmitResultAsync(sessionId, earnedCurrency, earnedScore, maxCombo, playtimeSec, powerUpsCollected, usedRevives, modeStr, success);
             
             // Success! Update local cache immediately
             if (_cachedUserData != null)

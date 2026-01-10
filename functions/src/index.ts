@@ -18,3 +18,4 @@ export * from "./modules/leaderboard.functions";
 export * from "./modules/scheduler.functions";
 export * from "./modules/ad.functions";
 export * from "./modules/map.functions";
+export * from "./modules/tasks.functions";

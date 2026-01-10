@@ -374,7 +374,7 @@ export const checkElitePass = onCall(async (req) => {
     };
 });
 
-export const verifyPurchase = onCall(async (req) => {
+export const verifyPurchase = onCall({minInstances: 1}, async (req) => {
     const uid = req.auth?.uid;
     const email = req.auth?.token?.email || null;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
