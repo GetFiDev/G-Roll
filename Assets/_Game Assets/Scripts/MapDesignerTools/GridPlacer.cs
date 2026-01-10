@@ -445,16 +445,15 @@ public class GridPlacer : MonoBehaviour
     // --------- Demolish loop ---------
     void TickDemolish()
     {
-        var mouse = Mouse.current;
-        if (mouse == null || cam == null) return;
+        if (cam == null) return;
 
         // Check UI block
         if (IsPointerOverUI()) return;
 
-        if (mouse.leftButton.wasPressedThisFrame)
+        if (WasScreenTapped(out var tapPos))
         {
             // placedParent altı bir şeye vur?
-            Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+            Ray ray = cam.ScreenPointToRay(tapPos);
             if (Physics.Raycast(ray, out var hit, 5000f))
             {
                 var go = GetPlacedRootFromHit(hit.collider.transform);

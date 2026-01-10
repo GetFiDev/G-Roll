@@ -22,6 +22,9 @@ namespace MapDesignerTool
         // Temporary UI for dragging
         private GameObject dragObject;
         private RectTransform dragRect;
+        
+        // Touch offset to keep item above finger
+        private const float TOUCH_OFFSET_Y = 120f;
 
         public void Init(BuildableItem item, GridPlacer placer, OrbitCamera cam, Canvas canvas)
         {
@@ -70,10 +73,13 @@ namespace MapDesignerTool
         {
             if (dragObject == null) return;
 
-            UpdateDragVisual(eventData.position);
+            // Apply touch offset for mobile - makes item appear above finger
+            Vector2 offsetPosition = GetOffsetPosition(eventData.position);
+            
+            UpdateDragVisual(offsetPosition);
 
-            // Check if we are over the grid
-            bool onGrid = gridPlacer.IsScreenPointOnGrid(eventData.position, out int gx, out int gz);
+            // Check if we are over the grid (using offset position)
+            bool onGrid = gridPlacer.IsScreenPointOnGrid(offsetPosition, out int gx, out int gz);
 
             if (onGrid)
             {
@@ -100,8 +106,11 @@ namespace MapDesignerTool
             // Cleanup Camera
             if (orbitCam) orbitCam.IsInputBlocked = false;
 
-            // Final Placement Check
-            if (gridPlacer.IsScreenPointOnGrid(eventData.position, out int gx, out int gz))
+            // Apply touch offset for final placement
+            Vector2 offsetPosition = GetOffsetPosition(eventData.position);
+
+            // Final Placement Check (using offset position)
+            if (gridPlacer.IsScreenPointOnGrid(offsetPosition, out int gx, out int gz))
             {
                 gridPlacer.PlaceAt(item, gx, gz);
             }
@@ -110,17 +119,34 @@ namespace MapDesignerTool
             gridPlacer.HideGhost();
         }
 
+        /// <summary>
+        /// Gets position with touch offset applied (for mobile, item appears above finger)
+        /// </summary>
+        private Vector2 GetOffsetPosition(Vector2 screenPos)
+        {
+            // Apply offset on touch devices, or always in Editor for testing
+#if UNITY_EDITOR
+            // Always apply offset in Editor for testing
+            return screenPos + new Vector2(0, TOUCH_OFFSET_Y);
+#else
+            // Only apply offset on touch devices at runtime
+            bool isTouchInput = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0;
+            if (isTouchInput)
+            {
+                return screenPos + new Vector2(0, TOUCH_OFFSET_Y);
+            }
+            return screenPos;
+#endif
+        }
+
         private void UpdateDragVisual(Vector2 screenPos)
         {
             if (dragRect == null) return;
-
-            // Add offset if needed (user mentioned "finger's slightly above")
-            Vector2 offset = new Vector2(0, 150); 
             
             // Convert screen point to local point in canvas
             RectTransformUtility.ScreenPointToLocalPointInRectangle(
                 canvas.transform as RectTransform, 
-                screenPos + offset, 
+                screenPos, 
                 canvas.worldCamera, 
                 out var localPos
             );

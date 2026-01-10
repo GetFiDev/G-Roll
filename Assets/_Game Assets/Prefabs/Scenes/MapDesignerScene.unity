@@ -2587,7 +2587,7 @@ MonoBehaviour:
   distance: 20
   minDistance: 15
   maxDistance: 60
-  orbitSpeed: 5760
+  orbitSpeed: 200
   zoomSpeed: 10
   panSpeed: 10
   pitchMin: 10
