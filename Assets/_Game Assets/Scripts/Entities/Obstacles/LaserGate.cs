@@ -2,23 +2,32 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
+using MapDesignerTool; // for IMapConfigurable
+using System.Globalization;
 
-public class LaserGate : Wall
+public class LaserGate : Wall, IMapConfigurable
 {
     [Header("Laser Gate Settings")]
     [Tooltip("The root parent object containing all lasers.")]
     public GameObject rootObject;
     [Tooltip("List of laser objects to toggle (children of root).")]
     public List<GameObject> laserObjects;
+    
+    // Sequence delay is tricky in Global Sync. 
+    // If strict sync is needed, usually all turn on at once. 
+    // If we want "wave" opening, that's fine inside the Active window.
+    // For now, let's keep sequenceDelay relative to the START of the Active Phase.
     [Tooltip("Delay between activating each laser in the list.")]
     public float sequenceDelay = 0.05f;
+
     [Tooltip("Time in seconds to wait before activating (Idle state).")]
     public float idleDuration = 3f;
     [Tooltip("Time in seconds to stay active (Laser ON).")]
     public float activeDuration = 3f;
+    [Tooltip("Start time offset (0-10s) to create wave effects.")]
+    public float startOffset = 0f;
 
-    private float _timer;
-    private bool _isLaserActive;
+    private bool _wasActive = false;
     private Coroutine _sequenceCoroutine;
 
     private void Start()
@@ -38,61 +47,72 @@ public class LaserGate : Wall
             proxy.owner = this;
         }
 
-        // Initial state: Root OFF, Children OFF
-        _isLaserActive = false;
-        SetAllLasersImmediate(false); // Determine local state
-        rootObject.SetActive(false); // Determine global visibility
-        _timer = 0f;
+        // Initial set
+        SetAllLasersImmediate(false);
+        rootObject.SetActive(false);
     }
 
     private void Update()
     {
         if (rootObject == null) return;
 
-        _timer += Time.deltaTime;
+        // GLOBAL TIME SYNC
+        // Cycle: ActiveDuration -> IdleDuration
+        // Note: Previous logic was Idle -> Active -> Idle?
+        // Let's standardize: 0..Active is ON, Active..Total is OFF.
+        
+        float totalDuration = activeDuration + idleDuration;
+        if (totalDuration < 0.1f) return; // safety
 
-        // Check which duration to use based on current state
-        float currentThreshold = _isLaserActive ? activeDuration : idleDuration;
+        float t = (Time.time + startOffset) % totalDuration;
+        
+        bool shouldBeActive = (t < activeDuration);
 
-        if (_timer >= currentThreshold)
+        if (shouldBeActive != _wasActive)
         {
-            // Switch state
-            _timer = 0f; // Reset timer
-            _isLaserActive = !_isLaserActive;
+            // State Change detected
+            _wasActive = shouldBeActive;
             
-            if (_isLaserActive)
+            if (shouldBeActive)
             {
-                // Turn ON Sequence
-                // 1. Ensure all children are OFF locally first
-                SetAllLasersImmediate(false);
-                // 2. Turn Root ON
+                // TURN ON
                 rootObject.SetActive(true);
-                // 3. Start Sequence to turn children ON
+                // Start sequence visual
                 if (_sequenceCoroutine != null) StopCoroutine(_sequenceCoroutine);
                 _sequenceCoroutine = StartCoroutine(OpenLaserSequence());
             }
             else
             {
-                // Turn OFF Immediately
-                // Just close the root.
+                // TURN OFF
                 if (_sequenceCoroutine != null) StopCoroutine(_sequenceCoroutine);
                 rootObject.SetActive(false);
-                SetAllLasersImmediate(false); // Reset locals for cleanliness
+                SetAllLasersImmediate(false);
             }
+        }
+        
+        // Safety: If active, ensure root is Active (in case of mishaps)
+        if (shouldBeActive && !rootObject.activeSelf) 
+        {
+            rootObject.SetActive(true);
+            // If sequence failed, maybe force all on?
+            // Usually fine.
         }
     }
 
     private IEnumerator OpenLaserSequence()
     {
+        // Turn them on one by one
         foreach (var laser in laserObjects)
         {
-            if (laser != null) laser.SetActive(true);
-            if (sequenceDelay > 0f) yield return new WaitForSeconds(sequenceDelay);
+            if (laser == null) continue;
+            laser.SetActive(true);
+            if (sequenceDelay > 0.01f) yield return new WaitForSeconds(sequenceDelay);
         }
     }
 
     private void SetAllLasersImmediate(bool state)
     {
+        if (laserObjects == null) return;
         foreach (var laser in laserObjects)
         {
             if (laser != null) laser.SetActive(state);
@@ -110,10 +130,70 @@ public class LaserGate : Wall
         if (!expectTrigger) NotifyPlayer(collision.collider);
     }
 
+    // --- IMapConfigurable Implementation ---
+
+    public List<ConfigDefinition> GetConfigDefinitions()
+    {
+        return new List<ConfigDefinition>
+        {
+            new ConfigDefinition
+            {
+                key = "activeTime",
+                displayName = "Active Time (ON)",
+                type = ConfigType.Float,
+                min = 0.5f,
+                max = 10.0f,
+                defaultValue = this.activeDuration
+            },
+            new ConfigDefinition
+            {
+                key = "idleTime",
+                displayName = "Idle Time (OFF)",
+                type = ConfigType.Float,
+                min = 0.5f,
+                max = 10.0f,
+                defaultValue = this.idleDuration
+            },
+            new ConfigDefinition
+            {
+                key = "offset",
+                displayName = "Start Offset (s)",
+                type = ConfigType.Float,
+                min = 0f,
+                max = 10f,
+                defaultValue = this.startOffset
+            }
+        };
+    }
+
+    public void ApplyConfig(Dictionary<string, string> config)
+    {
+        if (config.TryGetValue("activeTime", out var activeVal))
+        {
+            if (float.TryParse(activeVal, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+            {
+                 activeDuration = Mathf.Clamp(f, 0.1f, 60f);
+            }
+        }
+
+        if (config.TryGetValue("idleTime", out var idleVal))
+        {
+            if (float.TryParse(idleVal, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+            {
+                 idleDuration = Mathf.Clamp(f, 0.1f, 60f);
+            }
+        }
+        
+        if (config.TryGetValue("offset", out var oVal))
+        {
+            if (float.TryParse(oVal, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+                startOffset = Mathf.Clamp(f, 0f, 10f);
+        }
+    }
 
 }
 
-// Helper component added automatically to the moving part
+// Helper component added automatically to the moving part (unchanged)
 public class LaserGateCollisionProxy : MonoBehaviour
 {
     public LaserGate owner;
@@ -128,3 +208,4 @@ public class LaserGateCollisionProxy : MonoBehaviour
         if (owner != null && gameObject.activeInHierarchy) owner.OnProxyCollisionEnter(collision);
     }
 }
+// Force Recompile Fri Jan  9 23:15:37 +03 2026

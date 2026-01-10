@@ -31,4 +31,5 @@ __exportStar(require("./modules/content.functions"), exports);
 __exportStar(require("./modules/leaderboard.functions"), exports);
 __exportStar(require("./modules/scheduler.functions"), exports);
 __exportStar(require("./modules/ad.functions"), exports);
+__exportStar(require("./modules/map.functions"), exports);
 //# sourceMappingURL=index.js.map

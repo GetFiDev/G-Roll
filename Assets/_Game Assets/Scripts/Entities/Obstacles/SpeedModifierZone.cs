@@ -1,15 +1,21 @@
 using UnityEngine;
+using MapDesignerTool; // for IMapConfigurable
+using System.Collections.Generic;
+using System.Globalization;
 
-public class SpeedModifierZone : MonoBehaviour
+public class SpeedModifierZone : MonoBehaviour, IMapConfigurable
 {
     [Header("Speed Settings")]
-    [Tooltip("Multiplier to apply when inside the zone. Start at 2 for x2 speed, 0.5 for half speed.")]
+    [Tooltip("Multiplier to apply. Calculated from Percentage config (e.g. 100% = 2x, -50% = 0.5x).")]
     public float speedMultiplier = 2f;
+
+    // Helper for inspector to see the percent value easily
+    [SerializeField, HideInInspector]
+    private float _modifierPercent = 100f; 
 
     private void Start()
     {
         // Setup Collision Proxy on ALL child colliders recursively (from Root)
-        // This allows putting the collider on any child object (visuals etc.)
         var allColliders = GetComponentsInChildren<Collider>(true);
         foreach (var col in allColliders)
         {
@@ -17,15 +23,6 @@ public class SpeedModifierZone : MonoBehaviour
             if (proxy == null) proxy = col.gameObject.AddComponent<SpeedModifierZoneProxy>();
             proxy.owner = this;
             proxy.isTrigger = col.isTrigger;
-            
-            // Ensure collider is a trigger, otherwise we can't walk through it!
-            // The user implies "area" (alan), so it should likely be a trigger.
-            // If they drag a solid collider, we force it to trigger?
-            // Safer to assume user configures it as trigger, but for "Zone" logic,
-            // we typically want non-blocking. I'll warn or force trigger?
-            // Previous obstacles (Door/Button) rely on user setup.
-            // But since this is a "Zone", blocking physics would be weird.
-            // I'll force set isTrigger = true for convenience, as requested "dümdüz sürükleyeceğim".
             col.isTrigger = true; 
         }
     }
@@ -48,7 +45,6 @@ public class SpeedModifierZone : MonoBehaviour
 
     private bool IsPlayer(Collider other)
     {
-        // Check for player tag or component
         return other.CompareTag("Player") || other.GetComponentInParent<PlayerController>() != null;
     }
 
@@ -68,9 +64,6 @@ public class SpeedModifierZone : MonoBehaviour
         else
         {
             // Revert (Apply Inverse Multiplier)
-            // We want to divide by multiplier.
-            // mult_inverse = 1 / mult
-            // delta = (1/mult) - 1
             if (Mathf.Abs(speedMultiplier) > 0.001f)
             {
                 float inverse = 1f / speedMultiplier;
@@ -79,6 +72,48 @@ public class SpeedModifierZone : MonoBehaviour
         }
 
         GameplayManager.Instance.ApplyPlayerSpeedPercent(delta);
+    }
+
+    // --- IMapConfigurable Implementation ---
+
+    public List<ConfigDefinition> GetConfigDefinitions()
+    {
+        return new List<ConfigDefinition>
+        {
+            new ConfigDefinition
+            {
+                key = "modifier",
+                displayName = "Modifier (%)",
+                type = ConfigType.Float,
+                min = -300f,
+                max = 300f,
+                defaultValue = 100f // Default x2 speed
+            }
+        };
+    }
+
+    public void ApplyConfig(Dictionary<string, string> config)
+    {
+        if (config.TryGetValue("modifier", out var val))
+        {
+            if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+            {
+                _modifierPercent = Mathf.Clamp(f, -300f, 300f);
+                
+                // Convert Percent to Multiplier
+                // 0% -> 1x (No Change)
+                // 100% -> 2x
+                // -50% -> 0.5x
+                // mult = 1 + (percent / 100)
+                speedMultiplier = 1f + (_modifierPercent / 100f);
+                
+                // Safety clamp to prevent div by zero logic if someone inputs exactly -100%
+                if (Mathf.Abs(speedMultiplier) < 0.01f)
+                {
+                    speedMultiplier = 0.01f;
+                }
+            }
+        }
     }
 }
 

@@ -1,17 +1,26 @@
 using UnityEngine;
 using DG.Tweening;
+using MapDesignerTool; // for IMapConfigurable, PlacedItemData
+using System.Collections.Generic;
+using System.Globalization;
 
-public class RotatorHammer : Wall
+public class RotatorHammer : Wall, IMapConfigurable
 {
     [Header("Hammer Settings")]
     [Tooltip("The actual object that will rotate.")]
     public Transform movingPart;
-    [Tooltip("Transform defining the first target rotation.")]
-    public Transform rotationTransform1;
-    [Tooltip("Transform defining the second target rotation.")]
-    public Transform rotationTransform2;
-    [Tooltip("Duration of one swing from Rotation A to Rotation B.")]
-    public float duration = 1f;
+    
+    [Tooltip("Rotation speed in degrees per second.")]
+    public float speed = 45f;
+    [Tooltip("Start time offset (0-10s) to create wave effects.")]
+    public float startOffset = 0f;
+
+    [Header("Configuration")]
+    [Range(0f, 360f)] public float angle1 = 0f;
+    [Range(0f, 360f)] public float angle2 = 90f;
+    public bool clockwise = true;
+    public bool powerfulAnimation = true;
+
     [Tooltip("Animation curve for the rotation movement.")]
     public AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
@@ -21,20 +30,23 @@ public class RotatorHammer : Wall
     public bool enableSecondParticle;
     public ParticleSystem secondParticle;
 
-    private Sequence _hammerSequence;
+    // Visualization
+    private LineRenderer _previewLine;
+    private GridPlacer _placer;
+    private PlacedItemData _placedData;
 
     private void Start()
     {
-        if (movingPart == null || rotationTransform1 == null || rotationTransform2 == null)
+        if (movingPart == null)
         {
-            Debug.LogError("RotatorHammer: Missing references!", this);
+            Debug.LogError("RotatorHammer: Missing 'movingPart' reference!", this);
             return;
         }
 
-        // Ensure starting rotation
-        movingPart.rotation = rotationTransform1.rotation;
+        _placer = FindObjectOfType<GridPlacer>();
+        _placedData = GetComponent<PlacedItemData>();
 
-        // Setup Collision Proxy on ALL child colliders recursively (from Root)
+        // Setup Collision Proxy on ALL child colliders
         var allColliders = GetComponentsInChildren<Collider>(true);
         foreach (var col in allColliders)
         {
@@ -42,38 +54,137 @@ public class RotatorHammer : Wall
             if (proxy == null) proxy = col.gameObject.AddComponent<RotatorHammerCollisionProxy>();
             proxy.owner = this;
         }
-
-        StartHammerCycle();
     }
 
-    private void StartHammerCycle()
+    private void Update()
     {
-        _hammerSequence?.Kill();
-        _hammerSequence = DOTween.Sequence();
+        // Lazy find
+        if (_placer == null) _placer = FindObjectOfType<GridPlacer>();
+        if (_placedData == null) _placedData = GetComponent<PlacedItemData>();
 
-        // 1. Move to Rotation 1 (Current rotation of Transform 1)
-        // Note: Using RotateMode.FastBeyond360 if full spin needed, but mostly standard is fine.
-        _hammerSequence.Append(movingPart.DORotateQuaternion(rotationTransform1.rotation, duration).SetEase(movementCurve));
-        
-        // Callback 1
-        _hammerSequence.AppendCallback(() => 
+        bool isSelected = false;
+        if (_placer != null && _placedData != null && _placer.currentMode == BuildMode.Modify)
         {
-            if (enableFirstParticle && firstParticle != null) firstParticle.Play();
-        });
+            if (_placer.SelectedObject == _placedData.gameObject) isSelected = true;
+        }
 
-        // 2. Move to Rotation 2 (Current rotation of Transform 2)
-        _hammerSequence.Append(movingPart.DORotateQuaternion(rotationTransform2.rotation, duration).SetEase(movementCurve));
+        UpdateVisualization(isSelected);
 
-        // Callback 2
-        _hammerSequence.AppendCallback(() => 
+        // --- GLOBAL TIME SYNC MOVEMENT ---
+        if (movingPart != null)
         {
-            if (enableSecondParticle && secondParticle != null) secondParticle.Play();
-        });
+            float angleDiff = Mathf.Abs(angle2 - angle1);
+            if (angleDiff < 0.01f) angleDiff = 360f; // full spin if enabled logic, but hammer usually oscillates
 
-        // 3. Loop: Recursive call to fetch fresh rotations next cycle
-        _hammerSequence.OnComplete(StartHammerCycle);
+            float totalDist = angleDiff; 
+            
+            if (totalDist > 0.01f && speed > 0.1f)
+            {
+               float oneWayTime = totalDist / speed;
+               float cycleDuration = oneWayTime * 2f;
+               
+               if (cycleDuration > 0.001f)
+               {
+                   float t = (Time.time + startOffset) % cycleDuration;
+                   
+                   float startAngle = clockwise ? angle1 : angle2; // "Clockwise" implies start point preference?
+                   // Consistent with LimitedRotator: Oscilate Angle1 <-> Angle2.
+                   // "Clockwise" flag previously swapped start/end for tween.
+                   float endAngle   = clockwise ? angle2 : angle1;
+
+                   float progress = 0f;
+                   // Logic: 0 -> oneWayTime: Start -> End
+                   // oneWayTime -> cycleDuration: End -> Start
+                   
+                   bool goingForward = (t < oneWayTime);
+                   
+                   if (goingForward)
+                   {
+                       progress = t / oneWayTime; // 0..1
+                   }
+                   else
+                   {
+                       progress = (t - oneWayTime) / oneWayTime; // 0..1
+                       // We want to go BACK from End to Start.
+                       // progress 0 = End, 1 = Start.
+                   }
+
+                   // Apply Curve
+                   float easedProgress = progress;
+                   if (powerfulAnimation && movementCurve != null)
+                   {
+                       easedProgress = movementCurve.Evaluate(progress);
+                   }
+                   
+                   float currentAngle;
+                   if (goingForward)
+                   {
+                       currentAngle = Mathf.Lerp(startAngle, endAngle, easedProgress);
+                   }
+                   else
+                   {
+                       currentAngle = Mathf.Lerp(endAngle, startAngle, easedProgress);
+                   }
+                   
+                   // Particles logic (simple trigger based on phase change could be tricky in Update)
+                   // We just skip Particles in Sync Mode for now or implement Phase triggers.
+                   // User asked for movement sync.
+                   
+                   movingPart.localRotation = Quaternion.Euler(0, 0, currentAngle);
+               }
+            }
+        }
     }
+    
+    private void UpdateVisualization(bool show)
+    {
+        if (!show)
+        {
+            if (_previewLine != null) _previewLine.enabled = false;
+            return;
+        }
 
+        if (_previewLine == null)
+        {
+            var lineObj = new GameObject("_HammerAnglePreview");
+            lineObj.transform.SetParent(this.transform);
+            
+            _previewLine = lineObj.AddComponent<LineRenderer>();
+            _previewLine.useWorldSpace = true;
+            
+            var shader = Shader.Find("Particles/Standard Unlit");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+            
+            var mat = new Material(shader);
+            mat.renderQueue = 3500; 
+            
+            _previewLine.material = mat;
+            _previewLine.startColor = Color.magenta;
+            _previewLine.endColor = Color.magenta;
+            _previewLine.startWidth = 0.15f;
+            _previewLine.endWidth = 0.15f;
+            _previewLine.positionCount = 3;
+        }
+
+        _previewLine.enabled = true;
+
+        Vector3 center = transform.position;
+        center.y += 0.5f;
+
+        Vector3 dir1 = Quaternion.Euler(0, 0, angle1) * Vector3.up;
+        Vector3 dir2 = Quaternion.Euler(0, 0, angle2) * Vector3.up;
+
+        Vector3 worldDir1 = transform.rotation * dir1;
+        Vector3 worldDir2 = transform.rotation * dir2;
+        
+        Vector3 p1 = center + worldDir1 * 3f;
+        Vector3 p2 = center + worldDir2 * 3f;
+
+        _previewLine.SetPosition(0, p1);
+        _previewLine.SetPosition(1, center);
+        _previewLine.SetPosition(2, p2);
+    }
+    
     // Public methods for the proxy to call
     public void OnProxyTriggerEnter(Collider other)
     {
@@ -85,13 +196,114 @@ public class RotatorHammer : Wall
         if (!expectTrigger) NotifyPlayer(collision.collider);
     }
 
-    private void OnDestroy()
+    // --- IMapConfigurable Implementation ---
+
+    public List<ConfigDefinition> GetConfigDefinitions()
     {
-        _hammerSequence?.Kill();
+        return new List<ConfigDefinition>
+        {
+            new ConfigDefinition
+            {
+                key = "speed",
+                displayName = "Speed (deg/s)",
+                type = ConfigType.Float,
+                min = 10f,
+                max = 720f,
+                defaultValue = this.speed
+            },
+            new ConfigDefinition
+            {
+                key = "offset",
+                displayName = "Start Offset (s)",
+                type = ConfigType.Float,
+                min = 0f,
+                max = 10f,
+                defaultValue = this.startOffset
+            },
+            new ConfigDefinition
+            {
+                key = "angle1",
+                displayName = "Angle 1",
+                type = ConfigType.Float,
+                min = 0f,
+                max = 360f,
+                defaultValue = this.angle1
+            },
+            new ConfigDefinition
+            {
+                key = "angle2",
+                displayName = "Angle 2",
+                type = ConfigType.Float,
+                min = 0f,
+                max = 360f,
+                defaultValue = this.angle2
+            },
+            new ConfigDefinition
+            {
+                key = "clockwise",
+                displayName = "Clockwise",
+                type = ConfigType.Bool,
+                defaultBool = this.clockwise
+            },
+            new ConfigDefinition
+            {
+                key = "powerfulAnimation",
+                displayName = "Powerful Anim",
+                type = ConfigType.Bool,
+                defaultBool = this.powerfulAnimation
+            },
+            new ConfigDefinition
+            {
+                key = "particle1",
+                displayName = "Particle 1",
+                type = ConfigType.Bool,
+                defaultBool = this.enableFirstParticle
+            },
+            new ConfigDefinition
+            {
+                key = "particle2",
+                displayName = "Particle 2",
+                type = ConfigType.Bool,
+                defaultBool = this.enableSecondParticle
+            }
+        };
+    }
+
+    public void ApplyConfig(Dictionary<string, string> config)
+    {
+        if (config.TryGetValue("speed", out var val))
+        {
+            if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+                speed = Mathf.Clamp(f, 1f, 720f);
+        }
+        
+        if (config.TryGetValue("offset", out var oVal))
+        {
+            if (float.TryParse(oVal, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+                startOffset = Mathf.Clamp(f, 0f, 10f);
+        }
+        
+        if (config.TryGetValue("angle1", out var a1))
+        {
+            if (float.TryParse(a1, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+                angle1 = Mathf.Clamp(f, 0f, 360f);
+        }
+
+        if (config.TryGetValue("angle2", out var a2))
+        {
+            if (float.TryParse(a2, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+                angle2 = Mathf.Clamp(f, 0f, 360f);
+        }
+        
+        if (config.TryGetValue("clockwise", out var cw)) clockwise = bool.Parse(cw);
+        if (config.TryGetValue("powerfulAnimation", out var pa)) powerfulAnimation = bool.Parse(pa);
+
+        if (config.TryGetValue("particle1", out var p1Val)) enableFirstParticle = bool.Parse(p1Val);
+        if (config.TryGetValue("particle2", out var p2Val)) enableSecondParticle = bool.Parse(p2Val);
     }
 }
 
-// Helper component added automatically to the moving part
+// Helper component added automatically
 public class RotatorHammerCollisionProxy : MonoBehaviour
 {
     public RotatorHammer owner;
@@ -106,3 +318,4 @@ public class RotatorHammerCollisionProxy : MonoBehaviour
         if (owner != null) owner.OnProxyCollisionEnter(collision);
     }
 }
+// Force Recompile Fri Jan  9 23:15:37 +03 2026

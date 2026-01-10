@@ -1220,44 +1220,74 @@ public class UserDatabaseManager : MonoBehaviour
         return 0f;
     }
 
-    // --- CHAPTER MAP FETCHING ---
-    public async Task<string> FetchChapterMapJsonAsync(int chapterIndex)
+    // --- CHAPTER MAP FETCHING (via Cloud Function) ---
+    
+    /// <summary>
+    /// Fetch chapter map using getChapterMap Cloud Function.
+    /// Pass 0 or negative to use user's chapterProgress from server.
+    /// Returns null if chapter doesn't exist (all chapters completed).
+    /// </summary>
+    public async Task<(string json, int chapterOrder, string mapDisplayName)> FetchChapterMapAsync(int chapterOrder = 0)
     {
-        if (db == null) return null;
+        if (_funcs == null)
+        {
+            EmitLog("❌ FetchChapterMapAsync: Functions not initialized");
+            return (null, 0, null);
+        }
+
         try
         {
-            var docRef = db.Collection("appdata").Document("chaptermaps").Collection("maps").Document($"chapter_{chapterIndex}");
-            var snap = await docRef.GetSnapshotAsync();
-            if (snap.Exists)
+            var callable = _funcs.GetHttpsCallable("getChapterMap");
+            var payload = new Dictionary<string, object>();
+            if (chapterOrder > 0)
             {
-                // Assuming json is stored in a field called 'json' or similar. 
-                // Let's assume standard 'json' based on map manager usage.
-                if (snap.TryGetValue("json", out string json) && !string.IsNullOrWhiteSpace(json))
-                    return json;
-                if (snap.TryGetValue("mapJson", out string json2) && !string.IsNullOrWhiteSpace(json2))
-                    return json2;
+                payload["chapterOrder"] = chapterOrder;
+            }
+
+            var result = await callable.CallAsync(payload);
+            if (result?.Data is IDictionary d)
+            {
+                bool ok = d.TryGetBool("ok");
+                if (!ok)
+                {
+                    string reason = d.TryGetString("reason");
+                    if (reason == "no_more_chapters")
+                    {
+                        EmitLog($"ℹ️ All chapters completed! (requested: {d.TryGetInt("chapterOrder")})");
+                        return (null, d.TryGetInt("chapterOrder"), null);
+                    }
+                    EmitLog($"⚠️ getChapterMap returned ok=false: {d.TryGetString("message")}");
+                    return (null, 0, null);
+                }
+
+                string json = d.TryGetString("json");
+                int order = d.TryGetInt("chapterOrder");
+                string displayName = d.TryGetString("mapDisplayName");
+                
+                EmitLog($"✅ FetchChapterMapAsync: Chapter {order} loaded");
+                return (json, order, displayName);
             }
         }
         catch (Exception e)
         {
-            EmitLog($"❌ FetchChapterMapJsonAsync failed: {e.Message}");
+            EmitLog($"❌ FetchChapterMapAsync failed: {e.Message}");
         }
-        return null;
+        return (null, 0, null);
+    }
+
+    /// <summary>
+    /// Legacy wrapper for backwards compatibility. Uses Cloud Function.
+    /// </summary>
+    public async Task<string> FetchChapterMapJsonAsync(int chapterIndex)
+    {
+        var (json, _, _) = await FetchChapterMapAsync(chapterIndex);
+        return json;
     }
 
     public async Task<bool> CheckIfChapterExists(int chapterIndex)
     {
-        if (db == null) return false;
-        try
-        {
-            var docRef = db.Collection("appdata").Document("chaptermaps").Collection("maps").Document($"chapter_{chapterIndex}");
-            var snap = await docRef.GetSnapshotAsync();
-            return snap.Exists;
-        }
-        catch 
-        {
-            return false;
-        }
+        var (json, _, _) = await FetchChapterMapAsync(chapterIndex);
+        return !string.IsNullOrEmpty(json);
     }
 
     // --- GAMEPLAY SESSION SUBMISSION (Persistent) ---

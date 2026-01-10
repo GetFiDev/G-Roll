@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Item_Fan
   m_EditorClassIdentifier: 
   displayName: Fan
-  icon: {fileID: 21300000, guid: 07fbb3c2727a1408a9e8f73ef525018c, type: 3}
+  icon: {fileID: 21300000, guid: 0cb38dd0f22e047329f362df9eb3d6e3, type: 3}
   prefab: {fileID: 4503562972930395997, guid: f89aedac7a43e6c46b6d4ef475f0e431, type: 3}
-  size: {x: 3, y: 3}
+  size: {x: 1, y: 1}

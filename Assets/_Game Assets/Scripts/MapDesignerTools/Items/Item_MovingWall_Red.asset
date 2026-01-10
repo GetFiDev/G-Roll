@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f7a3bd0116c0474ea9714e0c162d0a9, type: 3}
   m_Name: Item_MovingWall_Red
   m_EditorClassIdentifier: 
-  displayName: MovingRedWall
-  icon: {fileID: 21300000, guid: d53704b230f1c411d86a1198ccaa3c68, type: 3}
+  displayName: D-Wall (Red)
+  icon: {fileID: 21300000, guid: 69945ee230f5d41b5adb811232b0aa71, type: 3}
   prefab: {fileID: 2761655118320511732, guid: 2d16a9ea2c69c4402bab6de34bd5c578, type: 3}
-  size: {x: 11, y: 1}
+  size: {x: 1, y: 1}

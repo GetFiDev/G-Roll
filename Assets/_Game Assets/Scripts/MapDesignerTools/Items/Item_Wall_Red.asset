@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f7a3bd0116c0474ea9714e0c162d0a9, type: 3}
   m_Name: Item_Wall_Red
   m_EditorClassIdentifier: 
-  displayName: RedWall
-  icon: {fileID: 21300000, guid: a2a53b836cee249cf809427749131929, type: 3}
+  displayName: Wall (Red)
+  icon: {fileID: 21300000, guid: 8905ce3c790c74c6a9073c889056bbd5, type: 3}
   prefab: {fileID: 2832135419548534748, guid: 8e09180004699b54b82cd12fd363295e, type: 3}
   size: {x: 1, y: 1}

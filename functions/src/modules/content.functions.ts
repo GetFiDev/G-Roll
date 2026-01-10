@@ -93,7 +93,7 @@ export const indexMapMeta = onDocumentWritten(
 
             await db.runTransaction(async (tx) => {
                 tx.delete(byMapRef);
-                for (const d of [1, 2, 3]) {
+                for (const d of [1, 2, 3, 4]) {
                     const pRef = poolsCol.doc(String(d));
                     tx.set(
                         pRef,
@@ -131,7 +131,7 @@ export const indexMapMeta = onDocumentWritten(
         try {
             const parsed = JSON.parse(jsonStr);
             const d = Number(parsed?.difficultyTag ?? 0);
-            if ([1, 2, 3].includes(d)) difficultyTag = d;
+            if ([1, 2, 3, 4].includes(d)) difficultyTag = d;
         } catch (e) {
             console.error(`[indexMapMeta] JSON parse error for '${mapId}':`, e);
             return;
@@ -164,8 +164,8 @@ export const indexMapMeta = onDocumentWritten(
                 {merge: true}
             );
 
-            // Maintain pools/{1|2|3}.ids arrays
-            for (const d of [1, 2, 3]) {
+            // Maintain pools/{1|2|3|4}.ids arrays
+            for (const d of [1, 2, 3, 4]) {
                 const pRef = poolsCol.doc(String(d));
                 if (d === difficultyTag) {
                     tx.set(
@@ -226,14 +226,16 @@ export const getSequencedMaps = onCall(async (req) => {
     const curveRef = db.collection("appdata").doc("recurring_difficulty_curve");
     const curveSnap = await curveRef.get();
     const curve = curveSnap.exists ? curveSnap.data() ?? {} : {};
+    const veryEasy = clamp(Number(curve.veryEasy ?? 2), 0, 24);
     const easy = clamp(Number(curve.easy ?? 3), 0, 24);
     const medium = clamp(Number(curve.medium ?? 2), 0, 24);
     const hard = clamp(Number(curve.hard ?? 1), 0, 24);
 
     const cycle: number[] = [
-        ...Array(easy).fill(1),
-        ...Array(medium).fill(2),
-        ...Array(hard).fill(3),
+        ...Array(veryEasy).fill(1), // VeryEasy = 1
+        ...Array(easy).fill(2),     // Easy = 2
+        ...Array(medium).fill(3),   // Medium = 3
+        ...Array(hard).fill(4),     // Hard = 4
     ];
     if (cycle.length === 0) {
         throw new HttpsError("failed-precondition", "Empty pattern");
@@ -251,8 +253,8 @@ export const getSequencedMaps = onCall(async (req) => {
     const poolsCol = db.collection("appdata")
         .doc("maps_meta").collection("pools");
 
-    const [p1, p2, p3] = await Promise.all(
-        [1, 2, 3].map(async (d) => {
+    const [p1, p2, p3, p4] = await Promise.all(
+        [1, 2, 3, 4].map(async (d) => {
             const s = await poolsCol.doc(String(d)).get();
             const ids = (s.exists ? (s.get("ids") as string[] | undefined) : []) || [];
             // copy and shallow-shuffle for variety
@@ -266,7 +268,7 @@ export const getSequencedMaps = onCall(async (req) => {
     );
 
     const poolByDiff: Record<number, { d: number; ids: string[]; bag: string[] }> = {
-        1: p1, 2: p2, 3: p3
+        1: p1, 2: p2, 3: p3, 4: p4
     };
 
     // helper to take one id from pool; allows repeats if exhausted

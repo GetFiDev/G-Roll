@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2527719438457451556}
   - component: {fileID: 881400698255433307}
+  - component: {fileID: -8297105469497512289}
   m_Layer: 0
   m_Name: TriggerableDoor
   m_TagString: Interactable
@@ -26,7 +27,7 @@ Transform:
   m_GameObject: {fileID: 444724203439796869}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.75, y: 0, z: -15.11}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -48,10 +49,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8064890c34436472ba4d97c35d05f51f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  expectTrigger: 1
   movingPart: {fileID: 935461885821532197}
   closedTransform: {fileID: 7718173926416454037}
   openTransform: {fileID: 1334862076338305664}
   openDuration: 3
+--- !u!114 &-8297105469497512289
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 444724203439796869}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f456012c2583f4be396e8f39ee5e4145, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  otherEnd: {fileID: 0}
+  currentLinkedId: 0
+  drawGizmos: 1
+  gizmoSphereRadius: 0.15
+  drawInGameView: 1
+  lineWidth: 0.03
+  lineColor: {r: 1, g: 0.5, b: 0.2, a: 0.9}
 --- !u!1 &2903193042699072060
 GameObject:
   m_ObjectHideFlags: 0

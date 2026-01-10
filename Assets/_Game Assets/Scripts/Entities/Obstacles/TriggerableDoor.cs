@@ -1,7 +1,10 @@
 using UnityEngine;
 using DG.Tweening;
+using MapDesignerTool; // for IMapConfigurable
+using System.Collections.Generic;
+using System.Globalization;
 
-public class TriggerableDoor : Wall
+public class TriggerableDoor : Wall, IMapConfigurable
 {
     [Header("Door Settings")]
     public Transform movingPart;
@@ -103,6 +106,35 @@ public class TriggerableDoor : Wall
 
     private void OnDestroy() {
         _moveTween?.Kill();
+    }
+
+    // --- IMapConfigurable Implementation ---
+
+    public List<ConfigDefinition> GetConfigDefinitions()
+    {
+        return new List<ConfigDefinition>
+        {
+            new ConfigDefinition
+            {
+                key = "openDuration",
+                displayName = "Open Duration (s)",
+                type = ConfigType.Float,
+                min = 0.5f,
+                max = 10f,
+                defaultValue = 2.0f
+            }
+        };
+    }
+
+    public void ApplyConfig(Dictionary<string, string> config)
+    {
+        if (config.TryGetValue("openDuration", out var val))
+        {
+            if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
+            {
+                openDuration = Mathf.Clamp(f, 0.1f, 30f);
+            }
+        }
     }
 }
 

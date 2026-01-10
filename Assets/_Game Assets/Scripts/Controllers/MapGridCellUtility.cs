@@ -11,6 +11,15 @@ public class MapGridCellUtility : MonoBehaviour
     [Min(1)] public int xCells = 10;
     [Min(1)] public int zCells = 10;
 
+    [Header("Map Floor Generation")]
+    public GameObject mapChunkPrefab;
+    [Tooltip("Length of one chunk in Unity units (60 = 120 grid cells)")]
+    public float chunkLength = 60f;
+    public Transform mapFloorContainer;
+
+    /// <summary>Grid cells per chunk (120 grid cells = 60 unity units)</summary>
+    public const int GRID_CELLS_PER_CHUNK = 120;
+
     [Header("Cell Size")]
     public Vector2 cellSize = new Vector2(1f, 1f); // (X, Z)
 
@@ -61,6 +70,107 @@ public class MapGridCellUtility : MonoBehaviour
         _lineMat.SetInt("_ZWrite", 0);
     }
 
+    // Dynamic Map Resize
+    public void UpdateMapLength(int deltaZ)
+    {
+        zCells = Mathf.Max(GRID_CELLS_PER_CHUNK, zCells + deltaZ); // Minimum 1 chunk
+        RefreshMapChunks();
+#if UNITY_EDITOR
+        SceneView.RepaintAll();
+#endif
+    }
+
+    /// <summary>Set map length directly (in grid cells)</summary>
+    public void SetMapLength(int newZCells)
+    {
+        zCells = Mathf.Max(GRID_CELLS_PER_CHUNK, newZCells);
+        RefreshMapChunks();
+#if UNITY_EDITOR
+        SceneView.RepaintAll();
+#endif
+    }
+
+    /// <summary>Get number of chunks needed for current grid length</summary>
+    public int GetChunkCount()
+    {
+        return Mathf.CeilToInt((float)zCells / GRID_CELLS_PER_CHUNK);
+    }
+
+    void Start()
+    {
+        // Initialize with default 1 chunk if not already set
+        if (Application.isPlaying && zCells < GRID_CELLS_PER_CHUNK)
+        {
+            zCells = GRID_CELLS_PER_CHUNK;
+        }
+        RefreshMapChunks();
+    }
+
+    [ContextMenu("Refresh Map Chunks")]
+    public void RefreshMapChunks()
+    {
+        if (!mapChunkPrefab || chunkLength <= 0) return;
+
+        if (!mapFloorContainer)
+        {
+            var existing = transform.Find("MapFloorContainer");
+            if (existing) mapFloorContainer = existing;
+            else
+            {
+                var go = new GameObject("MapFloorContainer");
+                go.transform.SetParent(transform);
+                go.transform.localPosition = Vector3.zero;
+                mapFloorContainer = go.transform;
+            }
+        }
+
+        // Calculate needed chunks based on grid cells (not world space)
+        // 120 grid cells = 1 chunk
+        int needed = Mathf.CeilToInt((float)zCells / GRID_CELLS_PER_CHUNK);
+
+        // Get existing children
+        // We assume all children of container are chunks
+        int current = mapFloorContainer.childCount;
+
+        // Add if needed
+        if (current < needed)
+        {
+            for (int i = current; i < needed; i++)
+            {
+#if UNITY_EDITOR
+                var chunk = PrefabUtility.InstantiatePrefab(mapChunkPrefab, mapFloorContainer) as GameObject;
+#else
+                var chunk = Instantiate(mapChunkPrefab, mapFloorContainer);
+#endif
+                // Position logic:
+                // Chunk 0: z=30 (center of 0-60)
+                // Chunk 1: z=90 (center of 60-120)
+                // Chunk 2: z=150 (center of 120-180)
+                // Formula: z = 30 + (i * 60) where 60 = CHUNK_UNITY_UNITS
+                const float CHUNK_UNITY_UNITS = 60f;
+                float zPos = 30f + (i * CHUNK_UNITY_UNITS);
+                chunk.transform.localPosition = new Vector3(0, 0, zPos);
+                chunk.transform.localRotation = Quaternion.identity;
+#if UNITY_EDITOR
+                Undo.RegisterCreatedObjectUndo(chunk, "Create Map Chunk");
+#endif
+            }
+        }
+        // Remove if too many
+        else if (current > needed)
+        {
+             for (int i = current - 1; i >= needed; i--)
+             {
+                 var child = mapFloorContainer.GetChild(i).gameObject;
+#if UNITY_EDITOR
+                 Undo.DestroyObjectImmediate(child);
+#else
+                 DestroyImmediate(child);
+#endif
+             }
+        }
+    }
+
     void OnValidate()
     {
         xCells = Mathf.Max(1, xCells);
@@ -79,8 +189,9 @@ public class MapGridCellUtility : MonoBehaviour
             var size = GridWorldSize;
             var half = HalfSize;
 
-            // Grid local origin is centered at (0,0); so the min corner is at (-halfX, -halfZ)
-            var origin = new Vector3(-half.x, 0f, -half.y);
+            // Grid local origin is centered at X, starts at 0 for Z
+             // Min corner is at (-half.x, 0, 0)
+            var origin = new Vector3(-half.x, 0f, 0f);
 
             if (drawBounds)
             {
@@ -103,15 +214,15 @@ public class MapGridCellUtility : MonoBehaviour
                 for (int ix = 0; ix <= xCells; ix++)
                 {
                     float x = -half.x + ix * cellSize.x;
-                    var p0 = new Vector3(x, 0f, -half.y);
-                    var p1 = new Vector3(x, 0f,  half.y);
+                    var p0 = new Vector3(x, 0f, 0f);
+                    var p1 = new Vector3(x, 0f, size.y);
                     Handles.DrawLine(p0, p1);
                 }
 
                 // Horizontal lines along X
                 for (int iz = 0; iz <= zCells; iz++)
                 {
-                    float z = -half.y + iz * cellSize.y;
+                    float z = iz * cellSize.y;
                     var p0 = new Vector3(-half.x, 0f, z);
                     var p1 = new Vector3( half.x, 0f, z);
                     Handles.DrawLine(p0, p1);
@@ -123,7 +234,7 @@ public class MapGridCellUtility : MonoBehaviour
                 for (int ix = 0; ix < xCells; ix++)
                 for (int iz = 0; iz < zCells; iz++)
                 {
-                    var center = new Vector3(-half.x + (ix + 0.5f) * cellSize.x, 0f, -half.y + (iz + 0.5f) * cellSize.y);
+                    var center = new Vector3(-half.x + (ix + 0.5f) * cellSize.x, 0f, (iz + 0.5f) * cellSize.y);
 
                     if (drawCenters)
                     {
@@ -139,7 +250,7 @@ public class MapGridCellUtility : MonoBehaviour
                 }
             }
 
-            // Axes at the true center (0,0)
+            // Axes at the true center (0,0) -> Visual origin (0,0,0)
             Handles.color = axesColor;
             Handles.DrawLine(Vector3.zero, Vector3.right  * Mathf.Min(1.0f, Mathf.Max(0.2f, cellSize.x)));
             Handles.DrawLine(Vector3.zero, Vector3.forward* Mathf.Min(1.0f, Mathf.Max(0.2f, cellSize.y)));
@@ -154,7 +265,8 @@ public class MapGridCellUtility : MonoBehaviour
         x = Mathf.Clamp(x, 0, xCells - 1);
         z = Mathf.Clamp(z, 0, zCells - 1);
         var half = HalfSize;
-        var local = new Vector3(-half.x + (x + 0.5f) * cellSize.x, 0f, -half.y + (z + 0.5f) * cellSize.y);
+        // X centered, Z starts at 0
+        var local = new Vector3(-half.x + (x + 0.5f) * cellSize.x, 0f, (z + 0.5f) * cellSize.y);
         return GridMatrix.MultiplyPoint3x4(local);
     }
 
@@ -165,8 +277,9 @@ public class MapGridCellUtility : MonoBehaviour
         var half = HalfSize;
 
         float lx = local.x + half.x; // shift to 0..size.x
-        float lz = local.z + half.y; // shift to 0..size.y
-
+        float lz = local.z;          // already 0..size.y (since local origin Z is 0 now?)
+        // Wait, if we define origin Z at 0, then local.z IS the distance from start.
+        
         x = Mathf.FloorToInt(lx / cellSize.x);
         z = Mathf.FloorToInt(lz / cellSize.y);
 
@@ -181,12 +294,12 @@ public class MapGridCellUtility : MonoBehaviour
         var half = HalfSize;
 
         float lx = Mathf.Clamp(local.x, -half.x, half.x);
-        float lz = Mathf.Clamp(local.z, -half.y, half.y);
+        float lz = Mathf.Clamp(local.z, 0f, GridWorldSize.y); // Clamp to 0..Height
 
         int ix = Mathf.Clamp(Mathf.FloorToInt((lx + half.x) / cellSize.x), 0, xCells - 1);
-        int iz = Mathf.Clamp(Mathf.FloorToInt((lz + half.y) / cellSize.y), 0, zCells - 1);
+        int iz = Mathf.Clamp(Mathf.FloorToInt(lz / cellSize.y), 0, zCells - 1);
 
-        var centerLocal = new Vector3(-half.x + (ix + 0.5f) * cellSize.x, 0f, -half.y + (iz + 0.5f) * cellSize.y);
+        var centerLocal = new Vector3(-half.x + (ix + 0.5f) * cellSize.x, 0f, (iz + 0.5f) * cellSize.y);
         return GridMatrix.MultiplyPoint3x4(centerLocal);
     }
 
@@ -205,7 +318,8 @@ public class MapGridCellUtility : MonoBehaviour
         z = Mathf.Clamp(z, 0, zCells - 1);
         var half = HalfSize;
 
-        var localMin = new Vector3(-half.x + x * cellSize.x, 0f, -half.y + z * cellSize.y);
+        // X centered, Z from 0
+        var localMin = new Vector3(-half.x + x * cellSize.x, 0f, z * cellSize.y);
         var localMax = localMin + new Vector3(cellSize.x, 0f, cellSize.y);
 
         a = GridMatrix.MultiplyPoint3x4(localMin);
@@ -232,7 +346,8 @@ public class MapGridCellUtility : MonoBehaviour
             GL.Color(boundsColor);
             var size = GridWorldSize;
             var half = HalfSize;
-            var origin = new Vector3(-half.x, 0f, -half.y);
+            // Align origin with Gizmos: Z starts at 0
+            var origin = new Vector3(-half.x, 0f, 0f);
             var a = origin;
             var b = origin + new Vector3(size.x, 0f, 0f);
             var c = origin + new Vector3(size.x, 0f, size.y);
@@ -254,12 +369,12 @@ public class MapGridCellUtility : MonoBehaviour
             for (int ix = 0; ix <= xCells; ix++)
             {
                 float x = -half.x + ix * cellSize.x;
-                GL.Vertex(new Vector3(x, 0f, -half.y));
-                GL.Vertex(new Vector3(x, 0f,  half.y));
+                GL.Vertex(new Vector3(x, 0f, 0f));
+                GL.Vertex(new Vector3(x, 0f, size.y));
             }
             for (int iz = 0; iz <= zCells; iz++)
             {
-                float z = -half.y + iz * cellSize.y;
+                float z = iz * cellSize.y;
                 GL.Vertex(new Vector3(-half.x, 0f, z));
                 GL.Vertex(new Vector3( half.x, 0f, z));
             }

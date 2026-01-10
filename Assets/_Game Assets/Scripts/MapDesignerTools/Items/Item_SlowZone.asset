@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f7a3bd0116c0474ea9714e0c162d0a9, type: 3}
+  m_Name: Item_SlowZone
+  m_EditorClassIdentifier: 
+  displayName: SpeedUp Zone
+  icon: {fileID: 21300000, guid: f5fadc5a6eac8424f9b7b531ea003dc1, type: 3}
+  prefab: {fileID: 730918265933815647, guid: 7980605f13391438989e42e147b3fbee, type: 3}
+  size: {x: 1, y: 1}

@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f7a3bd0116c0474ea9714e0c162d0a9, type: 3}
+  m_Name: Item_SwingingHammer
+  m_EditorClassIdentifier: 
+  displayName: RotatorHammer
+  icon: {fileID: 21300000, guid: 968d82b2b9ee847bcaaff9b37e01f782, type: 3}
+  prefab: {fileID: 5289761208042265148, guid: 93ef6682175884507b08247a9a8aadcb, type: 3}
+  size: {x: 1, y: 1}

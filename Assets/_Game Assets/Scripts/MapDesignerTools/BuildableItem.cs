@@ -7,4 +7,6 @@ public class BuildableItem : ScriptableObject
     public Sprite icon;
     public GameObject prefab;
     public Vector2Int size = Vector2Int.one; // hücre boyutu (w,h) -> (x,z)
+
+    // Grid occupation logic removed as per request to allow overlapping.
 }

@@ -118,6 +118,17 @@ public class TeleportLinkRuntime : MonoBehaviour
         otherPortal = counterpart;
     }
 
+    /// <summary>
+    /// Sets the linked ID without setting the counterpart reference.
+    /// Used when loading saved maps (counterpart will be linked later by matching IDs).
+    /// </summary>
+    public void SetLinkedIdOnly(int id)
+    {
+        if (_host == null) _host = GetComponentInParent<PlacedItemData>();
+        if (_host != null) _host.linkedPortalId = id;
+        currentLinkedId = id;
+    }
+
     private void EnsureLineRenderer()
     {
         if (_lr != null) return;

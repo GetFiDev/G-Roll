@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f7a3bd0116c0474ea9714e0c162d0a9, type: 3}
+  m_Name: Item_RotatorWall_Center
+  m_EditorClassIdentifier: 
+  displayName: Circular Rotator
+  icon: {fileID: 21300000, guid: d15dbdb37ad94466e9f27ee950df29e3, type: 3}
+  prefab: {fileID: 2107399989971746364, guid: d86799726e0e542a0b8f0b719e2286e8, type: 3}
+  size: {x: 1, y: 1}

@@ -1,11 +1,11 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const {execSync} = require('child_process');
 
 function getChangedFiles() {
     try {
         // Check for both staged and unstaged changes
-        const output = execSync('git status --porcelain', { encoding: 'utf-8' });
+        const output = execSync('git status --porcelain', {encoding: 'utf-8'});
         return output.split('\n')
             .filter(line => line.trim() !== '')
             .map(line => {

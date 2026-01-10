@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f7a3bd0116c0474ea9714e0c162d0a9, type: 3}
   m_Name: Item_Wall_Blue
   m_EditorClassIdentifier: 
-  displayName: BlueWall
-  icon: {fileID: 21300000, guid: a025ce2674c9c447cb5bc47fad78009d, type: 3}
+  displayName: Wall (Blue)
+  icon: {fileID: 21300000, guid: 0e9e66ec827bf48868d9c248bc9cd95d, type: 3}
   prefab: {fileID: 2832135419548534748, guid: 0a4506c81e4cb468bac8e9115c7930ca, type: 3}
   size: {x: 1, y: 1}

@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems; // Added for UI check
 using DG.Tweening;
+using MapDesignerTool; // For IMapConfigurable
 
 [RequireComponent(typeof(MapGridCellUtility))]
 public class GridPlacer : MonoBehaviour
@@ -11,6 +13,16 @@ public class GridPlacer : MonoBehaviour
     public BuildDatabase database;
     public Transform placedParent;
     public Material ghostMaterial;
+
+    [Header("Selection")]
+    public GameObject selectionParticlePrefab;
+    private GameObject currentSelectionParticle;
+    private GameObject _selectedObject;
+    public GameObject SelectedObject 
+    { 
+        get => _selectedObject; 
+        private set => _selectedObject = value; 
+    }
 
     [Header("Portal Pairing (in-GridPlacer)")]
     public bool enablePortalPairing = true;
@@ -41,11 +53,22 @@ public class GridPlacer : MonoBehaviour
     Teleport firstPortal = null;      // pending first portal
     LineRenderer pairLine = null;     // live preview line
 
+    // Button-Door pairing state
+    public bool buttonDoorPairMode = false;
+    ButtonDoorLinkRuntime firstButtonDoor = null;
+    LineRenderer buttonDoorPairLine = null;
+
     // Exposed read-only properties for HUD
     public bool PortalPairMode => portalPairMode;
     public bool HasPortalFirstSelection => firstPortal != null;
+    public bool ButtonDoorPairMode => buttonDoorPairMode;
+    public bool HasButtonDoorFirstSelection => firstButtonDoor != null;
 
-    struct Footprint { public int x, z; public Vector2Int size; }
+    // EVENT for UI
+    public event System.Action OnModeChanged;
+    public event System.Action<GameObject> OnObjectSelected;
+
+    struct Footprint { public int x, z; public Vector2Int size; public BuildableItem item; public int rotationIndex; }
     readonly Dictionary<GameObject, Footprint> placedIndex = new();
 
     void Awake()
@@ -66,6 +89,18 @@ public class GridPlacer : MonoBehaviour
         pairLine.widthMultiplier = 0.03f;
         pairLine.positionCount = 2;
         pairLine.startColor = pairLine.endColor = portalPairColor;
+
+        // create line for Button-Door pairing preview
+        var bdLineGO = new GameObject("_ButtonDoorPairLine");
+        bdLineGO.transform.SetParent(transform, false);
+        buttonDoorPairLine = bdLineGO.AddComponent<LineRenderer>();
+        buttonDoorPairLine.useWorldSpace = true;
+        buttonDoorPairLine.enabled = false;
+        buttonDoorPairLine.material = new Material(Shader.Find("Sprites/Default"));
+        buttonDoorPairLine.material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 1;
+        buttonDoorPairLine.widthMultiplier = 0.03f;
+        buttonDoorPairLine.positionCount = 2;
+        buttonDoorPairLine.startColor = buttonDoorPairLine.endColor = new Color(1f, 0.5f, 0.2f, 0.9f);
     }
 
     void Update()
@@ -80,6 +115,9 @@ public class GridPlacer : MonoBehaviour
             case BuildMode.Demolish:
                 TickDemolish();
                 break;
+            case BuildMode.Modify:
+                TickModify();
+                break;
             case BuildMode.Navigate:
             default:
                 // no-op
@@ -90,6 +128,11 @@ public class GridPlacer : MonoBehaviour
             TickPortalPairing();
         else if (pairLine != null && pairLine.enabled)
             pairLine.enabled = false;
+
+        if (buttonDoorPairMode)
+            TickButtonDoorPairing();
+        else if (buttonDoorPairLine != null && buttonDoorPairLine.enabled)
+            buttonDoorPairLine.enabled = false;
     }
 
     void HandleHotkeys()
@@ -97,64 +140,154 @@ public class GridPlacer : MonoBehaviour
         var kbd = Keyboard.current;
         if (kbd == null) return;
 
-        // ESC — universal exit: leave any mode and pairing, clear selection, back to Navigate
+        // ESC — universal exit
         if (kbd.escapeKey.wasPressedThisFrame)
         {
-            CancelPlacement();                 // drop ghost/currentItem
-            currentMode = BuildMode.Navigate;  // go to navigate
-
-            // fully exit portal pairing
-            portalPairMode = false;
-            firstPortal = null;
-            if (pairLine) pairLine.enabled = false;
-            return; // nothing else this frame
-        }
-
-        // X — enter Demolish mode (one-way). If already in Demolish, do nothing.
-        if (kbd.xKey.wasPressedThisFrame)
-        {
-            if (currentMode != BuildMode.Demolish)
-            {
-                CancelPlacement();             // if we were placing, drop the ghost
-                // leave pairing if active
-                portalPairMode = false;
-                firstPortal = null;
-                if (pairLine) pairLine.enabled = false;
-
-                currentMode = BuildMode.Demolish;
-            }
-            return; // ignore further handling this frame
-        }
-
-        // P — enter Portal Pairing mode (one-way). If already pairing, do nothing.
-        if (kbd.pKey.wasPressedThisFrame)
-        {
-            if (!portalPairMode)
-            {
-                CancelPlacement();             // dropping any placement ghost
-                currentMode = BuildMode.Navigate; // pairing is independent of build modes; keep nav for camera
-
-                portalPairMode = true;
-                firstPortal = null;            // start fresh selection
-                if (pairLine) pairLine.enabled = false;
-            }
+            SetNavigateMode();
             return;
         }
+
+        // X — enter Demolish mode
+        if (kbd.xKey.wasPressedThisFrame)
+        {
+            SetDemolishMode();
+            return;
+        }
+
+        // P — enter Portal Pairing mode
+        if (kbd.pKey.wasPressedThisFrame)
+        {
+            if (!portalPairMode) TogglePortalPairMode();
+            return;
+        }
+    }
+
+    // --- HELPER: UI Check ---
+    bool IsPointerOverUI()
+    {
+        // Simple check for EventSystem
+        if (EventSystem.current != null)
+        {
+            // For mouse/touch input
+            return EventSystem.current.IsPointerOverGameObject();
+        }
+        return false;
+    }
+
+    // --- PUBLIC API FOR UI ---
+
+    public void SetNavigateMode()
+    {
+        CancelPlacement();
+        ExitPortalPairing();
+        ExitButtonDoorPairing();
+        ClearSelection();
+        
+        currentMode = BuildMode.Navigate;
+        NotifyModeChanged();
+    }
+
+    public void SetDemolishMode()
+    {
+        if (currentMode == BuildMode.Demolish) return;
+
+        CancelPlacement();
+        ExitPortalPairing();
+        ExitButtonDoorPairing();
+        ClearSelection();
+
+        currentMode = BuildMode.Demolish;
+        NotifyModeChanged();
+    }
+
+    public void SetModifyMode()
+    {
+        if (currentMode == BuildMode.Modify) return;
+
+        CancelPlacement();
+        ExitPortalPairing();
+        ExitButtonDoorPairing();
+        ClearSelection();
+
+        currentMode = BuildMode.Modify;
+        NotifyModeChanged();
+    }
+
+    public void TogglePortalPairMode()
+    {
+        if (portalPairMode)
+        {
+            ExitPortalPairing();
+            // Fallback to navigate if we were just pairing
+            if (currentMode != BuildMode.Place) 
+                currentMode = BuildMode.Navigate;
+        }
+        else
+        {
+            // Enter pairing
+            CancelPlacement(); // drop ghosts
+            ClearSelection();
+            currentMode = BuildMode.Navigate; 
+            
+            portalPairMode = true;
+            firstPortal = null;
+            if (pairLine) pairLine.enabled = false;
+        }
+        NotifyModeChanged();
+    }
+
+    void ExitPortalPairing()
+    {
+        portalPairMode = false;
+        firstPortal = null;
+        if (pairLine) pairLine.enabled = false;
+    }
+
+    public void ToggleButtonDoorPairMode()
+    {
+        if (buttonDoorPairMode)
+        {
+            ExitButtonDoorPairing();
+            if (currentMode != BuildMode.Place)
+                currentMode = BuildMode.Navigate;
+        }
+        else
+        {
+            CancelPlacement();
+            ClearSelection();
+            ExitPortalPairing(); // Exit portal mode if active
+            currentMode = BuildMode.Navigate;
+            
+            buttonDoorPairMode = true;
+            firstButtonDoor = null;
+            if (buttonDoorPairLine) buttonDoorPairLine.enabled = false;
+        }
+        NotifyModeChanged();
+    }
+
+    void ExitButtonDoorPairing()
+    {
+        buttonDoorPairMode = false;
+        firstButtonDoor = null;
+        if (buttonDoorPairLine) buttonDoorPairLine.enabled = false;
+    }
+
+    void NotifyModeChanged()
+    {
+        OnModeChanged?.Invoke();
     }
 
     // PUBLIC API (UI butonu çağırır)
     public void BeginPlacement(BuildableItem item)
     {
         // If we were in portal pairing, exit it when a new item selection starts
-        if (portalPairMode)
-        {
-            portalPairMode = false;
-            firstPortal = null;
-            if (pairLine) pairLine.enabled = false;
-        }
+        if (portalPairMode) ExitPortalPairing();
+        
+        ClearSelection(); // Clear modify selection if we start placing
 
         currentItem = item;
         currentMode = BuildMode.Place;
+        NotifyModeChanged();
 
         if (ghost) Destroy(ghost);
         ghost = Instantiate(item.prefab);
@@ -194,7 +327,7 @@ public class GridPlacer : MonoBehaviour
 
         ghost.SetActive(true);
 
-        // sınır clamp denemesi
+        // Standard 0-rotation check for placement
         if (!CanPlace(gx, gz, currentItem.size, out var clampedX, out var clampedZ))
         { gx = clampedX; gz = clampedZ; }
 
@@ -205,6 +338,9 @@ public class GridPlacer : MonoBehaviour
         SetGhostAlpha(ok ? 0.25f : 0.15f);
 
         var mouse = Mouse.current;
+        // Check UI block BEFORE processing click
+        if (IsPointerOverUI()) return;
+
         if (ok && mouse.leftButton.wasPressedThisFrame)
         {
             Place(gx, gz, currentItem);
@@ -238,6 +374,9 @@ public class GridPlacer : MonoBehaviour
         var mouse = Mouse.current;
         if (mouse == null || cam == null) return;
 
+        // Check UI block
+        if (IsPointerOverUI()) return;
+
         if (mouse.leftButton.wasPressedThisFrame)
         {
             // placedParent altı bir şeye vur?
@@ -261,10 +400,8 @@ public class GridPlacer : MonoBehaviour
                         Destroy(go);
                     });
 
-                    // işaretleri boşalt
-                    for (int ix = 0; ix < fp.size.x; ix++)
-                        for (int iz = 0; iz < fp.size.y; iz++)
-                            occupied[fp.x + ix, fp.z + iz] = false;
+                    // Set occupation removed
+                    // SetOccupation(fp.item, fp.x, fp.z, fp.size, fp.rotationIndex, false);
 
                     placedIndex.Remove(go);
                 }
@@ -272,6 +409,314 @@ public class GridPlacer : MonoBehaviour
         }
     }
 
+    // --------- Modify loop ---------
+    void TickModify()
+    {
+        var mouse = Mouse.current;
+        if (mouse == null || cam == null) return;
+
+        // Check UI block
+        if (IsPointerOverUI()) return;
+
+        if (mouse.leftButton.wasPressedThisFrame)
+        {
+            Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+            if (Physics.Raycast(ray, out var hit, 5000f))
+            {
+                // Did we hit an object?
+                var go = GetPlacedRootFromHit(hit.collider.transform);
+                if (go != null && placedIndex.ContainsKey(go))
+                {
+                    // Select it
+                    SelectObject(go);
+                }
+                else
+                {
+                    ClearSelection();
+                }
+            }
+            else
+            {
+                // Hit nothing, clear
+                ClearSelection();
+            }
+        }
+    }
+
+    void SelectObject(GameObject go)
+    {
+        if (SelectedObject == go) return; // already selected
+
+        SelectedObject = go;
+
+        // Calculate visual center based on grid footprint
+        Vector3 visualCenter = go.transform.position;
+        if (placedIndex.TryGetValue(go, out var fp))
+        {
+            // Center is average of min cell and max cell world positions
+            Vector3 p1 = grid.GetCellCenterWorld(fp.x, fp.z);
+            Vector3 p2 = grid.GetCellCenterWorld(fp.x + fp.size.x - 1, fp.z + fp.size.y - 1);
+            visualCenter = (p1 + p2) * 0.5f;
+        }
+
+        // Spawn particle
+        if (currentSelectionParticle) Destroy(currentSelectionParticle);
+
+        if (selectionParticlePrefab)
+        {
+            currentSelectionParticle = Instantiate(selectionParticlePrefab, visualCenter, Quaternion.identity);
+            currentSelectionParticle.transform.SetParent(go.transform); // Follow target
+        }
+
+        // Camera Focus
+        var orbitCam = cam.GetComponent<OrbitCamera>();
+        if (orbitCam)
+        {
+            // Focus on calculated visual center, zoom to minDistance (max zoom in)
+            orbitCam.FocusOn(visualCenter, orbitCam.minDistance, 0.25f);
+        }
+
+        OnObjectSelected?.Invoke(go);
+    }
+
+    public void ClearSelection()
+    {
+        SelectedObject = null;
+        if (currentSelectionParticle) Destroy(currentSelectionParticle);
+        currentSelectionParticle = null;
+    }
+
+    // --------- TRANSFORM OPERATIONS (Move/Rotate) ---------
+
+    public bool TryMoveObject(GameObject go, int dx, int dz)
+    {
+        if (go == null || !placedIndex.TryGetValue(go, out var fp)) return false;
+
+        // 1. Clear occupation REMOVED
+
+        // 2. Check destination
+        int nx = fp.x + dx;
+        int nz = fp.z + dz;
+
+        // We use current rotation index to determine occupancy check
+        if (CanPlace(nx, nz, fp.size, out _, out _))
+        {
+            // Apply Move
+            // SetOccupation REMOVED
+            
+            // Visual Move (Smooth)
+            go.transform.DOKill(); // Stop any verified tween
+            var targetPos = grid.GetCellCenterWorld(nx, nz);
+            go.transform.DOMove(targetPos, 0.25f).SetEase(Ease.OutBack);
+
+            // Update Data
+            var data = go.GetComponent<PlacedItemData>();
+            if (data)
+            {
+                data.gridX = nx;
+                data.gridY = nz;
+            }
+
+            // Update Index
+            fp.x = nx; fp.z = nz;
+            placedIndex[go] = fp;
+
+            // Update Selection (particle/camera)
+            SelectObject(go); // Refresh visual center
+            return true;
+        }
+
+        // Revert REMOVED
+        return false;
+    }
+
+    public bool TryRotateObject(GameObject go)
+    {
+        if (go == null || !placedIndex.TryGetValue(go, out var fp)) return false;
+
+        // 1. Clear occupation REMOVED
+
+        // 2. Calc New State
+        int newRot = (fp.rotationIndex + 1) % 4;
+        // Swap dimensions for 90 degree rotation
+        Vector2Int newSize = new Vector2Int(fp.size.y, fp.size.x);
+
+        // 3. Check Validity
+        if (CanPlace(fp.x, fp.z, newSize, out _, out _))
+        {
+            // Apply REMOVED SetOccupation
+
+            // Visual Rotate (90 deg Y) (Smooth)
+            go.transform.DOKill();
+            // We rotate by 90 relative. Using DORotate with mode relative or just adding 90 to current target?
+            // Safer to rotate relative to current value since we might be mid-tween?
+            // Actually, for pure 90 increments, better to calculate Exact Target Rotation from index?
+            // No, user might have played with it. But TryRotateObject logic is strictly 0->1->2->3.
+            // Let's rely on relative rotation to respect visual continuity.
+            // But wait! If I spam rotate, I want it to spin 90, 180, 270...
+            // transform.Rotate(0, 90, 0) is instantaneous.
+            // transform.DORotate(..., mode: RotateMode.LocalAxisAdd) is what we want.
+            go.transform.DOLocalRotate(new Vector3(0, 90, 0), 0.25f, RotateMode.LocalAxisAdd).SetEase(Ease.OutBack);
+
+            // Update Data
+            var data = go.GetComponent<PlacedItemData>();
+            if (data)
+            {
+                data.rotationIndex = newRot;
+            }
+
+            // Update Index
+            fp.size = newSize;
+            fp.rotationIndex = newRot;
+            placedIndex[go] = fp;
+
+            SelectObject(go); // Refresh particles/center
+            return true;
+        }
+
+        // Revert REMOVED
+        return false;
+    }
+
+    // IsRotatedOccupied Method Deleted
+    
+    // --- MANUAL GHOST / DRAG API ---
+
+    public bool IsScreenPointOnGrid(Vector2 screenPos, out int gx, out int gz)
+    {
+        gx = 0; gz = 0;
+        if (cam == null) return false;
+
+        Ray ray = cam.ScreenPointToRay(screenPos);
+        Vector3 worldPos;
+
+        if (Physics.Raycast(ray, out var hit, 5000f, groundMask))
+            worldPos = hit.point;
+        else
+        {
+            Plane p = new Plane(transform.up, transform.position);
+            if (!p.Raycast(ray, out float enter)) return false;
+            worldPos = ray.GetPoint(enter);
+        }
+
+        return grid.TryWorldToCell(worldPos, out gx, out gz);
+    }
+
+    public void ShowGhostAt(BuildableItem item, int gx, int gz)
+    {
+        // Ensure ghost instance matches item
+        if (ghost == null || currentItem != item)
+        {
+            if (ghost) Destroy(ghost);
+            ghost = Instantiate(item.prefab);
+            ghostRenderers = ghost.GetComponentsInChildren<Renderer>();
+            foreach (var r in ghostRenderers)
+            {
+                var mats = r.materials;
+                for (int i = 0; i < mats.Length; i++) mats[i] = ghostMaterial;
+                r.materials = mats;
+            }
+            currentItem = item;
+        }
+
+        if (!CanPlace(gx, gz, item.size, out var cx, out var cz))
+        {
+            gx = cx; gz = cz;
+        }
+        
+        bool ok = CanPlace(gx, gz, item.size, out _, out _);
+
+        ghost.SetActive(true);
+        ghost.transform.position = grid.GetCellCenterWorld(gx, gz);
+        ghost.transform.rotation = transform.rotation;
+        SetGhostAlpha(ok ? 0.25f : 0.15f);
+    }
+
+    public void HideGhost()
+    {
+        if (ghost) Destroy(ghost);
+        ghost = null;
+        currentItem = null;
+    }
+
+    /// <summary>
+    /// Directly places an item at grid coordinates (bypassing input).
+    /// </summary>
+    public bool PlaceAt(BuildableItem item, int gx, int gz)
+    {
+        if (!CanPlace(gx, gz, item.size, out var cx, out var cz)) return false;
+        Place(gx, gz, item);
+        return true;
+    }
+
+    /// <summary>
+    /// Places an item with full data restoration (for loading saved maps).
+    /// </summary>
+    public void PlaceItemDirectly(BuildableItem item, int gx, int gz, int rotationIndex, int linkedPortalId, int linkedButtonDoorId, System.Collections.Generic.List<ConfigPair> config)
+    {
+        if (item == null || item.prefab == null) return;
+
+        Vector3 pos = grid.GetCellCenterWorld(gx, gz);
+        Quaternion rot = Quaternion.Euler(0, 90f * rotationIndex, 0);
+
+        var go = Instantiate(item.prefab, pos, rot, placedParent);
+
+        // Calculate rotated size
+        Vector2Int size = item.size;
+        if (rotationIndex == 1 || rotationIndex == 3)
+            size = new Vector2Int(size.y, size.x);
+
+        placedIndex[go] = new Footprint
+        {
+            item = item,
+            x = gx,
+            z = gz,
+            size = size,
+            rotationIndex = rotationIndex
+        };
+
+        var data = go.GetComponent<PlacedItemData>();
+        if (data == null) data = go.AddComponent<PlacedItemData>();
+
+        data.Init(item, gx, gz, rotationIndex);
+        data.linkedPortalId = linkedPortalId;
+        data.linkedButtonDoorId = linkedButtonDoorId;
+
+        // Restore config
+        if (config != null && config.Count > 0)
+        {
+            data.savedConfig = new System.Collections.Generic.List<ConfigPair>(config);
+            data.LoadConfigToRuntime();
+
+            // Apply config to IMapConfigurable components
+            var configurables = go.GetComponentsInChildren<IMapConfigurable>(true);
+            foreach (var cfg in configurables)
+            {
+                cfg.ApplyConfig(data.runtimeConfig);
+            }
+        }
+
+        // Restore teleport link
+        if (linkedPortalId > 0)
+        {
+            var tlr = go.GetComponentInChildren<TeleportLinkRuntime>(true);
+            if (tlr != null)
+            {
+                tlr.SetLinkedIdOnly(linkedPortalId);
+            }
+        }
+
+        // Restore button-door link
+        if (linkedButtonDoorId > 0)
+        {
+            var bdlr = go.GetComponentInChildren<ButtonDoorLinkRuntime>(true);
+            if (bdlr != null)
+            {
+                bdlr.SetLinkedIdOnly(linkedButtonDoorId);
+            }
+        }
+    }
+    
     // --------- Core helpers ---------
     bool RayToGrid(out Vector3 world, out int gx, out int gz)
     {
@@ -279,30 +724,16 @@ public class GridPlacer : MonoBehaviour
         var mouse = Mouse.current;
         if (mouse == null || cam == null) return false;
 
-        Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
-        if (Physics.Raycast(ray, out var hit, 5000f, groundMask))
-            world = hit.point;
-        else
-        {
-            Plane p = new Plane(transform.up, transform.position);
-            if (!p.Raycast(ray, out float enter)) return false;
-            world = ray.GetPoint(enter);
-        }
-
-        if (!grid.TryWorldToCell(world, out gx, out gz)) return false;
-        return true;
+        return IsScreenPointOnGrid(mouse.position.ReadValue(), out gx, out gz);
     }
 
+    // Refactored CanPlace to only check MAP BOUNDARIES (No overlap check)
     bool CanPlace(int x, int z, Vector2Int size, out int clampedX, out int clampedZ)
     {
         clampedX = Mathf.Clamp(x, 0, w - size.x);
         clampedZ = Mathf.Clamp(z, 0, h - size.y);
 
         if (x < 0 || z < 0 || x + size.x > w || z + size.y > h) return false;
-
-        for (int ix = 0; ix < size.x; ix++)
-            for (int iz = 0; iz < size.y; iz++)
-                if (occupied[x + ix, z + iz]) return false;
 
         return true;
     }
@@ -314,7 +745,7 @@ public class GridPlacer : MonoBehaviour
         // Attach and initialize PlacedItemData for save system
         var placedData = go.AddComponent<PlacedItemData>();
         if (placedData == null) placedData = go.AddComponent<PlacedItemData>();
-        placedData.Init(item, x, z);
+        placedData.Init(item, x, z, 0); // Default rot 0
 
         if (enablePortalPairing)
         {
@@ -324,7 +755,6 @@ public class GridPlacer : MonoBehaviour
                 if (firstPortal == null)
                 {
                     firstPortal = tp;
-                    // show small preview from first to mouse
                     if (pairLine)
                     {
                         pairLine.enabled = true;
@@ -332,7 +762,6 @@ public class GridPlacer : MonoBehaviour
                         pairLine.SetPosition(0, tp.transform.position + Vector3.up * portalPairYOffset);
                         pairLine.SetPosition(1, tp.transform.position + Vector3.up * portalPairYOffset);
                     }
-                    // stay in Place mode to allow placing the second portal
                 }
                 else if (firstPortal != tp)
                 {
@@ -343,20 +772,83 @@ public class GridPlacer : MonoBehaviour
             }
         }
 
-        // işaretle
-        for (int ix = 0; ix < item.size.x; ix++)
-            for (int iz = 0; iz < item.size.y; iz++)
-                occupied[x + ix, z + iz] = true;
+        // MARK OCCUPATION
+        // SetOccupation(item, x, z, item.size, 0, true); REMOVED
 
-        placedIndex[go] = new Footprint { x = x, z = z, size = item.size };
+        placedIndex[go] = new Footprint { x = x, z = z, size = item.size, item = item, rotationIndex = 0 };
 
-        // güzel bir “pop-in” animasyonu
         var t = go.transform;
         var start = t.localScale;
         t.localScale = start * 0.82f;
         t.DOScale(start * placeOvershoot, placeScaleIn * 0.6f).SetEase(Ease.OutQuad)
          .OnComplete(() =>
              t.DOScale(start, placeScaleIn * 0.4f).SetEase(Ease.OutQuad));
+    }
+
+    void PairPortals(Teleport a, Teleport b)
+    {
+        if (a == null || b == null || a == b) return;
+
+        if (a.otherPortal == b && b.otherPortal == a)
+        {
+            if (a.transform && b.transform)
+            {
+                var sa = a.transform.localScale; var sb = b.transform.localScale;
+                a.transform.DOKill(); b.transform.DOKill();
+                a.transform.DOScale(sa * 1.03f, 0.10f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+                b.transform.DOScale(sb * 1.03f, 0.10f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+            }
+            return;
+        }
+
+        Unpair(a);
+        Unpair(b);
+
+        a.otherPortal = b;
+        b.otherPortal = a;
+
+        var ra = GetRuntimeOfTeleport(a);
+        var rb = GetRuntimeOfTeleport(b);
+        if (ra != null && rb != null)
+        {
+            TeleportLinkRuntime.AssignPair(ra, rb);
+        }
+
+        if (a.transform && b.transform)
+        {
+            var sA = a.transform.localScale; var sB = b.transform.localScale;
+            a.transform.DOKill(); b.transform.DOKill();
+            a.transform.DOScale(sA * 1.06f, 0.12f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+            b.transform.DOScale(sB * 1.06f, 0.12f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+        }
+    }
+
+    void Unpair(Teleport t)
+    {
+        if (t == null) return;
+        var other = t.otherPortal;
+        if (other != null)
+        {
+            if (other.otherPortal == t) other.otherPortal = null;
+            t.otherPortal = null;
+
+            var rt = GetRuntimeOfTeleport(t);
+            var ro = GetRuntimeOfTeleport(other);
+            if (rt != null) rt.ClearPairFlag();
+            if (ro != null) ro.ClearPairFlag();
+
+            if (other.transform)
+            {
+                var s = other.transform.localScale;
+                other.transform.DOKill();
+                other.transform.DOScale(s * 1.02f, 0.08f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+            }
+        }
+        else
+        {
+            var rt = GetRuntimeOfTeleport(t);
+            if (rt != null) rt.ClearPairFlag();
+        }
     }
 
     void TickPortalPairing()
@@ -389,6 +881,9 @@ public class GridPlacer : MonoBehaviour
         // Left click behavior: select first, then second → pair
         if (mouse.leftButton.wasPressedThisFrame)
         {
+            // Check UI block
+            if (IsPointerOverUI()) return;
+
             var tp = RaycastPortal();
             if (tp != null)
             {
@@ -426,78 +921,75 @@ public class GridPlacer : MonoBehaviour
         return rootGO.GetComponentInChildren<TeleportLinkRuntime>(true);
     }
 
-    void PairPortals(Teleport a, Teleport b)
+    // ========= Button-Door Pairing =========
+
+    void TickButtonDoorPairing()
     {
-        if (a == null || b == null || a == b) return;
+        var mouse = Mouse.current; if (mouse == null || cam == null) return;
 
-        // already paired together? give a tiny pulse and return
-        if (a.otherPortal == b && b.otherPortal == a)
+        // Update preview line
+        if (firstButtonDoor != null && buttonDoorPairLine != null)
         {
-            if (a.transform && b.transform)
+            buttonDoorPairLine.enabled = true;
+            buttonDoorPairLine.SetPosition(0, firstButtonDoor.transform.position + Vector3.up * 0.25f);
+            
+            var hitBD = RaycastButtonDoor();
+            Vector3 endPos;
+            if (hitBD != null)
+                endPos = hitBD.transform.position + Vector3.up * 0.25f;
+            else
             {
-                var sa = a.transform.localScale; var sb = b.transform.localScale;
-                a.transform.DOKill(); b.transform.DOKill();
-                a.transform.DOScale(sa * 1.03f, 0.10f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
-                b.transform.DOScale(sb * 1.03f, 0.10f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+                var plane = new Plane(transform.up, transform.position);
+                Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+                if (!plane.Raycast(ray, out float enter)) return;
+                endPos = ray.GetPoint(enter) + Vector3.up * 0.25f;
             }
-            return;
+            buttonDoorPairLine.SetPosition(1, endPos);
         }
 
-        // Unpair both sides first (and their current partners) then pair new ones
-        Unpair(a);
-        Unpair(b);
-
-        // Link Teleport side (visual/logic the game already uses)
-        a.otherPortal = b;
-        b.otherPortal = a;
-
-        // Link Pair-ID side: find corresponding TeleportLinkRuntime components and assign a new pair id
-        var ra = GetRuntimeOfTeleport(a);
-        var rb = GetRuntimeOfTeleport(b);
-        if (ra != null && rb != null)
+        if (mouse.leftButton.wasPressedThisFrame)
         {
-            TeleportLinkRuntime.AssignPair(ra, rb);
-        }
+            if (IsPointerOverUI()) return;
 
-        // feedback
-        if (a.transform && b.transform)
-        {
-            var sA = a.transform.localScale; var sB = b.transform.localScale;
-            a.transform.DOKill(); b.transform.DOKill();
-            a.transform.DOScale(sA * 1.06f, 0.12f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
-            b.transform.DOScale(sB * 1.06f, 0.12f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+            var bd = RaycastButtonDoor();
+            if (bd != null)
+            {
+                if (firstButtonDoor == null)
+                {
+                    firstButtonDoor = bd;
+                }
+                else if (firstButtonDoor != bd)
+                {
+                    // Check they are different types (one button, one door)
+                    bool firstIsButton = firstButtonDoor.GetComponentInParent<TriggerPushButton>() != null;
+                    bool secondIsButton = bd.GetComponentInParent<TriggerPushButton>() != null;
+                    
+                    // Only pair if one is button and other is door
+                    if (firstIsButton != secondIsButton)
+                    {
+                        ButtonDoorLinkRuntime.AssignPair(firstButtonDoor, bd);
+                        Debug.Log($"Paired Button-Door: {firstButtonDoor.name} <-> {bd.name}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Cannot pair: Must select one Button and one Door.");
+                    }
+                    
+                    firstButtonDoor = null;
+                    if (buttonDoorPairLine) buttonDoorPairLine.enabled = false;
+                }
+            }
         }
     }
 
-    void Unpair(Teleport t)
+    ButtonDoorLinkRuntime RaycastButtonDoor()
     {
-        if (t == null) return;
-        var other = t.otherPortal;
-        if (other != null)
+        Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+        if (Physics.Raycast(ray, out var hit, 5000f))
         {
-            // break reciprocal link
-            if (other.otherPortal == t) other.otherPortal = null;
-            t.otherPortal = null;
-
-            // also clear Pair-ID flags on both ends, if present
-            var rt = GetRuntimeOfTeleport(t);
-            var ro = GetRuntimeOfTeleport(other);
-            if (rt != null) rt.ClearPairFlag();
-            if (ro != null) ro.ClearPairFlag();
-
-            // light feedback on the partner to indicate unlink
-            if (other.transform)
-            {
-                var s = other.transform.localScale;
-                other.transform.DOKill();
-                other.transform.DOScale(s * 1.02f, 0.08f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
-            }
+            var bd = hit.collider.GetComponentInParent<ButtonDoorLinkRuntime>();
+            return bd;
         }
-        else
-        {
-            // no partner; ensure this side's Pair-ID is reset if needed
-            var rt = GetRuntimeOfTeleport(t);
-            if (rt != null) rt.ClearPairFlag();
-        }
+        return null;
     }
 }
