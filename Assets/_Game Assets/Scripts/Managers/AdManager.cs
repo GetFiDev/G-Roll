@@ -1,12 +1,12 @@
 using System;
 using UnityEngine;
-using AppodealAds.Unity.Api;
-using AppodealAds.Unity.Common;
+//using AppodealAds.Unity.Api;
+//using AppodealAds.Unity.Common;
 
 public abstract class AdManager
 {
     // A simplified listener class to bridge callbacks to Actions
-    private class AdListener : IRewardedVideoAdListener, IInterstitialAdListener, IAppodealInitializationListener
+    private class AdListener
     {
         private Action<bool> _onRewardedComplete;
 
@@ -73,35 +73,43 @@ public abstract class AdManager
 
     public static void Initialize()
     {
+        /*
+
         if (_listener == null)
         {
             _listener = new AdListener();
-            
+
             // Basic settings
             // Appodeal.setTesting(true); // Uncomment if testing is needed
             // Appodeal.setLogLevel(Appodeal.LogLevel.Verbose);
 
             int adTypes = Appodeal.INTERSTITIAL | Appodeal.REWARDED_VIDEO;
-            
+
             Appodeal.setRewardedVideoCallbacks(_listener);
             Appodeal.setInterstitialCallbacks(_listener);
-            
+
             // Initialize SDK
             Appodeal.initialize(AppKey, adTypes, _listener);
             Debug.Log("[AdManager] Initializing Appodeal with Key: " + AppKey);
         }
+        */
     }
 
     public static void ShowInterstitial(string placement)
     {
+        /*
+
         if (Appodeal.isLoaded(Appodeal.INTERSTITIAL))
         {
              Appodeal.show(Appodeal.INTERSTITIAL, placement);
         }
+        */
     }
 
     public static void ShowRewarded(string placement, Action<bool> onComplete)
     {
+    /*
+
         if (_listener == null) Initialize();
 
         // Elite Pass Check: Bypass Ads
@@ -125,5 +133,6 @@ public abstract class AdManager
             // Optional: call cache if needed, though autocheck is usually on
             onComplete?.Invoke(false);
         }
+        */
     }
 }

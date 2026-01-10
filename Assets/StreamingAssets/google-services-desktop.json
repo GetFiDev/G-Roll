@@ -7,45 +7,22 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:926358794548:android:587e971bf1db4014eb3561",
+        "mobilesdk_app_id": "1:926358794548:ios:6ab51cc7e23a6e9feb3561",
         "android_client_info": {
-          "package_name": "com.get.groll"
+          "package_name": "com.get.grolladminapp"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "926358794548-sdihuatc25pic639r8f1pubv73cifrbs.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.get.groll",
-            "certificate_hash": "0d8d6e102b3e6e196b07a4e08ff81cc554c88c31"
-          }
-        },
-        {
-          "client_id": "926358794548-l5g8nno4kep2vt3hkhts6h3cika2nlts.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
       "api_key": [
         {
-          "current_key": "AIzaSyB7keaSr_DYTr4xUWqiiivIYlz4PbW8jVE"
+          "current_key": "AIzaSyBCbun-kpKCkMSQ2Ndjvht4dsuydYLJV4I"
         }
       ],
       "services": {
+        "analytics_service": {
+          "status": 0
+        },
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "926358794548-l5g8nno4kep2vt3hkhts6h3cika2nlts.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "926358794548-mge1gh05rkfhp17ll6hnu37p5csd0b79.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.get.groll"
-              }
-            }
-          ]
+          "status": 1
         }
       }
     }

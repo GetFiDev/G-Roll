@@ -14,8 +14,8 @@ using System.Collections;
 using System.Collections;
 using UnityEngine.SocialPlatforms.Impl;
 using Newtonsoft.Json;
-using GooglePlayGames;
-using GooglePlayGames.BasicApi;
+//using GooglePlayGames;
+//using GooglePlayGames.BasicApi;
 
 
 public class UserDatabaseManager : MonoBehaviour

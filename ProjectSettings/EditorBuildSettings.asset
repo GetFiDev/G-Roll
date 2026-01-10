@@ -6,10 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/_Game Assets/Prefabs/Scenes/Boot Scene.unity
-    guid: 84429b6fc9306ca49ae9cb4de9ed6ca1
-  - enabled: 1
-    path: Assets/_Game Assets/Prefabs/Scenes/Game Scene.unity
-    guid: d1c3109bdb54ad54c8a2b2838528e640
+    path: Assets/_Game Assets/Prefabs/Scenes/MapDesignerScene.unity
+    guid: 9d0902c7740ba4ec8ad480e5fd99b585
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

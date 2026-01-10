@@ -38,18 +38,105 @@ public class OrbitCamera : MonoBehaviour
         if (pivot) _initialPivotPosition = pivot.position;
     }
 
+    void OnEnable()
+    {
+        UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.Enable();
+    }
+
+    void OnDisable()
+    {
+        UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.Disable();
+    }
+
     void LateUpdate()
     {
         if (!pivot) return;
         if (IsInputBlocked) return;
 
-        var mouse = Mouse.current;
-        if (mouse == null) return;
-
-        // Block if pointer is over UI (prevents camera movement while dragging sliders)
+        // Block if pointer is over UI
         if (UnityEngine.EventSystems.EventSystem.current != null && 
             UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
             return;
+
+        // Prioritize Touch Input
+        if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
+        {
+            HandleTouchInput();
+        }
+        else
+        {
+            HandleMouseInput();
+        }
+
+        // Apply Rotation & Position
+        UpdateCameraTransform();
+    }
+
+    void HandleTouchInput()
+    {
+        var touches = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches;
+
+        // 1 Finger: Pan
+        if (touches.Count == 1)
+        {
+            var touch = touches[0];
+            Vector2 d = touch.delta;
+
+            // Adjust sensitivity for touch (pixels) vs mouse
+            // Using existing panSpeed, but touch deltas can be large.
+            // Pan logic from Mouse
+            if (_cam != null)
+            {
+                float vfovRad = _cam.fieldOfView * Mathf.Deg2Rad;
+                float panDistance = Mathf.Max(distance, 15f);
+                float worldPerPixelY = 2f * panDistance * Mathf.Tan(vfovRad * 0.5f) / Mathf.Max(1, Screen.height);
+                float worldPerPixelX = worldPerPixelY * _cam.aspect;
+                
+                // Invert X/Y for natural drag (finger drags functionality, so camera moves opposite? 
+                // "Palm view" usually means dragging the world, so moving finger RIGHT moves camera LEFT.
+                // Existing code: move = (-right * dx) + (-up * dy). This moves camera LEFT when mouse moves RIGHT. 
+                // This matches "drag the world".
+                
+                Vector3 move = (-transform.right * d.x * worldPerPixelX) + (-transform.up * d.y * worldPerPixelY);
+                pivot.position += move * panSpeed; // panSpeed might need tuning for mobile
+            }
+        }
+        // 2 Fingers: Orbit & Zoom
+        else if (touches.Count >= 2)
+        {
+            var t1 = touches[0];
+            var t2 = touches[1];
+
+            // --- Orbit (Two finger Drag) ---
+            // Average delta
+            Vector2 avgDelta = (t1.delta + t2.delta) * 0.5f;
+            
+            // Apply Orbit
+            yaw   += avgDelta.x * orbitSpeed * Time.deltaTime * 0.05f; // reduced sensitivity for touch
+            pitch -= avgDelta.y * orbitSpeed * Time.deltaTime * 0.05f;
+            pitch = Mathf.Clamp(pitch, pitchMin, pitchMax);
+
+            // --- Zoom (Pinch) ---
+            Vector2 t1PrevPos = t1.screenPosition - t1.delta;
+            Vector2 t2PrevPos = t2.screenPosition - t2.delta;
+
+            float prevDist = Vector2.Distance(t1PrevPos, t2PrevPos);
+            float currDist = Vector2.Distance(t1.screenPosition, t2.screenPosition);
+            float deltaDist = prevDist - currDist; // + means pincing IN (zoom out? no distance increases)
+            
+            // Logic: Pinch In (fingers closer) -> distance increases (Zoom Out)
+            // Logic: Pinch Out (fingers apart) -> distance decreases (Zoom In)
+            // deltaDist > 0 (Prev > Curr) -> Pinch In -> Zoom Out (Increase distance)
+            
+            // Scale zoom speed for touch
+            distance = Mathf.Clamp(distance + deltaDist * (zoomSpeed * 0.01f), minDistance, maxDistance);
+        }
+    }
+
+    void HandleMouseInput()
+    {
+        var mouse = Mouse.current;
+        if (mouse == null) return;
 
         // Pan (Left Mouse held)
         if (mouse.leftButton.isPressed && !mouse.rightButton.isPressed)
@@ -59,12 +146,7 @@ public class OrbitCamera : MonoBehaviour
             if (_cam != null)
             {
                 float vfovRad = _cam.fieldOfView * Mathf.Deg2Rad;
-                
-                // User Feedback: Panning is too slow/hard when zoomed in.
-                // We map the distance used for calculation to a minimum (e.g. 15f) so it stays responsive close up.
                 float panDistance = Mathf.Max(distance, 15f);
-
-                // world units per pixel at current distance along vertical axis
                 float worldPerPixelY = 2f * panDistance * Mathf.Tan(vfovRad * 0.5f) / Mathf.Max(1, Screen.height);
                 float worldPerPixelX = worldPerPixelY * _cam.aspect;
                 Vector3 move = (-transform.right * d.x * worldPerPixelX) + (-transform.up * d.y * worldPerPixelY);
@@ -87,7 +169,10 @@ public class OrbitCamera : MonoBehaviour
         {
             distance = Mathf.Clamp(distance - scroll * (zoomSpeed * 0.1f), minDistance, maxDistance);
         }
+    }
 
+    void UpdateCameraTransform()
+    {
         var rot = Quaternion.Euler(pitch, yaw, 0f);
         transform.position = pivot.position - rot * Vector3.forward * distance;
         transform.rotation = rot;
