@@ -59,6 +59,10 @@ namespace MapDesignerTool
         public TextMeshProUGUI overwriteMessage;
         public Button confirmOverwriteBtn;
         public Button cancelOverwriteBtn;
+        
+        // Save Toast
+        public TextMeshProUGUI saveToastText;
+        private Coroutine toastCoroutine;
 
         private TabButtonConfig currentTab;
 
@@ -92,6 +96,9 @@ namespace MapDesignerTool
         // Loaded map context for editing existing maps
         private LoadedMapData _loadedMapContext = null;
         public bool IsEditingExistingMap => _loadedMapContext != null;
+        
+        // Prevent double-click on save button
+        private bool isSaving = false;
 
         void Start()
         {
@@ -206,6 +213,13 @@ namespace MapDesignerTool
 
         async void StartSaveProcess(bool force)
         {
+            // Prevent double-click
+            if (isSaving) return;
+            isSaving = true;
+            
+            // Disable save button while saving
+            if (saveButton) saveButton.interactable = false;
+            
             if (overwriteDialog) overwriteDialog.SetActive(false);
 
             string mapName = "";
@@ -265,6 +279,8 @@ namespace MapDesignerTool
                 if (!hasFinishGate)
                 {
                     Debug.LogError("Cannot save Chapter: At least one Finish Gate is required!");
+                    isSaving = false;
+                    if (saveButton) saveButton.interactable = true;
                     return;
                 }
             }
@@ -272,6 +288,8 @@ namespace MapDesignerTool
             if (string.IsNullOrWhiteSpace(mapName))
             {
                 Debug.LogError("Invalid Map Name");
+                isSaving = false;
+                if (saveButton) saveButton.interactable = true;
                 return;
             }
 
@@ -280,10 +298,16 @@ namespace MapDesignerTool
             if (!saver)
             {
                 Debug.LogError("No MapSaver found!");
+                isSaving = false;
+                if (saveButton) saveButton.interactable = true;
                 return;
             }
             
             var data = saver.Collect(mapName, displayName, type, order, difficulty, length, 0);
+
+            // Show saving toast
+            string typeLabel = type == "endless" ? "Endless" : "Chapter";
+            ShowToast($"Saving {typeLabel}: {displayName}...", Color.yellow, 0f); // 0 = stay until changed
 
             // Upload
             string status = await saver.SaveMapToCloud(data, force);
@@ -291,9 +315,13 @@ namespace MapDesignerTool
             if (status == "success")
             {
                 Debug.Log("Map Saved Successfully!");
+                ShowToast($"Map Saved: {typeLabel} - {displayName}", Color.green, 3f);
             }
             else if (status == "exists")
             {
+                // Hide toast, show overwrite dialog
+                HideToast();
+                
                 // Show Overwrite Dialog with type-specific message
                 if (overwriteDialog)
                 {
@@ -314,7 +342,12 @@ namespace MapDesignerTool
             else
             {
                 Debug.LogError("Save Failed.");
+                ShowToast("Save Failed!", Color.red, 3f);
             }
+            
+            // Re-enable save button
+            isSaving = false;
+            if (saveButton) saveButton.interactable = true;
         }
 
         static string SanitizeForId(string s)
@@ -323,6 +356,52 @@ namespace MapDesignerTool
             foreach (var ch in new[]{'/', '\\', '#', '?', '%', '[',']',':','*','\"', ' '}) // Replace spaces too for pure ID
                 s = s.Replace(ch.ToString(), "_");
             return s.Trim();
+        }
+        
+        /// <summary>
+        /// Shows a toast message with the specified color.
+        /// If duration is 0, the toast stays until manually hidden.
+        /// </summary>
+        void ShowToast(string message, Color color, float duration)
+        {
+            if (saveToastText == null) return;
+            
+            // Cancel any existing auto-hide
+            if (toastCoroutine != null)
+            {
+                StopCoroutine(toastCoroutine);
+                toastCoroutine = null;
+            }
+            
+            saveToastText.text = message;
+            saveToastText.color = color;
+            saveToastText.gameObject.SetActive(true);
+            
+            if (duration > 0f)
+            {
+                toastCoroutine = StartCoroutine(HideToastAfter(duration));
+            }
+        }
+        
+        void HideToast()
+        {
+            if (toastCoroutine != null)
+            {
+                StopCoroutine(toastCoroutine);
+                toastCoroutine = null;
+            }
+            
+            if (saveToastText != null)
+            {
+                saveToastText.text = "";
+                saveToastText.gameObject.SetActive(false);
+            }
+        }
+        
+        System.Collections.IEnumerator HideToastAfter(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            HideToast();
         }
 
         void OnMove(GameObject target, int dx, int dz)

@@ -51,24 +51,30 @@ public class OrbitCamera : MonoBehaviour
     void LateUpdate()
     {
         if (!pivot) return;
-        if (IsInputBlocked) return;
-
+        
+        // Only block INPUT handling, not camera transform updates
+        bool shouldHandleInput = !IsInputBlocked;
+        
         // Block if pointer is over UI
         if (UnityEngine.EventSystems.EventSystem.current != null && 
             UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-            return;
+            shouldHandleInput = false;
 
-        // Prioritize Touch Input
-        if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
+        // Handle input only when not blocked
+        if (shouldHandleInput)
         {
-            HandleTouchInput();
-        }
-        else
-        {
-            HandleMouseInput();
+            // Prioritize Touch Input
+            if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
+            {
+                HandleTouchInput();
+            }
+            else
+            {
+                HandleMouseInput();
+            }
         }
 
-        // Apply Rotation & Position
+        // ALWAYS apply Rotation & Position (so pivot changes are reflected)
         UpdateCameraTransform();
     }
 
@@ -121,7 +127,7 @@ public class OrbitCamera : MonoBehaviour
                 distance = Mathf.Clamp(distance + deltaDist * zoomSensitivity, minDistance, maxDistance);
             }
 
-            // --- Pan (Two finger Drag) ---
+            // --- Pan (Two finger Drag) - Z-axis rail mode ---
             // Average delta of both fingers
             Vector2 avgDelta = (t1.delta + t2.delta) * 0.5f;
             
@@ -131,13 +137,14 @@ public class OrbitCamera : MonoBehaviour
                 float vfovRad = _cam.fieldOfView * Mathf.Deg2Rad;
                 float panDistance = Mathf.Max(distance, 15f);
                 float worldPerPixelY = 2f * panDistance * Mathf.Tan(vfovRad * 0.5f) / Mathf.Max(1, Screen.height);
-                float worldPerPixelX = worldPerPixelY * _cam.aspect;
                 
                 // Significantly reduced pan sensitivity for touch
                 float panSensitivity = panSpeed * 0.3f * dpiScale;
                 
-                Vector3 move = (-transform.right * avgDelta.x * worldPerPixelX) + (-transform.up * avgDelta.y * worldPerPixelY);
-                pivot.position += move * panSensitivity;
+                // Direct Z-axis movement: vertical drag controls Z position
+                // Dragging up (positive Y) moves forward (+Z), dragging down moves backward (-Z)
+                float zMovement = -avgDelta.y * worldPerPixelY * panSensitivity;
+                pivot.position = new Vector3(0f, 0f, pivot.position.z + zMovement);
             }
         }
     }
@@ -147,7 +154,7 @@ public class OrbitCamera : MonoBehaviour
         var mouse = Mouse.current;
         if (mouse == null) return;
 
-        // Pan (Left Mouse held)
+        // Pan (Left Mouse held) - Z-axis rail mode
         if (mouse.leftButton.isPressed && !mouse.rightButton.isPressed)
         {
             Vector2 d = mouse.delta.ReadValue();
@@ -157,9 +164,11 @@ public class OrbitCamera : MonoBehaviour
                 float vfovRad = _cam.fieldOfView * Mathf.Deg2Rad;
                 float panDistance = Mathf.Max(distance, 15f);
                 float worldPerPixelY = 2f * panDistance * Mathf.Tan(vfovRad * 0.5f) / Mathf.Max(1, Screen.height);
-                float worldPerPixelX = worldPerPixelY * _cam.aspect;
-                Vector3 move = (-transform.right * d.x * worldPerPixelX) + (-transform.up * d.y * worldPerPixelY);
-                pivot.position += move * panSpeed;
+                
+                // Direct Z-axis movement: vertical drag controls Z position
+                // Dragging up (positive Y) moves forward (+Z), dragging down moves backward (-Z)
+                float zMovement = -d.y * worldPerPixelY * panSpeed;
+                pivot.position = new Vector3(0f, 0f, pivot.position.z + zMovement);
             }
         }
 
@@ -212,5 +221,46 @@ public class OrbitCamera : MonoBehaviour
         {
             pivot.DOMove(_initialPivotPosition, duration).SetEase(Ease.OutCubic);
         }
+    }
+    
+    // ==================== PLACEMENT MODE HELPERS ====================
+    
+    /// <summary>
+    /// Smoothly zoom to max (minDistance) for placement mode
+    /// </summary>
+    public void SmoothZoomToMax(float duration = 0.3f)
+    {
+        DOVirtual.Float(distance, minDistance, duration, v => distance = v).SetEase(Ease.OutCubic);
+    }
+    
+    /// <summary>
+    /// Pan pivot by delta on X and Z axes (for placement edge-pan)
+    /// This allows X movement during placement, unlike normal rail mode
+    /// </summary>
+    public void PanPivotDelta(float deltaX, float deltaZ)
+    {
+        if (!pivot) return;
+        Vector3 pos = pivot.position;
+        pivot.position = new Vector3(pos.x + deltaX, 0f, pos.z + deltaZ);
+    }
+    
+    /// <summary>
+    /// Smoothly return X to 0 (rail center) after placement, keep Z where it is
+    /// </summary>
+    public void SmoothReturnToRail(float duration = 0.4f)
+    {
+        if (!pivot) return;
+        
+        Vector3 currentPos = pivot.position;
+        Vector3 targetPos = new Vector3(0f, 0f, currentPos.z);
+        pivot.DOMove(targetPos, duration).SetEase(Ease.OutCubic);
+    }
+    
+    /// <summary>
+    /// Smoothly restore zoom to a specific distance
+    /// </summary>
+    public void SmoothZoomTo(float targetDistance, float duration = 0.3f)
+    {
+        DOVirtual.Float(distance, targetDistance, duration, v => distance = v).SetEase(Ease.OutCubic);
     }
 }

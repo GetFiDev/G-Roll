@@ -194,8 +194,8 @@ public class GridPlacer : MonoBehaviour
     }
 
     /// <summary>
-    /// Returns true if a primary click/tap was started this frame.
-    /// For touch: single finger tap began and ended quickly (tap gesture).
+    /// Returns true if a primary click/tap was started this frame AND is NOT over UI.
+    /// For touch: single finger tap began.
     /// For mouse: left button was pressed.
     /// Also outputs the screen position of the click/tap.
     /// </summary>
@@ -212,6 +212,13 @@ public class GridPlacer : MonoBehaviour
             // We'll use 'Began' phase for immediate response (like wasPressedThisFrame)
             if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
+                // Check if this touch is over UI - if so, don't count it as a world tap
+                if (EventSystem.current != null && 
+                    EventSystem.current.IsPointerOverGameObject(touch.finger.index))
+                {
+                    return false;
+                }
+                
                 screenPos = touch.screenPosition;
                 return true;
             }
@@ -221,6 +228,12 @@ public class GridPlacer : MonoBehaviour
         var mouse = Mouse.current;
         if (mouse != null && mouse.leftButton.wasPressedThisFrame)
         {
+            // Check if mouse is over UI
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            {
+                return false;
+            }
+            
             screenPos = mouse.position.ReadValue();
             return true;
         }
@@ -1075,5 +1088,15 @@ public class GridPlacer : MonoBehaviour
             return bd;
         }
         return null;
+    }
+    
+    /// <summary>
+    /// Converts grid coordinates to world position.
+    /// Useful for getting the world Z position of a placed object.
+    /// </summary>
+    public Vector3 GridToWorld(int gx, int gz)
+    {
+        if (grid == null) return Vector3.zero;
+        return grid.GetCellCenterWorld(gx, gz);
     }
 }
