@@ -17,6 +17,11 @@ public class MovingWall : Wall, IMapConfigurable
     [Tooltip("Oscillation range on Z axis (relative to center).")]
     public float rangeZ = 0f;
 
+    // Runtime state
+    private Vector3 _centerPosition; // Spawn position = oscillation center
+    private bool _initialized = false;
+    
+    // Editor-only references (optional)
     private MapGridCellUtility _grid;
     private PlacedItemData _placedData;
     private GridPlacer _placer;
@@ -26,6 +31,11 @@ public class MovingWall : Wall, IMapConfigurable
 
     private void Start()
     {
+        // Store spawn position as the oscillation center (works in both Editor and Gameplay)
+        _centerPosition = transform.position;
+        _initialized = true;
+        
+        // Optional: Editor references for visualization
         _grid = FindFirstObjectByType<MapGridCellUtility>();
         _placer = FindFirstObjectByType<GridPlacer>();
         _placedData = GetComponentInParent<PlacedItemData>();
@@ -33,98 +43,87 @@ public class MovingWall : Wall, IMapConfigurable
 
     private void Update()
     {
-        // Lazy initialization retry
-        if (_placedData == null)
+        // Ensure we have a center position
+        if (!_initialized)
         {
-            _placedData = GetComponentInParent<PlacedItemData>();
-            if (_placedData == null) 
-            {
-                 UpdateVisualization(false);
-                 return;
-            }
+            _centerPosition = transform.position;
+            _initialized = true;
         }
-        
-        if (_grid == null) _grid = FindFirstObjectByType<MapGridCellUtility>();
-        if (_placer == null) _placer = FindFirstObjectByType<GridPlacer>();
 
-            // 1. Calculate dynamic center
-        Vector3 centerPos = Vector3.zero;
-        if (_grid != null) centerPos = _grid.GetCellCenterWorld(_placedData.gridX, _placedData.gridY);
+        // Use stored center position (not dependent on PlacedItemData)
+        Vector3 centerPos = _centerPosition;
+        
+        // In Editor with PlacedItemData, update center dynamically for editing
+        if (_placedData != null && _grid != null)
+        {
+            centerPos = _grid.GetCellCenterWorld(_placedData.gridX, _placedData.gridY);
+            _centerPosition = centerPos; // Update for when we leave edit mode
+        }
 
         // Movement Logic
-        if (_grid != null)
+        float cycleDuration = 0f;
+        float t = 0f;
+
+        // Use RAW local range for distance to ensure stability (ignore rotation FP errors)
+        float localMag = new Vector3(rangeX, 0, rangeZ).magnitude;
+        float dist = 2 * localMag;
+        
+        // Still need WorldOffset for TargetA/B positions
+        Vector3 worldOffset = CalculateWorldOffset();
+        Vector3 targetA = centerPos + worldOffset;
+        Vector3 targetB = centerPos - worldOffset;
+
+        // If range is zero, stay at center
+        if (dist < 0.0001f)
         {
-            float cycleDuration = 0f;
-            float t = 0f;
-
-            // Use RAW local range for distance to ensure stability (ignore rotation FP errors)
-            float localMag = new Vector3(rangeX, 0, rangeZ).magnitude;
-            float dist = 2 * localMag;
-            
-            // Still need WorldOffset for TargetA/B positions
-            Vector3 worldOffset = CalculateWorldOffset();
-            Vector3 targetA = centerPos + worldOffset;
-            Vector3 targetB = centerPos - worldOffset;
-
-            // If range is zero, stay at center
-            if (dist < 0.0001f)
-            {
-                if (Vector3.Distance(transform.position, centerPos) > 0.01f)
-                    transform.position = Vector3.MoveTowards(transform.position, centerPos, speed * Time.deltaTime);
-            }
-            else
-            {
-                // GLOBAL TIME SYNC
-                if (speed > 0.001f)
-                {
-                    // Duration for one full crossing (A -> B or B -> A)
-                    // time = dist / speed
-                    float oneWayTime = dist / speed; // Time to go from one end to the other
-                    cycleDuration = oneWayTime * 2f; // Return Trip
-                    
-                    // use Time.time + offset
-                    t = (Time.time + startOffset) % cycleDuration;
-                    
-                    // PingPong logic simulation manually to get position
-                    // 0 -> oneWayTime: A -> B
-                    // oneWayTime -> cycleDuration: B -> A
-                    
-                    Vector3 currentPos;
-                    if (t < oneWayTime)
-                    {
-                        // Moving A -> B
-                        float progress = t / oneWayTime; // 0..1
-                        // Linear interpolation
-                        currentPos = Vector3.Lerp(targetA, targetB, progress);
-                    }
-                    else
-                    {
-                        // Moving B -> A
-                        float progress = (t - oneWayTime) / oneWayTime; // 0..1
-                        currentPos = Vector3.Lerp(targetB, targetA, progress);
-                    }
-                    
-                    transform.position = currentPos;
-                }
-            }
-
-            // Visualization Logic
-            bool isSelected = false;
-            if (_placer != null && _placer.currentMode == BuildMode.Modify)
-            {
-                if (_placer.SelectedObject == _placedData.gameObject) isSelected = true;
-            }
-            
-            UpdateVisualization(isSelected, targetA, targetB);
-
-            // DEBUG SYNC (Unconditional for troubleshooting)
-            /*
-            if (speed > 0)
-            {
-               Debug.Log($"[{gameObject.name}] T:{t:F4} Cyc:{cycleDuration:F4} Off:{startOffset:F4} Spd:{speed:F4} Dist:{dist:F4} RX:{rangeX:F4} RZ:{rangeZ:F4}");
-            }
-            */
+            if (Vector3.Distance(transform.position, centerPos) > 0.01f)
+                transform.position = Vector3.MoveTowards(transform.position, centerPos, speed * Time.deltaTime);
         }
+        else
+        {
+            // GLOBAL TIME SYNC
+            if (speed > 0.001f)
+            {
+                // Duration for one full crossing (A -> B or B -> A)
+                // time = dist / speed
+                float oneWayTime = dist / speed; // Time to go from one end to the other
+                cycleDuration = oneWayTime * 2f; // Return Trip
+                
+                // use Time.time + offset
+                t = (Time.time + startOffset) % cycleDuration;
+                
+                // PingPong logic simulation manually to get position
+                // 0 -> oneWayTime: A -> B
+                // oneWayTime -> cycleDuration: B -> A
+                
+                Vector3 currentPos;
+                if (t < oneWayTime)
+                {
+                    // Moving A -> B
+                    float progress = t / oneWayTime; // 0..1
+                    // Linear interpolation
+                    currentPos = Vector3.Lerp(targetA, targetB, progress);
+                }
+                else
+                {
+                    // Moving B -> A
+                    float progress = (t - oneWayTime) / oneWayTime; // 0..1
+                    currentPos = Vector3.Lerp(targetB, targetA, progress);
+                }
+                
+                transform.position = currentPos;
+            }
+        }
+
+        // Visualization Logic (Editor only)
+        bool isSelected = false;
+        if (_placer != null && _placer.currentMode == BuildMode.Modify)
+        {
+            if (_placedData != null && _placer.SelectedObject == _placedData.gameObject) 
+                isSelected = true;
+        }
+        
+        UpdateVisualization(isSelected, targetA, targetB);
     }
 
     private Vector3 CalculateWorldOffset()
