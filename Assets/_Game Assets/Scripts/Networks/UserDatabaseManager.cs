@@ -428,32 +428,48 @@ public class UserDatabaseManager : MonoBehaviour
             {
                 EmitLog("✅ Game Center Authenticated. Generating Firebase Credential...");
                 
-                 // Game Center authentication is a bit more complex for Firebase.
-                 // We need to use the GameCenterAuthProvider.
-                 // This requires Unity 2017.4+ and Firebase 6.16.0+
+                // --- Capture Game Center User Info ---
+                string photoUrl = string.Empty;
+                string displayName = string.Empty;
+                
+                try
+                {
+                    // Social.localUser provides basic info from Game Center
+                    var localUser = Social.localUser;
+                    displayName = localUser.userName; // Game Center alias/display name
+                    EmitLog($"📱 Game Center User: {displayName} (ID: {localUser.id})");
+                    
+                    // Note: Game Center does NOT provide email - never has, never will.
+                    // Photo URL is also not directly available via Unity's Social API.
+                    // We would need native iOS code to get the player photo.
+                }
+                catch (System.Exception e)
+                {
+                    EmitLog($"⚠️ Could not fetch Game Center user info: {e.Message}");
+                }
+                // ----------------------------------------
                  
-                 // Legacy or Current way depending on Firebase SDK version.
-                 // Assuming fairly modern SDK based on user context.
-                 
-                 GameCenterAuthProvider.GetCredentialAsync().ContinueWith(task => {
-                     if (task.IsCanceled)
-                     {
-                         EmitLog("❌ GameCenter GetCredentialAsync was canceled.");
-                         EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Canceled"));
-                         return;
-                     }
-                     if (task.IsFaulted)
-                     {
-                         EmitLog("❌ GameCenter GetCredentialAsync encountered an error: " + task.Exception);
-                         EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Error"));
-                         return;
-                     }
+                GameCenterAuthProvider.GetCredentialAsync().ContinueWith(task => {
+                    if (task.IsCanceled)
+                    {
+                        EmitLog("❌ GameCenter GetCredentialAsync was canceled.");
+                        EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Canceled"));
+                        return;
+                    }
+                    if (task.IsFaulted)
+                    {
+                        EmitLog("❌ GameCenter GetCredentialAsync encountered an error: " + task.Exception);
+                        EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Error"));
+                        return;
+                    }
 
-                     Credential credential = task.Result;
-                     EmitLog("✅ Game Center Credential created. Signing in to Firebase...");
-                     // Ensure back on main thread if needed, effectively handled by LoginWithCredential which calls auth calls
-                     EnqueueMain(() => LoginWithCredential(credential));
-                 });
+                    Credential credential = task.Result;
+                    EmitLog("✅ Game Center Credential created. Signing in to Firebase...");
+                    
+                    // Game Center does NOT provide email, so we use the same fallback as GPGS:
+                    // The UID-based fake email will be generated in LoginWithCredential
+                    EnqueueMain(() => LoginWithCredential(credential, photoUrl, "GENERATE_FROM_UID"));
+                });
             }
             else
             {

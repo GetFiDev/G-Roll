@@ -11,16 +11,44 @@ export const requestSession = onCall(async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
+    const p = (req.data as Record<string, any>) || {};
+    const mode = String(p.mode || "endless").toLowerCase();
+    const isChapter = mode === "chapter";
+
     const userRef = db.collection("users").doc(uid);
     const now = Timestamp.now();
+
     // Pre-clean expired consumables in a separate transaction
     await db.runTransaction(async (tx) => {
         await cleanupExpiredConsumablesInTx(tx, userRef, now);
     });
 
     const out = await db.runTransaction(async (tx) => {
-        // 1) lazy regen inside tx
+        // 1) lazy regen inside tx (always needed for energy info)
         const st = await lazyRegenInTx(tx, userRef, now);
+
+        // CHAPTER MODE: Skip energy check and spend
+        // Energy will be spent on fail via submitSessionResult
+        if (isChapter) {
+            const sessionId = `ch_${now.toMillis()}_${Math.random().toString(36).slice(2, 8)}`;
+            const sessRef = userRef.collection("sessions").doc(sessionId);
+            tx.set(sessRef, {state: "granted", mode: "chapter", startedAt: now}, {merge: true});
+
+            // Return current energy info without modification
+            const nextAt = st.cur < st.max
+                ? st.nextAt || Timestamp.fromMillis(now.toMillis() + st.period * 1000)
+                : null;
+
+            return {
+                sessionId,
+                energyCurrent: st.cur, // NOT modified
+                energyMax: st.max,
+                regenPeriodSec: st.period,
+                nextEnergyAt: nextAt
+            };
+        }
+
+        // ENDLESS MODE: Original logic - check and spend energy
         if (st.cur <= 0) {
             throw new HttpsError("failed-precondition", "Not enough energy");
         }
@@ -35,7 +63,7 @@ export const requestSession = onCall(async (req) => {
         // 3) create server-owned session doc
         const sessionId = `${now.toMillis()}_${Math.random().toString(36).slice(2, 10)}`;
         const sessRef = userRef.collection("sessions").doc(sessionId);
-        tx.set(sessRef, {state: "granted", startedAt: now}, {merge: true});
+        tx.set(sessRef, {state: "granted", mode: "endless", startedAt: now}, {merge: true});
 
         const nextAt = Timestamp.fromMillis(now.toMillis() + st.period * 1000);
         return {
@@ -53,7 +81,7 @@ export const requestSession = onCall(async (req) => {
         regenPeriodSec: out.regenPeriodSec,
         nextEnergyAtMillis: nextMs,
     };
-    console.log("requestSession returning", resp);
+    console.log(`requestSession [${mode}] returning`, resp);
     return resp;
 });
 
@@ -69,12 +97,16 @@ export const submitSessionResult = onCall(async (req) => {
     const earnedCurrency = Number(p.earnedCurrency) || 0;
     const earnedScore = Number(p.earnedScore) || 0;
     const usedRevives = Number(p.usedRevives) || 0;
+    const mode = String(p.mode || "endless").toLowerCase();
+    const success = Boolean(p.success);
+    const isChapter = mode === "chapter";
 
     if (!sessionId) throw new HttpsError("invalid-argument", "sessionId required");
 
     // Session doc ref
     const userRef = db.collection("users").doc(uid);
     const sessRef = userRef.collection("sessions").doc(sessionId);
+    const now = Timestamp.now();
 
     // Fetch active season OUTSIDE transaction (safe)
     const activeSeasonId = await getActiveSeasonId();
@@ -162,6 +194,36 @@ export const submitSessionResult = onCall(async (req) => {
             seasonalMaxScores[activeSeasonId] = newSeasonBest;
         }
 
+        // --- CHAPTER MODE SPECIFIC LOGIC ---
+        let chapterProgressIncremented = false;
+        let energySpentOnFail = false;
+
+        if (isChapter) {
+            if (success) {
+                // Chapter completed successfully: increment progress
+                const prevChapter = Number(uSnap.get("chapterProgress") ?? 1) || 1;
+                tx.set(userRef, {
+                    chapterProgress: prevChapter + 1,
+                    updatedAt: FieldValue.serverTimestamp()
+                }, {merge: true});
+                chapterProgressIncremented = true;
+                console.log(`[submitSessionResult] Chapter SUCCESS: chapterProgress ${prevChapter} -> ${prevChapter + 1}`);
+            } else {
+                // Chapter failed: spend energy NOW (wasn't spent at requestSession)
+                const curEnergy = Number(uSnap.get("energyCurrent") ?? 0) || 0;
+                if (curEnergy > 0) {
+                    tx.set(userRef, {
+                        energyCurrent: curEnergy - 1,
+                        energyUpdatedAt: now,
+                        updatedAt: FieldValue.serverTimestamp()
+                    }, {merge: true});
+                    energySpentOnFail = true;
+                    console.log(`[submitSessionResult] Chapter FAIL: energy ${curEnergy} -> ${curEnergy - 1}`);
+                }
+            }
+        }
+
+        // Base user update (currency, score, stats)
         tx.set(userRef, {
             currency: newCurrency,
             maxScore: newBest,
@@ -179,6 +241,8 @@ export const submitSessionResult = onCall(async (req) => {
         // mark session as processed
         tx.set(sessRef, {
             state: "completed",
+            mode,
+            success,
             earnedCurrency,
             earnedScore,
             usedRevives,
@@ -206,7 +270,13 @@ export const submitSessionResult = onCall(async (req) => {
             }
         }
 
-        return {alreadyProcessed: false, currency: newCurrency, maxScore: newBest};
+        return {
+            alreadyProcessed: false,
+            currency: newCurrency,
+            maxScore: newBest,
+            chapterProgressIncremented,
+            energySpentOnFail
+        };
     });
     try {
         const u = await db.collection("users").doc(uid).get();
