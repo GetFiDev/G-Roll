@@ -157,6 +157,27 @@ public class UIManager : MonoSingleton<UIManager>
             Debug.LogError("[UIManager] levelEnd is not assigned.");
     }
 
+    /// <summary>
+    /// Called after revive to restore gameplay HUD and hide level end UI.
+    /// </summary>
+    public void ResumeGameplayFromRevive()
+    {
+        void Fade(Component comp, bool show)
+        {
+            if (comp == null) return;
+            var fp = comp.GetComponent<UIFadePanel>();
+            if (fp == null) fp = comp.gameObject.AddComponent<UIFadePanel>();
+            if (show) fp.Show(); else fp.Hide();
+        }
+
+        Fade(mainMenu, false);
+        Fade(gamePlay, true);  // Restore gameplay HUD
+        Fade(levelEnd, false); // Hide level end
+        Fade(gameplayLoading, false);
+        
+        Debug.Log("[UIManager] Resumed gameplay HUD from revive.");
+    }
+
     public void ShowIAPShop()
     {
         if (mainMenu != null)

@@ -114,9 +114,22 @@ public class UIGameplayLoading : MonoBehaviour
         }
         if (loadingText) loadingText.text = "Ready";
 
+        // Reset gameplay counters (score=0, coins=0) when loading completes
+        ResetGameplayCounters();
+
         // Yeni mimaride faz zaten Gameplay; bu UI sadece yükleme overlay'idir.
         // Yükleme biter bitmez kendini kapat.
         gameObject.SetActive(false);
+    }
+
+    private void ResetGameplayCounters()
+    {
+        // Find GameplayVisualApplier and reset counters
+        var visualApplier = FindFirstObjectByType<GameplayVisualApplier>();
+        if (visualApplier != null)
+        {
+            visualApplier.ForceResetCounters();
+        }
     }
 
     private static float EaseOutCubic(float x)

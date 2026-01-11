@@ -139,7 +139,7 @@ public class GameManager : MonoBehaviour
         if (UIManager.Instance && UIManager.Instance.insufficientEnergyPanel)
         {
             UIManager.Instance.insufficientEnergyPanel.gameObject.SetActive(true);
-            UIManager.Instance.insufficientEnergyPanel.RefreshSnapshotAsync(); // ensure up to date
+            _ = UIManager.Instance.insufficientEnergyPanel.RefreshSnapshotAsync(); // ensure up to date
         }
         else
         {

@@ -70276,9 +70276,11 @@ MonoBehaviour:
   autopilotTimerText: {fileID: 88475795}
   referralEarningsPanel: {fileID: 1239891031}
   playButtonLoadingOverlay: {fileID: 694992207}
-  endlessButton: {fileID: 0}
-  chapterButton: {fileID: 0}
-  chapterButtonText: {fileID: 0}
+  endlessLoadingOverlay: {fileID: 113197390}
+  chapterLoadingOverlay: {fileID: 694992207}
+  endlessButton: {fileID: 528743367}
+  chapterButton: {fileID: 133787730}
+  chapterButtonText: {fileID: 2067646017}
 --- !u!1 &4120895942661998561
 GameObject:
   m_ObjectHideFlags: 0

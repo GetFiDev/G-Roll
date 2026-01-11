@@ -281,6 +281,11 @@ public class PlayerMovement : MonoBehaviour
             
             // Ensure we are perfectly aligned forward
             transform.rotation = Quaternion.identity;
+            
+            // Force Y position to 0.25 to prevent any drift
+            var pos = transform.position;
+            pos.y = 0.25f;
+            transform.position = pos;
         });
         
         // Squash on land

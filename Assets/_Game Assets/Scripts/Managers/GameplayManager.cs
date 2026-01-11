@@ -559,26 +559,107 @@ public class GameplayManager : MonoBehaviour
         _usedRevives++;
         Debug.Log($"[GameplayManager] Resuming after revive #{_usedRevives}");
 
-        // Hide the level end UI
-        HideLevelEnd();
+        // Hide level end UI and restore gameplay HUD
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ResumeGameplayFromRevive();
+        }
+        else
+        {
+            HideLevelEnd();
+        }
 
         // Get player references
+        var playerCtrl = playerGO?.GetComponent<PlayerController>();
         var playerMov = playerGO?.GetComponent<PlayerMovement>();
 
-        // Resume logic applier (it will wait for first move)
+        // 1. Clear nearby hazards around player
+        if (playerGO != null)
+        {
+            ClearNearbyHazards(playerGO.transform.position, 15f);
+        }
+
+        // 2. Reset player position (X = 0, keep Z, proper Y height)
+        if (playerGO != null)
+        {
+            Vector3 newPos = playerGO.transform.position;
+            newPos.x = 0f;
+            newPos.y = 0.25f; // Standard player height (ground level)
+            playerGO.transform.position = newPos;
+            Debug.Log($"[GameplayManager] Player position reset to {newPos}");
+        }
+
+        // 3. Reset player state (unfreeze, clear wall hit)
+        if (playerCtrl != null)
+        {
+            playerCtrl.ResetPlayerForRevive();
+        }
+
+        // 4. Rebind player to touch input (may have been unbound on fail)
+        if (playerMov != null && gameplayTouch != null && logicApplier != null)
+        {
+            // Unbind first to clear any stale state
+            playerMov.UnbindFromGameplay();
+            // Rebind fresh
+            playerMov.BindToGameplay(logicApplier, gameplayTouch);
+            Debug.Log("[GameplayManager] Player rebound to input.");
+        }
+
+        // 5. Unfreeze player (do NOT call SetDirection - it triggers first move notification)
+        if (playerMov != null)
+        {
+            playerMov._isFrozen = false;
+            // DO NOT call SetDirection here - we want to wait for player input
+        }
+
+        // 6. Prepare logic applier - this sets armedForFirstMove = true
+        // DO NOT call StartRun() here - it will start when player makes first move
         if (logicApplier != null)
         {
             logicApplier.PrepareForRevive();
+            Debug.Log("[GameplayManager] LogicApplier prepared for revive, waiting for player input.");
         }
 
-        // Short intro animation before resuming
+        // 7. Short intro animation (optional)
         if (playerMov != null)
         {
             playerMov.PlayIntroSequence(0.5f);
         }
 
-        // Start run again (will wait for first input)
-        logicApplier?.StartRun();
+        Debug.Log("[GameplayManager] Revive complete. Waiting for first player input to resume.");
+    }
+
+    /// <summary>
+    /// Clear obstacles, collectibles, and boosters near a position.
+    /// </summary>
+    private void ClearNearbyHazards(Vector3 centerPos, float radius)
+    {
+        var allColliders = Physics.OverlapSphere(centerPos, radius);
+        int clearedCount = 0;
+
+        foreach (var col in allColliders)
+        {
+            if (col == null) continue;
+            if (col.CompareTag("Player")) continue;
+            if (col.GetComponentInParent<Map>() != null) continue;
+
+            bool shouldClear = false;
+            if (col.GetComponent<Wall>() != null) shouldClear = true;
+            if (col.GetComponent<RotatorHammer>() != null) shouldClear = true;
+            if (col.GetComponent<LaserGate>() != null) shouldClear = true;
+            if (col.GetComponent<Piston>() != null) shouldClear = true;
+            if (col.GetComponent<MovingWall>() != null) shouldClear = true;
+            if (col.GetComponent<Coin>() != null) shouldClear = true;
+            if (col.GetComponent<BoosterBase>() != null) shouldClear = true;
+
+            if (shouldClear)
+            {
+                Destroy(col.gameObject);
+                clearedCount++;
+            }
+        }
+
+        Debug.Log($"[GameplayManager] Cleared {clearedCount} hazards within {radius}m radius.");
     }
 
     /// <summary>

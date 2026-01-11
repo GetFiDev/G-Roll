@@ -132,7 +132,7 @@ public class AppFlowManager : MonoBehaviour
             
             // STRICT FLOW: We must hide the Loading Spinner so user can interact with SetName inputs
             // But we keep the LoginPanel background active.
-            if (FindObjectOfType<FirebaseLoginHandler>() is FirebaseLoginHandler handler) 
+            if (FindFirstObjectByType<FirebaseLoginHandler>() is FirebaseLoginHandler handler) 
                 handler.ForceHideLoading();
                 
             ShowSetNameUI();
@@ -158,7 +158,7 @@ public class AppFlowManager : MonoBehaviour
         Log("Loading Game Data (Inventory, IAP, Maps)...");
         
         // STRICT FLOW: Keep Login Panel ACTIVE but show Loading Spinner again.
-        if (FindObjectOfType<FirebaseLoginHandler>() is FirebaseLoginHandler handler) 
+        if (FindFirstObjectByType<FirebaseLoginHandler>() is FirebaseLoginHandler handler) 
         {
              handler.SetLoading(true);
         }
@@ -169,7 +169,7 @@ public class AppFlowManager : MonoBehaviour
         var tasks = new System.Collections.Generic.List<Task>();
 
         // Energy, Stats, PlayerStats
-        if (FindObjectOfType<UserStatManager>() is UserStatManager statMgr)
+        if (FindFirstObjectByType<UserStatManager>() is UserStatManager statMgr)
         {
             Log("Queuing UserStats refresh...");
             tasks.Add(statMgr.RefreshAllAsync());
@@ -197,7 +197,7 @@ public class AppFlowManager : MonoBehaviour
         // 2. Map Generation (Synchronous or fast async)
         // Ensure MapManager is ready for Context (BuildZone usually relies on Map or just Inventory?)
         // User asked for "buildzone completely initialized". This usually means Inventory + Map potentially.
-        if (FindObjectOfType<MapManager>() is MapManager mapMgr)
+        if (FindFirstObjectByType<MapManager>() is MapManager mapMgr)
         {
              Log("Initializing Maps...");
              // MapManager.Initialize is async now

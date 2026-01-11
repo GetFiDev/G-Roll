@@ -71,7 +71,7 @@ public class GameplayLogicApplier : MonoBehaviour
 
     // Olaylar (Visual Applier buraya bağlanır)
     public event Action OnGameReady; // Triggers when session is theoretically ready (camera transition)
-    public event Action OnRunStarted; // Triggers when physics/gameplay actually starts
+    public event Action<bool> OnRunStarted; // bool = isReviveResume (true = don't reset score) // Triggers when physics/gameplay actually starts
     public event Action OnRunStopped;
     public event Action<float> OnScoreChanged;                  // yeni Score
     public event Action<float,float> OnCoinsChanged;            // total, delta
@@ -159,7 +159,7 @@ public class GameplayLogicApplier : MonoBehaviour
         {
             isRunning = true;
             _sessionStartTime = Time.time; // stamp the exact run start moment
-            OnRunStarted?.Invoke();
+            OnRunStarted?.Invoke(false); // false = not a revive resume
         }
     }
 
@@ -173,11 +173,14 @@ public class GameplayLogicApplier : MonoBehaviour
         if (!armedForFirstMove || isRunning || targetCamera == null)
             return;
 
+        bool wasRevive = _resumingFromRevive;
+        _resumingFromRevive = false; // Reset flag
+        
         armedForFirstMove = false;
         isRunning = true;
         lastCamZ = targetCamera.position.z; // güvence: skor integrasyonu doğru başlasın
-        _sessionStartTime = Time.time; // stamp when the player truly starts the run
-        OnRunStarted?.Invoke();
+        _sessionStartTime = wasRevive ? _sessionStartTime : Time.time; // Preserve start time on revive
+        OnRunStarted?.Invoke(wasRevive);
     }
 
     public void StopRun()
@@ -207,16 +210,24 @@ public class GameplayLogicApplier : MonoBehaviour
     {
         Debug.Log("[GameplayLogicApplier] Preparing for revive...");
         
-        // Stop running but don't reset everything
+        // Mark this as a revive resume (score should be preserved)
+        _resumingFromRevive = true;
+        
+        // Stop running and stop camera movement
         isRunning = false;
         
-        // Reset speeds but preserve score/combo
+        // Set speed to 0 - camera should NOT move until first player input
+        // Speed will be restored when NotifyFirstPlayerMove is called
+        CurrentSpeed = 0f;
+        
+        // Prepare base speed for when run resumes
         baseSpeed = Mathf.Clamp(startSpeed, 0f, maxSpeed);
-        CurrentSpeed = baseSpeed * Mathf.Max(0f, gameplaySpeedMultiplier);
         
         // Arm for first move (same as initial start)
         armedForFirstMove = true;
     }
+    
+    private bool _resumingFromRevive = false;
 
     // SubmitSessionResultAsync removed. Logic moved to UserDatabaseManager.SubmitGameplaySessionAsync.
 

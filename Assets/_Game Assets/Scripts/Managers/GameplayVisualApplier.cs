@@ -84,23 +84,56 @@ public class GameplayVisualApplier : MonoBehaviour
     }
 
     // ---- Handlers ----
-    private void HandleRunStarted()
+    private void HandleRunStarted(bool isReviveResume)
     {
-        // UI reset
-        if (scoreText) scoreText.text = scoreAsInteger ? "0" : "0.00";
+        // On revive, don't reset score/coins - preserve current values
+        if (isReviveResume)
+        {
+            Debug.Log("[GameplayVisualApplier] Revive resume - preserving score/coins.");
+            return;
+        }
+        
+        // UI reset (only on initial start)
+        if (scoreText) scoreText.text = "0"; // Score starts at 0
         if (coinText)
         {
             coinTextBaseScale = coinText.transform.localScale;
-            coinText.text = coinAsInteger ? "0" : "0.00";
+            coinText.text = "0.000"; // Session currency starts at 0, 3 decimals
         }
         if (boosterSlider) boosterSlider.value = 0f;
         if (comboText)
         {
             comboBaseColor = comboText.color;
-            displayedCombo = 1f;
-            comboText.text = "x1.00";
+            // Get current combo power from logic if available
+            int startCombo = logic != null ? logic.CurrentComboPower : 25;
+            displayedCombo = startCombo;
+            comboText.text = $"{startCombo}"; // Just the number
             comboText.transform.localScale = Vector3.one;
         }
+    }
+
+    /// <summary>
+    /// Force reset counters from external sources (e.g., when gameplay loading completes).
+    /// Use this for initial game start, NOT for revive.
+    /// </summary>
+    public void ForceResetCounters()
+    {
+        if (scoreText) scoreText.text = "0";
+        if (coinText)
+        {
+            coinTextBaseScale = coinText.transform.localScale;
+            coinText.text = "0.000";
+        }
+        if (boosterSlider) boosterSlider.value = 0f;
+        if (comboText)
+        {
+            comboBaseColor = comboText.color;
+            int startCombo = logic != null ? logic.CurrentComboPower : 25;
+            displayedCombo = startCombo;
+            comboText.text = $"{startCombo}";
+            comboText.transform.localScale = Vector3.one;
+        }
+        Debug.Log("[GameplayVisualApplier] Counters force reset.");
     }
 
     private void HandleRunStopped() { /* görsel olarak özel bir şey gerekmez */ }
@@ -115,7 +148,7 @@ public class GameplayVisualApplier : MonoBehaviour
     {
         if (coinText)
         {
-            coinText.text = coinAsInteger ? Mathf.FloorToInt(total).ToString() : total.ToString("F2");
+            coinText.text = total.ToString("F3"); // Always 3 decimals
 
             // bounce
             var t = coinText.transform;

@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using UnityEngine;
 using NetworkingData; // <-- LBEntry ve UserData burada
 using System.Linq;
-using NetworkingData;
 
 public enum LeaderboardType
 {
@@ -30,7 +29,7 @@ public class LeaderboardManager : MonoBehaviour
         
         if (userDB == null)
         {
-            userDB = FindObjectOfType<UserDatabaseManager>();
+            userDB = FindFirstObjectByType<UserDatabaseManager>();
             if (userDB == null) userDB = UserDatabaseManager.Instance;
             if (userDB == null) Debug.LogError("[LeaderboardManager] UserDatabaseManager Missing!");
         }

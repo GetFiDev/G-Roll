@@ -26,8 +26,8 @@ public class MovingWall : Wall, IMapConfigurable
 
     private void Start()
     {
-        _grid = FindObjectOfType<MapGridCellUtility>();
-        _placer = FindObjectOfType<GridPlacer>();
+        _grid = FindFirstObjectByType<MapGridCellUtility>();
+        _placer = FindFirstObjectByType<GridPlacer>();
         _placedData = GetComponentInParent<PlacedItemData>();
     }
 
@@ -44,8 +44,8 @@ public class MovingWall : Wall, IMapConfigurable
             }
         }
         
-        if (_grid == null) _grid = FindObjectOfType<MapGridCellUtility>();
-        if (_placer == null) _placer = FindObjectOfType<GridPlacer>();
+        if (_grid == null) _grid = FindFirstObjectByType<MapGridCellUtility>();
+        if (_placer == null) _placer = FindFirstObjectByType<GridPlacer>();
 
             // 1. Calculate dynamic center
         Vector3 centerPos = Vector3.zero;

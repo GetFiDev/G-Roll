@@ -104,18 +104,35 @@ public class UIAdProduct : MonoBehaviour
 
     private void UpdateUI()
     {
+        bool canClaim = _usedToday < _dailyLimit;
+        
         if (usageDisplayTmpugui != null)
         {
             // Format: "used/limit" -> e.g. "1/5"
-            // User requested: users/{uid}/adusagedata/{ad_id}/used_today + "/" + /appdata/adDatas/{documentname}/data/daily_limit
             usageDisplayTmpugui.text = $"{_usedToday}/{_dailyLimit}";
+            
+            // Red color when limit reached
+            usageDisplayTmpugui.color = canClaim ? Color.white : Color.red;
         }
 
         if (actionButton != null)
         {
             // Can claim if used < limit
-            bool canClaim = _usedToday < _dailyLimit;
             actionButton.interactable = canClaim;
+            
+            // Set alpha to 0.5 when limit reached
+            var colors = actionButton.colors;
+            colors.disabledColor = new Color(1f, 1f, 1f, 0.5f);
+            actionButton.colors = colors;
+            
+            // Also update the button's CanvasGroup or Image alpha if present
+            var buttonImage = actionButton.GetComponent<UnityEngine.UI.Image>();
+            if (buttonImage != null)
+            {
+                var c = buttonImage.color;
+                c.a = canClaim ? 1f : 0.5f;
+                buttonImage.color = c;
+            }
         }
     }
 

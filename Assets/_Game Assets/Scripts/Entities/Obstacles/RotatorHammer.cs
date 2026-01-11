@@ -43,7 +43,7 @@ public class RotatorHammer : Wall, IMapConfigurable
             return;
         }
 
-        _placer = FindObjectOfType<GridPlacer>();
+        _placer = FindFirstObjectByType<GridPlacer>();
         _placedData = GetComponent<PlacedItemData>();
 
         // Setup Collision Proxy on ALL child colliders
@@ -59,7 +59,7 @@ public class RotatorHammer : Wall, IMapConfigurable
     private void Update()
     {
         // Lazy find
-        if (_placer == null) _placer = FindObjectOfType<GridPlacer>();
+        if (_placer == null) _placer = FindFirstObjectByType<GridPlacer>();
         if (_placedData == null) _placedData = GetComponent<PlacedItemData>();
 
         bool isSelected = false;

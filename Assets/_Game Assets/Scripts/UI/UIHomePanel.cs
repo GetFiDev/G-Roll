@@ -15,10 +15,13 @@ public class UIHomePanel : MonoBehaviour
     [SerializeField] private UIReferralEarningsPanel referralEarningsPanel;
 
     [Header("Play Button Overlay")]
-    [SerializeField] private GameObject playButtonLoadingOverlay;
+    [SerializeField] private GameObject playButtonLoadingOverlay; // Legacy fallback
+    [SerializeField] private GameObject endlessLoadingOverlay;
+    [SerializeField] private GameObject chapterLoadingOverlay;
 
     private CancellationTokenSource _timerCts;
     private double _capSecondsCache = 0.0;
+    private bool _isRequestingSession = false; // Fail-safe lock
 
     private void OnEnable()
     {
@@ -39,6 +42,9 @@ public class UIHomePanel : MonoBehaviour
 
     public void Initialize()
     {
+        // Reset lock on initialize
+        _isRequestingSession = false;
+        
         // 1. Refresh Top Panel
         if (UITopPanel.Instance != null)
         {
@@ -143,22 +149,74 @@ public class UIHomePanel : MonoBehaviour
 
     public async void OnEndlessButtonClicked()
     {
-        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(true);
-        if (GameManager.Instance)
+        // Fail-safe: prevent double clicks
+        if (_isRequestingSession)
         {
-            await GameManager.Instance.RequestSessionAndStartAsync(GameMode.Endless);
+            Debug.LogWarning("[UIHomePanel] Session request already in progress.");
+            return;
         }
-        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(false);
+        
+        _isRequestingSession = true;
+        
+        // Disable buttons while loading
+        if (endlessButton) endlessButton.interactable = false;
+        if (chapterButton) chapterButton.interactable = false;
+        
+        // Show overlay (prefer specific, fallback to legacy)
+        var overlay = endlessLoadingOverlay != null ? endlessLoadingOverlay : playButtonLoadingOverlay;
+        if (overlay) overlay.SetActive(true);
+        
+        try
+        {
+            if (GameManager.Instance)
+            {
+                await GameManager.Instance.RequestSessionAndStartAsync(GameMode.Endless);
+            }
+        }
+        finally
+        {
+            // Cleanup - always execute even if exception
+            if (overlay) overlay.SetActive(false);
+            if (endlessButton) endlessButton.interactable = true;
+            // Chapter button will be refreshed by Initialize on panel re-enable
+            _isRequestingSession = false;
+        }
     }
 
     public async void OnChapterButtonClicked()
     {
-        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(true);
-        if (GameManager.Instance)
+        // Fail-safe: prevent double clicks
+        if (_isRequestingSession)
         {
-            await GameManager.Instance.RequestSessionAndStartAsync(GameMode.Chapter);
+            Debug.LogWarning("[UIHomePanel] Session request already in progress.");
+            return;
         }
-        if (playButtonLoadingOverlay) playButtonLoadingOverlay.SetActive(false);
+        
+        _isRequestingSession = true;
+        
+        // Disable buttons while loading
+        if (endlessButton) endlessButton.interactable = false;
+        if (chapterButton) chapterButton.interactable = false;
+        
+        // Show overlay (prefer specific, fallback to legacy)
+        var overlay = chapterLoadingOverlay != null ? chapterLoadingOverlay : playButtonLoadingOverlay;
+        if (overlay) overlay.SetActive(true);
+        
+        try
+        {
+            if (GameManager.Instance)
+            {
+                await GameManager.Instance.RequestSessionAndStartAsync(GameMode.Chapter);
+            }
+        }
+        finally
+        {
+            // Cleanup - always execute even if exception
+            if (overlay) overlay.SetActive(false);
+            if (endlessButton) endlessButton.interactable = true;
+            // Chapter button will be refreshed by Initialize on panel re-enable
+            _isRequestingSession = false;
+        }
     }
 
 

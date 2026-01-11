@@ -10,8 +10,6 @@ using NetworkingData;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections;
-
-using System.Collections;
 using UnityEngine.SocialPlatforms.Impl;
 using Newtonsoft.Json;
 using GooglePlayGames;

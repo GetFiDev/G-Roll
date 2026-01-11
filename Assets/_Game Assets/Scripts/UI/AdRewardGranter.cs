@@ -89,13 +89,10 @@ public class AdRewardGranter : MonoBehaviour
         updatedData.streak = current.streak;
         updatedData.referrals = current.referrals;
         
-        bool changed = false;
-
         if (currencyAmount > 0)
         {
             float currentVal = (float)current.currency;
             updatedData.currency = currentVal + currencyAmount;
-            changed = true;
             Debug.Log($"[AdRewardGranter] Granting {currencyAmount} Currency. New Total: {updatedData.currency}");
         }
         else

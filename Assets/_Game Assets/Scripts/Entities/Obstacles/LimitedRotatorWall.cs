@@ -33,7 +33,7 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
             return;
         }
         
-        _placer = FindObjectOfType<GridPlacer>();
+        _placer = FindFirstObjectByType<GridPlacer>();
         _placedData = GetComponent<PlacedItemData>(); // Usually on root, this script is on root
 
         // Setup Collision Proxy on ALL child colliders recursively (from Root)
@@ -49,7 +49,7 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
     private void Update()
     {
         // Lazy find placer/data if missing
-        if (_placer == null) _placer = FindObjectOfType<GridPlacer>();
+        if (_placer == null) _placer = FindFirstObjectByType<GridPlacer>();
         if (_placedData == null) _placedData = GetComponent<PlacedItemData>();
 
         bool isSelected = false;

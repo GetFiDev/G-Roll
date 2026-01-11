@@ -6,7 +6,7 @@ public class ApplicationFrameRateHandler : MonoBehaviour
     private static void Initialize()
     {
         // Check if it already exists to avoid duplicates in case of domain reloads or other edge cases
-        if (FindObjectOfType<ApplicationFrameRateHandler>() == null)
+        if (FindFirstObjectByType<ApplicationFrameRateHandler>() == null)
         {
             GameObject appFrameRateHandler = new GameObject("ApplicationFrameRateHandler");
             appFrameRateHandler.AddComponent<ApplicationFrameRateHandler>();

@@ -88,8 +88,9 @@ public class GameplayCameraManager : MonoBehaviour
     private void PlayOpeningTransition() => PlayOpeningTransition(null);
 
     // Triggered by OnRunStarted (input)
-    private void StartZTracking()
+    private void StartZTracking(bool isReviveResume)
     {
+        // Camera starts Z tracking regardless of whether it's initial start or revive
         _useIndependentZ = true;
     }
 
