@@ -12,8 +12,10 @@ using System.Collections.Generic;
 using System.Collections;
 using UnityEngine.SocialPlatforms.Impl;
 using Newtonsoft.Json;
+#if UNITY_ANDROID
 using GooglePlayGames;
 using GooglePlayGames.BasicApi;
+#endif
 
 
 public class UserDatabaseManager : MonoBehaviour
