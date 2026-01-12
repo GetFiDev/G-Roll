@@ -97,18 +97,20 @@ public class ProfileAndSettingsPanel : MonoBehaviour
         }
     }
 
-    public void OnSoundToggled(bool value)
+    public void OnSoundToggled()
     {
+        bool value = soundToggle != null && soundToggle.Value;
+        Debug.Log($"[ProfileAndSettingsPanel] OnSoundToggled called. soundToggle={soundToggle}, Value={value}");
         DataManager.Sound = value;
-        if (GameManager.Instance && GameManager.Instance.audioManager)
-            GameManager.Instance.audioManager.UpdateAudioStates();
+        // AudioManager now listens to DataManager.OnSoundStateChanged automatically
     }
 
-    public void OnMusicToggled(bool value)
+    public void OnMusicToggled()
     {
+        bool value = musicToggle != null && musicToggle.Value;
+        Debug.Log($"[ProfileAndSettingsPanel] OnMusicToggled called. musicToggle={musicToggle}, Value={value}");
         DataManager.Music = value;
-        if (GameManager.Instance && GameManager.Instance.audioManager)
-            GameManager.Instance.audioManager.UpdateAudioStates();
+        // AudioManager now listens to DataManager.OnMusicStateChanged automatically
     }
 
     public void OnHapticToggled(bool value)

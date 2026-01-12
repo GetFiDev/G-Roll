@@ -303,6 +303,50 @@ export const completeUserProfile = onCall(async (req) => {
         throw new HttpsError("invalid-argument", "USERNAME_INVALID_CHARS");
     }
 
+    // 1.5 Banned keyword check (same logic as changeUsername)
+    let bannedList: string[] = [
+        "fuck", "amk", "siktir", "orospu", "piç", "aq", "porno",
+    ];
+
+    try {
+        const rulesSnap = await db.collection("appdata").doc("usernamerules").get();
+        if (rulesSnap.exists) {
+            const d = (rulesSnap.data() || {}) as Record<string, any>;
+            let fromField = d.bannedKeywords ?? d.bannedkeywords;
+
+            if (Array.isArray(fromField)) {
+                bannedList = fromField
+                    .map((x) => String(x || "").toLowerCase().trim())
+                    .filter((s) => s.length > 0);
+            } else if (typeof fromField === "string" && fromField.trim().length > 0) {
+                const raw = fromField.trim();
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && Array.isArray(parsed.bannedKeywords)) {
+                        bannedList = parsed.bannedKeywords
+                            .map((x: any) => String(x || "").toLowerCase().trim())
+                            .filter((s: string) => s.length > 0);
+                    }
+                } catch (_) {
+                    bannedList = raw
+                        .split(/[,\s]+/)
+                        .map((x) => x.toLowerCase().trim())
+                        .filter((s) => s.length > 0);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("[completeUserProfile] could not load usernamerules, using fallback list:", e);
+    }
+
+    const lower = usernameRaw.toLowerCase();
+    for (const bad of bannedList) {
+        if (!bad) continue;
+        if (lower.includes(bad)) {
+            throw new HttpsError("invalid-argument", "USERNAME_BAD_WORD");
+        }
+    }
+
     const usernameLower = usernameRaw.toLowerCase();
     const userRef = db.collection("users").doc(uid);
     const nameRef = db.collection("usernames").doc(usernameLower);

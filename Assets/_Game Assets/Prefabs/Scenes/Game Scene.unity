@@ -9639,7 +9639,7 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 349202680}
   m_Enabled: 1
-  m_Alpha: 0.36
+  m_Alpha: 0.7696
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
@@ -67282,14 +67282,14 @@ MonoBehaviour:
   toggleKnob: {fileID: 0}
   knobOnPosition: {fileID: 0}
   knobOffPosition: {fileID: 0}
-  value: 0
-  OnValueChange:
+  _value: 0
+  OnToggle:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: UISettingsPanel, Assembly-CSharp
+      - m_Target: {fileID: 7359783752593556660}
+        m_TargetAssemblyTypeName: ProfileAndSettingsPanel, Assembly-CSharp
         m_MethodName: OnMusicToggled
-        m_Mode: 0
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -67298,6 +67298,9 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+  OnValueChange:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!224 &3182721149145749306
 RectTransform:
   m_ObjectHideFlags: 0
@@ -74033,14 +74036,14 @@ MonoBehaviour:
   toggleKnob: {fileID: 0}
   knobOnPosition: {fileID: 0}
   knobOffPosition: {fileID: 0}
-  value: 0
-  OnValueChange:
+  _value: 0
+  OnToggle:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: UISettingsPanel, Assembly-CSharp
+      - m_Target: {fileID: 7359783752593556660}
+        m_TargetAssemblyTypeName: ProfileAndSettingsPanel, Assembly-CSharp
         m_MethodName: OnSoundToggled
-        m_Mode: 0
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -74049,6 +74052,9 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+  OnValueChange:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &5424336596367427782
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -74068,14 +74074,14 @@ MonoBehaviour:
   toggleKnob: {fileID: 0}
   knobOnPosition: {fileID: 0}
   knobOffPosition: {fileID: 0}
-  value: 0
-  OnValueChange:
+  _value: 0
+  OnToggle:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: UISettingsPanel, Assembly-CSharp
+      - m_Target: {fileID: 7359783752593556660}
+        m_TargetAssemblyTypeName: ProfileAndSettingsPanel, Assembly-CSharp
         m_MethodName: OnHapticToggled
-        m_Mode: 0
+        m_Mode: 6
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -74084,6 +74090,9 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+  OnValueChange:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &5430557683982485448
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -79452,7 +79461,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hapticToggle: {fileID: 5424336596367427782}
   soundToggle: {fileID: 5416069647448178555}
-  musicToggle: {fileID: 5424336596367427782}
+  musicToggle: {fileID: 3174162442168474881}
   emailText: {fileID: 1578447836}
   currencyText: {fileID: 1178779565}
   premiumCurrencyText: {fileID: 1783367988}

@@ -28,9 +28,30 @@ public class AudioManager : MonoBehaviour
         _standard.outputAudioMixerGroup = _soundGroup;
         _increasing.outputAudioMixerGroup = _soundGroup;
 
+        // Subscribe to DataManager events for automatic updates
+        DataManager.OnSoundStateChanged += OnSoundStateChanged;
+        DataManager.OnMusicStateChanged += OnMusicStateChanged;
+
         UpdateAudioStates();
         
         return this;
+    }
+
+    private void OnDestroy()
+    {
+        // Unsubscribe from events
+        DataManager.OnSoundStateChanged -= OnSoundStateChanged;
+        DataManager.OnMusicStateChanged -= OnMusicStateChanged;
+    }
+
+    private void OnSoundStateChanged(bool isOn)
+    {
+        SetSoundState(isOn);
+    }
+
+    private void OnMusicStateChanged(bool isOn)
+    {
+        SetMusicState(isOn);
     }
 
     public void UpdateAudioStates()

@@ -194,8 +194,11 @@ public class FirebaseLoginHandler : MonoBehaviour
         if (setNamePanel.doneButton != null)
             setNamePanel.doneButton.interactable = false;
 
+        // Show "Please wait..." in input field
+        setNamePanel.ShowWaiting();
+
         // Call New Complete Profile
-        bool ok = await manager.CompleteProfileAsync(name, refCode);
+        var (ok, errorCode) = await manager.CompleteProfileAsync(name, refCode);
         
         if (ok)
         {
@@ -215,9 +218,10 @@ public class FirebaseLoginHandler : MonoBehaviour
         }
         else
         {
-            Log("Failed to complete profile");
-            if (setNamePanel.doneButton != null)
-                setNamePanel.doneButton.interactable = true;
+            Log("Failed to complete profile: " + errorCode);
+            
+            // Show error in input field (will auto-clear after 2 seconds)
+            setNamePanel.ShowError(errorCode);
         }
     }
 }

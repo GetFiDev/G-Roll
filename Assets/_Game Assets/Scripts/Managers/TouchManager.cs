@@ -28,6 +28,7 @@ public class TouchManager : MonoBehaviour
     Vector2 _startPos;
     Vector2 _prevPos;
     Vector2 _accumulatedDelta;
+    bool _swipeFiredThisTouch; // Bu dokunuşta swipe zaten tetiklendi mi?
 
     float _lastTapTime = -999f;
     Vector2 _lastTapPos;
@@ -83,6 +84,7 @@ public class TouchManager : MonoBehaviour
                     _startPos = t.screenPosition;
                     _prevPos = _startPos;
                     _accumulatedDelta = Vector2.zero;
+                    _swipeFiredThisTouch = false; // Yeni dokunuşta swipe flag'i sıfırla
                     OnTouchBegin?.Invoke(_startPos);
                     break;
                 }
@@ -111,25 +113,30 @@ public class TouchManager : MonoBehaviour
                 _accumulatedDelta += delta;
                 OnTouchMoveScreen?.Invoke(delta);
                 _prevPos = t.screenPosition;
+                
+                // Swipe'ı hareket sırasında algıla - anında tepki ver!
+                TryDetectSwipeDuringMove(t.screenPosition);
             }
 
             if (t.phase == ISTouchPhase.Canceled || t.phase == ISTouchPhase.Ended)
             {
                 HandleDoubleTap(t.screenPosition);
-                HandleSwipe(t.screenPosition);
+                // Swipe artık hareket sırasında algılanıyor, burada tekrar çağırma
                 OnTouchEnd?.Invoke(t.screenPosition);
 
                 _activeFinger = null;
                 _accumulatedDelta = Vector2.zero;
+                _swipeFiredThisTouch = false;
             }
         }
         else
         {
             HandleDoubleTap(_prevPos);
-            HandleSwipe(_prevPos);
+            // Swipe artık hareket sırasında algılanıyor
             OnTouchEnd?.Invoke(_prevPos);
             _activeFinger = null;
             _accumulatedDelta = Vector2.zero;
+            _swipeFiredThisTouch = false;
         }
     }
 
@@ -154,15 +161,33 @@ public class TouchManager : MonoBehaviour
         }
     }
 
-    void HandleSwipe(Vector2 currentPos)
+    /// <summary>
+    /// Parmak hareket ederken swipe algıla - threshold aşıldığında HEMEN tepki ver.
+    /// Bu dokunuşta daha önce swipe tetiklendiyse tekrar tetikleme.
+    /// </summary>
+    void TryDetectSwipeDuringMove(Vector2 currentPos)
     {
         if (!playerMovement) return;
+        if (_swipeFiredThisTouch) return; // Bu dokunuşta zaten swipe tetiklendi
 
         var total = currentPos - _startPos;
         if (total.magnitude < swipeThresholdPx) return;
 
         var dir = DetectDirection(total);
         OnSwipe?.Invoke(dir);
+        _swipeFiredThisTouch = true; // Bir dokunuşta tek swipe
+        
+        // Yeni swipe için başlangıç noktasını güncelle (continuous swipe desteği)
+        _startPos = currentPos;
+        _swipeFiredThisTouch = false; // Yeni yön için tekrar swipe algılanabilir
+    }
+
+    /// <summary>
+    /// Legacy metod - artık kullanılmıyor ama backward compatibility için tutuluyor.
+    /// </summary>
+    void HandleSwipe(Vector2 currentPos)
+    {
+        // Artık swipe hareket sırasında TryDetectSwipeDuringMove ile algılanıyor
     }
 
     bool IsOverUI(ETouch.Touch t)

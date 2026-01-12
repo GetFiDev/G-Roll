@@ -16,6 +16,9 @@ public class BackgroundMusicManager : MonoBehaviour
 
     private AudioSource _audioSource;
     private const string MusicIndexKey = "BackgroundMusicIndex";
+    
+    // Track the paused state properly
+    private bool _wasPaused = false;
 
     private void Awake()
     {
@@ -48,8 +51,19 @@ public class BackgroundMusicManager : MonoBehaviour
         // Subscribe to events
         DataManager.OnMusicStateChanged += OnMusicStateChanged;
         
-        // Initial Play
-        PlayTrack(_currentIndex);
+        // Initial Play - always set up the track
+        SetupTrack(_currentIndex);
+        
+        // Only play if music is enabled
+        if (DataManager.Music)
+        {
+            _audioSource.Play();
+            _wasPaused = false;
+        }
+        else
+        {
+            _wasPaused = true;
+        }
     }
 
     private void OnDestroy()
@@ -59,19 +73,18 @@ public class BackgroundMusicManager : MonoBehaviour
 
     private void Update()
     {
-        // Only progress playlist if music is enabled and clip has finished
-        if (DataManager.Music)
+        // Only progress playlist if music is enabled and clip has finished naturally
+        if (DataManager.Music && !_wasPaused)
         {
-            // Check if audio has stopped playing (and it's not because we paused it manually, 
-            // though DataManager.Music check covers the manual pause case essentially)
-            if (!_audioSource.isPlaying)
+            // Check if audio has stopped playing naturally (track ended)
+            if (!_audioSource.isPlaying && _audioSource.clip != null && _audioSource.time == 0f)
             {
                PlayNext();
             }
         }
     }
 
-    private void PlayTrack(int index)
+    private void SetupTrack(int index)
     {
         if (musicList.Count == 0) return;
 
@@ -87,20 +100,14 @@ public class BackgroundMusicManager : MonoBehaviour
         
         if (clip == null)
         {
-            PlayNext(); // Skip null
+            // Skip null and try next
+            _currentIndex++;
+            if (_currentIndex >= musicList.Count) _currentIndex = 0;
+            SetupTrack(_currentIndex);
             return;
         }
 
         _audioSource.clip = clip;
-
-        if (DataManager.Music)
-        {
-            _audioSource.Play();
-        }
-        else
-        {
-            _audioSource.Stop(); 
-        }
     }
 
     private void PlayNext()
@@ -110,25 +117,43 @@ public class BackgroundMusicManager : MonoBehaviour
         {
             _currentIndex = 0;
         }
-        PlayTrack(_currentIndex);
+        SetupTrack(_currentIndex);
+        
+        if (DataManager.Music)
+        {
+            _audioSource.Play();
+        }
     }
 
     private void OnMusicStateChanged(bool isOn)
     {
+        Debug.Log($"[BackgroundMusicManager] OnMusicStateChanged called. isOn={isOn}, audioSource.time={_audioSource.time}");
+        
         if (isOn)
         {
-            if (!_audioSource.isPlaying)
+            _wasPaused = false;
+            
+            // If audio was paused, unpause it
+            // If audio was never started or stopped, play from beginning
+            if (_audioSource.time > 0f)
             {
-                _audioSource.Play(); 
+                // Was paused mid-track, resume
+                _audioSource.UnPause();
+                Debug.Log("[BackgroundMusicManager] UnPaused music");
             }
             else
             {
-                _audioSource.UnPause();
+                // Track hasn't started or ended, play from start
+                _audioSource.Play();
+                Debug.Log("[BackgroundMusicManager] Started music from beginning");
             }
         }
         else
         {
+            _wasPaused = true;
             _audioSource.Pause();
+            Debug.Log("[BackgroundMusicManager] Paused music");
         }
     }
 }
+

@@ -137,10 +137,10 @@ public class UserDatabaseManager : MonoBehaviour
     void Start() { /* NO OPs - Controlled by AppFlowManager */ }
 
     // --- Profile Completion (Server-Side) ---
-    public async Task<bool> CompleteProfileAsync(string username, string referralCode)
+    public async Task<(bool success, string errorCode)> CompleteProfileAsync(string username, string referralCode)
     {
-        if (currentUser == null) { EmitLog("❌ No Login (CompleteProfile)"); return false; }
-        if (_funcs == null) { EmitLog("❌ Functions null"); return false; }
+        if (currentUser == null) { EmitLog("❌ No Login (CompleteProfile)"); return (false, "NO_LOGIN"); }
+        if (_funcs == null) { EmitLog("❌ Functions null"); return (false, "INTERNAL_ERROR"); }
 
         try
         {
@@ -169,12 +169,35 @@ public class UserDatabaseManager : MonoBehaviour
 
             // Refresh local cache immediately
             await LoadUserData();
-            return true;
+            return (true, null);
+        }
+        catch (Firebase.Functions.FunctionsException fe)
+        {
+            // Extract the error code from the exception message
+            string errorCode = fe.Message;
+            
+            // Firebase Cloud Functions throw errors with message containing the code
+            // Common codes: USERNAME_TAKEN, USERNAME_INVALID_LENGTH, USERNAME_INVALID_CHARS, USERNAME_BAD_WORD
+            if (errorCode.Contains("USERNAME_TAKEN"))
+                errorCode = "USERNAME_TAKEN";
+            else if (errorCode.Contains("USERNAME_INVALID_LENGTH"))
+                errorCode = "USERNAME_INVALID_LENGTH";
+            else if (errorCode.Contains("USERNAME_INVALID_CHARS"))
+                errorCode = "USERNAME_INVALID_CHARS";
+            else if (errorCode.Contains("USERNAME_BAD_WORD"))
+                errorCode = "USERNAME_BAD_WORD";
+            else if (errorCode.Contains("Profile already completed"))
+                errorCode = "PROFILE_ALREADY_COMPLETE";
+            else
+                errorCode = "UNKNOWN_ERROR";
+            
+            EmitLog("❌ CompleteProfile Failed: " + errorCode);
+            return (false, errorCode);
         }
         catch (Exception e)
         {
             EmitLog("❌ CompleteProfile Failed: " + e.Message);
-            return false;
+            return (false, "UNKNOWN_ERROR");
         }
     }
 
@@ -341,7 +364,7 @@ public class UserDatabaseManager : MonoBehaviour
         try
         {
             // Make sure you created this user in Firebase Console -> Auth -> Email/Password
-            var r = await auth.SignInWithEmailAndPasswordAsync("testuser@gmail.com", "123456");
+            var r = await auth.SignInWithEmailAndPasswordAsync("testuser9@gmail.com", "123456");
             
             currentUser = r.User;
             currentLoggedUserID = currentUser?.UserId;
@@ -508,19 +531,19 @@ public class UserDatabaseManager : MonoBehaviour
                 }
                 // ----------------------------------------
                  
-                GameCenterAuthProvider.GetCredentialAsync().ContinueWith(task => {
+                GameCenterAuthProvider.GetCredentialAsync().ContinueWithOnMainThread(task => {
                     _isGameCenterAuthenticating = false;
                     
                     if (task.IsCanceled)
                     {
                         EmitLog("❌ GameCenter GetCredentialAsync was canceled.");
-                        EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Canceled"));
+                        OnLoginFailed?.Invoke("Game Center Canceled");
                         return;
                     }
                     if (task.IsFaulted)
                     {
                         EmitLog("❌ GameCenter GetCredentialAsync encountered an error: " + task.Exception);
-                        EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Error - Please check Settings > Game Center"));
+                        OnLoginFailed?.Invoke("Game Center Error - Please check Settings > Game Center");
                         return;
                     }
 
@@ -529,7 +552,7 @@ public class UserDatabaseManager : MonoBehaviour
                     
                     // Game Center does NOT provide email, so we use the same fallback as GPGS:
                     // The UID-based fake email will be generated in LoginWithCredential
-                    EnqueueMain(() => LoginWithCredential(credential, photoUrl, "GENERATE_FROM_UID"));
+                    LoginWithCredential(credential, photoUrl, "GENERATE_FROM_UID");
                 });
             }
             else
