@@ -178,8 +178,7 @@ public class GridPlacer : MonoBehaviour
         {
             for (int i = 0; i < touches.Count; i++)
             {
-                if (EventSystem.current != null && 
-                    EventSystem.current.IsPointerOverGameObject(touches[i].finger.index))
+                if (IsTouchOverUI(touches[i]))
                     return true;
             }
             return false;
@@ -205,16 +204,15 @@ public class GridPlacer : MonoBehaviour
         
         // Check touch first
         var touches = ETouch.Touch.activeTouches;
-        if (touches.Count == 1)
+        if (touches.Count >= 1)
         {
             var touch = touches[0];
             // For a tap, we detect when the touch just began
             // We'll use 'Began' phase for immediate response (like wasPressedThisFrame)
             if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
-                // Check if this touch is over UI - if so, don't count it as a world tap
-                if (EventSystem.current != null && 
-                    EventSystem.current.IsPointerOverGameObject(touch.finger.index))
+                // Check if this touch is over UI using multiple methods for reliability
+                if (IsTouchOverUI(touch))
                 {
                     return false;
                 }
@@ -239,6 +237,31 @@ public class GridPlacer : MonoBehaviour
         }
         
         return false;
+    }
+    
+    /// <summary>
+    /// Reliable UI touch detection that works on mobile devices.
+    /// Uses multiple methods to ensure accuracy.
+    /// </summary>
+    bool IsTouchOverUI(ETouch.Touch touch)
+    {
+        if (EventSystem.current == null) return false;
+        
+        // Method 1: Use touch ID (most reliable for touch input)
+        if (EventSystem.current.IsPointerOverGameObject(touch.touchId))
+            return true;
+        
+        // Method 2: Raycast check using PointerEventData
+        var eventData = new UnityEngine.EventSystems.PointerEventData(EventSystem.current)
+        {
+            position = touch.screenPosition
+        };
+        
+        var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+        EventSystem.current.RaycastAll(eventData, results);
+        
+        // If we hit any UI elements, we're over UI
+        return results.Count > 0;
     }
 
     /// <summary>
