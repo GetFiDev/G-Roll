@@ -29187,7 +29187,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   baseRevivePrice: 0.5
   priceMultiplier: 2
-  hazardClearRadius: 15
+  hazardClearRadius: 7.5
 --- !u!1 &1151753357
 GameObject:
   m_ObjectHideFlags: 0
@@ -49786,56 +49786,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1875803141}
   m_CullTransparentMesh: 1
---- !u!1 &1893352658
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1893352660}
-  - component: {fileID: 1893352659}
-  m_Layer: 0
-  m_Name: AppFlowManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1893352659
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1893352658}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 562d074da087746eeaa5eb34b81e52ec, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  uiRoot: {fileID: 2576767420291105662}
-  loginPanel: {fileID: 1362390243951431455}
-  mainMenu: {fileID: 2899625912358193102}
-  setNamePanel: {fileID: 8250175366931686949}
-  verboseLogging: 1
-  CurrentState: 0
---- !u!4 &1893352660
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1893352658}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 374.4599, y: 937.4017, z: -7.0773287}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1894712044
 GameObject:
   m_ObjectHideFlags: 0
@@ -52692,6 +52642,56 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2018741173}
   m_CullTransparentMesh: 1
+--- !u!1 &2022387183
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2022387185}
+  - component: {fileID: 2022387184}
+  m_Layer: 0
+  m_Name: AppFlowManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2022387184
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2022387183}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 562d074da087746eeaa5eb34b81e52ec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  uiRoot: {fileID: 2576767420291105662}
+  loginPanel: {fileID: 1362390243951431455}
+  mainMenu: {fileID: 2899625912358193102}
+  setNamePanel: {fileID: 8250175366931686949}
+  verboseLogging: 1
+  CurrentState: 0
+--- !u!4 &2022387185
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2022387183}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -19.301075, y: 6.262331, z: 100.94241}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2023166010
 GameObject:
   m_ObjectHideFlags: 0
@@ -78302,6 +78302,12 @@ PrefabInstance:
       objectReference: {fileID: 515607533}
     - target: {fileID: 3401937052761231238, guid: 43a4772807b194af48d88075f7f011c6,
         type: 3}
+      propertyPath: mapChunkPrefab
+      value: 
+      objectReference: {fileID: 23769104891627334, guid: 4db80a633e562498090af6f6522332fd,
+        type: 3}
+    - target: {fileID: 3401937052761231238, guid: 43a4772807b194af48d88075f7f011c6,
+        type: 3}
       propertyPath: starterMapJson
       value: 
       objectReference: {fileID: 0}
@@ -86177,4 +86183,4 @@ SceneRoots:
   - {fileID: 653256424}
   - {fileID: 387710939}
   - {fileID: 341282513}
-  - {fileID: 1893352660}
+  - {fileID: 2022387185}

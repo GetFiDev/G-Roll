@@ -313,13 +313,36 @@ public class UserDatabaseManager : MonoBehaviour
     public async void LoginWithEditorMock()
     {
         Reset();
-        if (auth == null) { EmitLog("❌ Auth null"); return; }
-        EmitLog("Starting Editor Mock Login (Email: test@gmail.com)...");
+        
+        // Wait for Firebase to initialize if not ready
+        if (auth == null)
+        {
+            EmitLog("⏳ Auth null, waiting for Firebase init...");
+            try
+            {
+                bool initOk = await InitializeFirebaseAsync();
+                if (!initOk || auth == null)
+                {
+                    EmitLog("❌ Firebase initialization failed!");
+                    EnqueueMain(() => OnLoginFailed?.Invoke("Firebase Init Failed"));
+                    return;
+                }
+            }
+            catch (Exception initEx)
+            {
+                EmitLog($"❌ Firebase init exception: {initEx.Message}");
+                EnqueueMain(() => OnLoginFailed?.Invoke("Firebase Init Exception"));
+                return;
+            }
+        }
+        
+        EmitLog("Starting Editor Mock Login (Email: testuser@gmail.com)...");
 
         try
         {
             // Make sure you created this user in Firebase Console -> Auth -> Email/Password
             var r = await auth.SignInWithEmailAndPasswordAsync("testuser@gmail.com", "123456");
+            
             currentUser = r.User;
             currentLoggedUserID = currentUser?.UserId;
             EmitLog($"✅ Mock Login succeed, UID: {currentLoggedUserID}");
@@ -335,7 +358,7 @@ public class UserDatabaseManager : MonoBehaviour
         }
         catch (Exception e)
         {
-            EmitLog("❌ Mock Login error: " + e.Message);
+            EmitLog($"❌ Mock Login error: {e.Message}");
             EnqueueMain(() => OnLoginFailed?.Invoke(e.Message));
         }
     }
@@ -414,6 +437,11 @@ public class UserDatabaseManager : MonoBehaviour
 #endif
 
 #if UNITY_IOS
+    // --- Game Center Authentication Improvements ---
+    private bool _isGameCenterAuthenticating = false;
+    private Coroutine _gameCenterTimeoutCoroutine = null;
+    private const float GAME_CENTER_AUTH_TIMEOUT = 15f; // seconds
+    
     public void LoginWithGameCenter()
     {
         if (Application.isEditor)
@@ -422,10 +450,39 @@ public class UserDatabaseManager : MonoBehaviour
             return;
         }
 
+        // Guard: Prevent duplicate authentication attempts
+        if (_isGameCenterAuthenticating)
+        {
+            EmitLog("⚠️ Game Center authentication already in progress. Please wait...");
+            return;
+        }
+
+        _isGameCenterAuthenticating = true;
         EmitLog("Starting Game Center Login...");
+        
+        // Start timeout coroutine
+        if (_gameCenterTimeoutCoroutine != null)
+        {
+            StopCoroutine(_gameCenterTimeoutCoroutine);
+        }
+        _gameCenterTimeoutCoroutine = StartCoroutine(GameCenterAuthTimeoutCoroutine());
         
         Social.localUser.Authenticate((bool success) =>
         {
+            // Cancel timeout if we got a response
+            if (_gameCenterTimeoutCoroutine != null)
+            {
+                StopCoroutine(_gameCenterTimeoutCoroutine);
+                _gameCenterTimeoutCoroutine = null;
+            }
+            
+            // Check if we already timed out
+            if (!_isGameCenterAuthenticating)
+            {
+                EmitLog("⚠️ Game Center response received but authentication was already cancelled (timeout).");
+                return;
+            }
+            
             if (success)
             {
                 EmitLog("✅ Game Center Authenticated. Generating Firebase Credential...");
@@ -452,6 +509,8 @@ public class UserDatabaseManager : MonoBehaviour
                 // ----------------------------------------
                  
                 GameCenterAuthProvider.GetCredentialAsync().ContinueWith(task => {
+                    _isGameCenterAuthenticating = false;
+                    
                     if (task.IsCanceled)
                     {
                         EmitLog("❌ GameCenter GetCredentialAsync was canceled.");
@@ -461,7 +520,7 @@ public class UserDatabaseManager : MonoBehaviour
                     if (task.IsFaulted)
                     {
                         EmitLog("❌ GameCenter GetCredentialAsync encountered an error: " + task.Exception);
-                        EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Error"));
+                        EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Error - Please check Settings > Game Center"));
                         return;
                     }
 
@@ -475,10 +534,25 @@ public class UserDatabaseManager : MonoBehaviour
             }
             else
             {
-                EmitLog("❌ Game Center Authentication Failed.");
-                EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Auth Failed"));
+                _isGameCenterAuthenticating = false;
+                EmitLog("❌ Game Center Authentication Failed. Please ensure Game Center is enabled in Settings.");
+                EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Auth Failed - Please check Settings > Game Center"));
             }
         });
+    }
+    
+    private IEnumerator GameCenterAuthTimeoutCoroutine()
+    {
+        yield return new WaitForSeconds(GAME_CENTER_AUTH_TIMEOUT);
+        
+        if (_isGameCenterAuthenticating)
+        {
+            _isGameCenterAuthenticating = false;
+            EmitLog($"⏱️ Game Center authentication timed out after {GAME_CENTER_AUTH_TIMEOUT} seconds.");
+            EnqueueMain(() => OnLoginFailed?.Invoke("Game Center Timeout - Please check Settings > Game Center and try again"));
+        }
+        
+        _gameCenterTimeoutCoroutine = null;
     }
 #endif
 

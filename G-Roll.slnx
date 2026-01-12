@@ -1,5 +1,6 @@
 ﻿<Solution>
   <Project Path="SimpleScrollSnap.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Assembly-CSharp-Editor-firstpass.csproj" />
   <Project Path="LeTai.TrueShadow.csproj" />
@@ -18,7 +19,6 @@
   <Project Path="Sych.ShareAssets.Runtime.csproj" />
   <Project Path="Lofelt.NiceVibrations.csproj" />
   <Project Path="ParticleImage.Editor.csproj" />
-  <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="SimpleScrollSnapEditor.csproj" />
   <Project Path="SimpleInspectorAttributes.csproj" />
   <Project Path="GradientSkybox.csproj" />

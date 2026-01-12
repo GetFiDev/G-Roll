@@ -75,6 +75,15 @@ public class Map : MonoBehaviour
             return;
         }
 
+        // --- SET MAP LENGTH (Creates floor chunks) ---
+        // mapLength is stored in grid cells (e.g., 120 = 1 chunk)
+        int mapLength = data.mapLength > 0 ? data.mapLength : 120; // Default to 1 chunk
+        gridUtility.SetMapLength(mapLength);
+        Debug.Log($"[Map] Set map length to {mapLength} cells ({gridUtility.GetChunkCount()} chunks)");
+
+        // NOTE: Extra gameplay chunks (behind and end) are now spawned by MapManager
+        // at MapsParent level, not here inside the Map's MapFloorContainer
+
         var parent = contentParent != null ? contentParent : transform;
         if (clearBeforeBuild) ClearChildren(parent);
         _spawnedPortals.Clear();

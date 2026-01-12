@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// Manages revive logic for endless mode.
@@ -43,12 +44,20 @@ public class ReviveController : MonoBehaviour
 
     private void Awake()
     {
+        Debug.Log($"[ReviveController] Awake called on {gameObject.name}");
         if (Instance != null && Instance != this)
         {
+            Debug.LogWarning("[ReviveController] Duplicate instance found, destroying...");
             Destroy(gameObject);
             return;
         }
         Instance = this;
+        Debug.Log("[ReviveController] Instance initialized.");
+    }
+
+    private void Start()
+    {
+        Debug.Log($"[ReviveController] Start. Hazard Radius: {hazardClearRadius}");
     }
 
     /// <summary>
@@ -103,7 +112,8 @@ public class ReviveController : MonoBehaviour
         }
 
         // Execute the actual revive
-        ExecuteRevive();
+        // Execute the actual revive
+        ExecuteReviveLogic();
         
         _reviveCount++;
         _isReviving = false;
@@ -126,7 +136,7 @@ public class ReviveController : MonoBehaviour
         _isReviving = true;
         OnReviveStarted?.Invoke();
 
-        ExecuteRevive();
+        ExecuteReviveLogic();
         
         _reviveCount++;
         _isReviving = false;
@@ -137,8 +147,9 @@ public class ReviveController : MonoBehaviour
 
     /// <summary>
     /// Core revive logic - resets player and clears hazards.
+    /// Can be called externally (e.g. from UILevelEnd) after payment verification.
     /// </summary>
-    private void ExecuteRevive()
+    public void ExecuteReviveLogic()
     {
         Debug.Log($"[ReviveController] Executing revive #{_reviveCount + 1}");
 
@@ -188,9 +199,18 @@ public class ReviveController : MonoBehaviour
     /// Clear obstacles, collectibles, and boosters near the player.
     /// Map chunks are preserved.
     /// </summary>
+    /// <summary>
+    /// Clear obstacles, collectibles, and boosters near the player.
+    /// Map chunks are preserved.
+    /// </summary>
     private void ClearNearbyHazards(Vector3 centerPos)
     {
-        var allColliders = Physics.OverlapSphere(centerPos, hazardClearRadius);
+        // Use a position on the track (y=0) for the check to ensure we catch objects 
+        // even if the player fell off the map.
+        Vector3 checkPos = new Vector3(0f, 0f, centerPos.z);
+        
+        var allColliders = Physics.OverlapSphere(checkPos, hazardClearRadius);
+        HashSet<GameObject> objectsToDestroy = new HashSet<GameObject>();
         int clearedCount = 0;
 
         foreach (var col in allColliders)
@@ -200,32 +220,48 @@ public class ReviveController : MonoBehaviour
             // Skip player
             if (col.CompareTag("Player")) continue;
             
-            // Skip map chunks (they have Map component in parent)
-            if (col.GetComponentInParent<Map>() != null) continue;
+            // Skip the Map object itself
+            if (col.GetComponent<Map>() != null) continue;
 
-            // Check for clearable objects
-            bool shouldClear = false;
-            
-            // Obstacles (walls, hammers, lasers, etc.)
-            if (col.GetComponent<Wall>() != null) shouldClear = true;
-            if (col.GetComponent<RotatorHammer>() != null) shouldClear = true;
-            if (col.GetComponent<LaserGate>() != null) shouldClear = true;
-            if (col.GetComponent<Piston>() != null) shouldClear = true;
-            if (col.GetComponent<MovingWall>() != null) shouldClear = true;
+            // Skip LevelSide limiters
+            if (col.gameObject.name.Contains("LevelSide")) continue;
+
+            // Check for Obstacles (Inheriting from Wall)
+            // This covers Wall, MovingWall, RotatorHammer, Piston, LaserGate, etc.
+            var wall = col.GetComponentInParent<Wall>();
+            if (wall != null)
+            {
+                objectsToDestroy.Add(wall.gameObject);
+                continue;
+            }
             
             // Collectibles
-            if (col.GetComponent<Coin>() != null) shouldClear = true;
+            var coin = col.GetComponentInParent<Coin>();
+            if (coin != null)
+            {
+                objectsToDestroy.Add(coin.gameObject);
+                continue;
+            }
             
             // Boosters
-            if (col.GetComponent<BoosterBase>() != null) shouldClear = true;
-
-            if (shouldClear)
+            var booster = col.GetComponentInParent<BoosterBase>();
+            if (booster != null)
             {
-                Destroy(col.gameObject);
+                objectsToDestroy.Add(booster.gameObject);
+                continue;
+            }
+        }
+
+        foreach (var obj in objectsToDestroy)
+        {
+            if (obj != null)
+            {
+                Debug.Log($"[ReviveController] Clearing: {obj.name}");
+                Destroy(obj);
                 clearedCount++;
             }
         }
 
-        Debug.Log($"[ReviveController] Cleared {clearedCount} objects within {hazardClearRadius}m radius.");
+        Debug.Log($"[ReviveController] Cleared {clearedCount} objects around {checkPos} within {hazardClearRadius}m radius.");
     }
 }

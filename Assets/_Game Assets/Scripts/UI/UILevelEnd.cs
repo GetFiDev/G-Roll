@@ -530,7 +530,15 @@ public class UILevelEnd : MonoBehaviour
                 if (revivePanel != null) revivePanel.SetActive(false);
                 
                 // Execute revive
-                GameplayManager.Instance?.ResumeAfterRevive();
+                if (ReviveController.Instance != null)
+                {
+                    ReviveController.Instance.ExecuteReviveLogic();
+                }
+                else
+                {
+                    Debug.LogError("[UILevelEnd] ReviveController missing! Reviving without clearing hazards.");
+                    GameplayManager.Instance?.ResumeAfterRevive();
+                }
                 _isRunning = false;
                 gameObject.SetActive(false);
             }

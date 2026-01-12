@@ -82,8 +82,9 @@ public class OrbitCamera : MonoBehaviour
     {
         var touches = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches;
         
-        // DPI-based normalization for consistent feel across devices
-        float dpiScale = Screen.dpi > 0 ? 160f / Screen.dpi : 1f;
+        // Screen-normalized rotation: dragging across full screen width = orbitSpeed degrees
+        // This ensures consistent feel across all devices regardless of resolution/DPI
+        float screenSize = Mathf.Max(Screen.width, Screen.height);
 
         // 1 Finger: Rotate (Orbit)
         if (touches.Count == 1)
@@ -94,13 +95,12 @@ public class OrbitCamera : MonoBehaviour
             // Only rotate if we've moved (with dead zone)
             if (d.sqrMagnitude > 1f)
             {
-                // Significantly reduced sensitivity for touch rotation
-                // Normalize by screen size for consistent feel
-                float screenNormalizer = 1f / Mathf.Max(Screen.width, Screen.height);
-                float rotSensitivity = orbitSpeed * 0.15f * dpiScale * screenNormalizer * Screen.height;
+                // Unified formula: pixels moved / screen size * orbitSpeed
+                // Full screen drag = orbitSpeed degrees of rotation
+                float degreesPerPixel = orbitSpeed / screenSize;
                 
-                yaw   += d.x * rotSensitivity * Time.deltaTime;
-                pitch -= d.y * rotSensitivity * Time.deltaTime;
+                yaw   += d.x * degreesPerPixel;
+                pitch -= d.y * degreesPerPixel;
                 pitch = Mathf.Clamp(pitch, pitchMin, pitchMax);
             }
         }
@@ -122,8 +122,8 @@ public class OrbitCamera : MonoBehaviour
             // Only apply zoom if pinch delta is significant
             if (Mathf.Abs(deltaDist) > 2f)
             {
-                // Normalized zoom sensitivity
-                float zoomSensitivity = zoomSpeed * 0.002f * dpiScale;
+                // Screen-normalized zoom: pinch across screen height = full zoom range
+                float zoomSensitivity = zoomSpeed / screenSize * 0.5f;
                 distance = Mathf.Clamp(distance + deltaDist * zoomSensitivity, minDistance, maxDistance);
             }
 
@@ -138,12 +138,9 @@ public class OrbitCamera : MonoBehaviour
                 float panDistance = Mathf.Max(distance, 15f);
                 float worldPerPixelY = 2f * panDistance * Mathf.Tan(vfovRad * 0.5f) / Mathf.Max(1, Screen.height);
                 
-                // Significantly reduced pan sensitivity for touch
-                float panSensitivity = panSpeed * 0.3f * dpiScale;
-                
                 // Direct Z-axis movement: vertical drag controls Z position
                 // Dragging up (positive Y) moves forward (+Z), dragging down moves backward (-Z)
-                float zMovement = -avgDelta.y * worldPerPixelY * panSensitivity;
+                float zMovement = -avgDelta.y * worldPerPixelY * panSpeed;
                 pivot.position = new Vector3(0f, 0f, pivot.position.z + zMovement);
             }
         }
@@ -176,8 +173,14 @@ public class OrbitCamera : MonoBehaviour
         if (mouse.rightButton.isPressed)
         {
             Vector2 d = mouse.delta.ReadValue();
-            yaw   += d.x * orbitSpeed * Time.deltaTime * 0.02f;
-            pitch -= d.y * orbitSpeed * Time.deltaTime * 0.02f;
+            
+            // Unified formula: pixels moved / screen size * orbitSpeed
+            // Same as touch - full screen drag = orbitSpeed degrees of rotation
+            float screenSize = Mathf.Max(Screen.width, Screen.height);
+            float degreesPerPixel = orbitSpeed / screenSize;
+            
+            yaw   += d.x * degreesPerPixel;
+            pitch -= d.y * degreesPerPixel;
             pitch = Mathf.Clamp(pitch, pitchMin, pitchMax);
         }
 

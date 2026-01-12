@@ -84,7 +84,12 @@ public class MapGridCellUtility : MonoBehaviour
     public void SetMapLength(int newZCells)
     {
         zCells = Mathf.Max(GRID_CELLS_PER_CHUNK, newZCells);
-        RefreshMapChunks();
+        
+        // Only spawn chunks in Editor (MapDesigner). At runtime, MapManager handles floor chunks.
+        if (!Application.isPlaying)
+        {
+            RefreshMapChunks();
+        }
 #if UNITY_EDITOR
         SceneView.RepaintAll();
 #endif
@@ -98,8 +103,11 @@ public class MapGridCellUtility : MonoBehaviour
 
     void Start()
     {
+        // Only spawn chunks in Editor (MapDesigner). At runtime, MapManager handles floor chunks.
+        if (Application.isPlaying) return;
+        
         // Initialize with default 1 chunk if not already set
-        if (Application.isPlaying && zCells < GRID_CELLS_PER_CHUNK)
+        if (zCells < GRID_CELLS_PER_CHUNK)
         {
             zCells = GRID_CELLS_PER_CHUNK;
         }
@@ -168,6 +176,46 @@ public class MapGridCellUtility : MonoBehaviour
                  DestroyImmediate(child);
 #endif
              }
+        }
+    }
+
+    /// <summary>
+    /// Spawns extra floor chunks for gameplay (NOT for MapDesigner).
+    /// - Chapter mode: One chunk at z=-30 (behind start) + one chunk after the last regular chunk
+    /// - Endless mode: One chunk at z=-30 (behind start) only
+    /// </summary>
+    /// <param name="isChapterMode">True for chapter mode, false for endless mode</param>
+    public void SpawnGameplayExtraChunks(bool isChapterMode)
+    {
+        Debug.Log($"[MapGridCellUtility] SpawnGameplayExtraChunks called. mapChunkPrefab={mapChunkPrefab != null}, mapFloorContainer={mapFloorContainer != null}");
+        if (!mapChunkPrefab || !mapFloorContainer) 
+        {
+            Debug.LogWarning("[MapGridCellUtility] Cannot spawn extra chunks - missing prefab or container!");
+            return;
+        }
+        
+        const float CHUNK_UNITY_UNITS = 60f;
+        
+        // --- Behind Start Chunk (z = -30) - Both modes ---
+        var behindChunk = Instantiate(mapChunkPrefab, mapFloorContainer);
+        behindChunk.name = "MapChunk_Behind";
+        behindChunk.transform.localPosition = new Vector3(0, 0, -30f);
+        behindChunk.transform.localRotation = Quaternion.identity;
+        Debug.Log("[MapGridCellUtility] Spawned behind chunk at z=-30");
+        
+        // --- End Chunk (after last regular chunk) - Chapter mode only ---
+        if (isChapterMode)
+        {
+            int regularChunkCount = GetChunkCount();
+            // Last regular chunk is at z = 30 + ((regularChunkCount-1) * 60)
+            // Next chunk after that is at z = 30 + (regularChunkCount * 60)
+            float endChunkZ = 30f + (regularChunkCount * CHUNK_UNITY_UNITS);
+            
+            var endChunk = Instantiate(mapChunkPrefab, mapFloorContainer);
+            endChunk.name = "MapChunk_End";
+            endChunk.transform.localPosition = new Vector3(0, 0, endChunkZ);
+            endChunk.transform.localRotation = Quaternion.identity;
+            Debug.Log($"[MapGridCellUtility] Spawned end chunk at z={endChunkZ}");
         }
     }
 

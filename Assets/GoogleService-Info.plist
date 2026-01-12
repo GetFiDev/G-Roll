@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>926358794548-mge1gh05rkfhp17ll6hnu37p5csd0b79.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.926358794548-mge1gh05rkfhp17ll6hnu37p5csd0b79</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>926358794548-sdihuatc25pic639r8f1pubv73cifrbs.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -11,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.get.grolladminapp</string>
+	<string>com.get.groll</string>
 	<key>PROJECT_ID</key>
 	<string>getfi-7f987</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,8 +29,8 @@
 	<key>IS_GCM_ENABLED</key>
 	<true></true>
 	<key>IS_SIGNIN_ENABLED</key>
-	<false></false>
+	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:926358794548:ios:6ab51cc7e23a6e9feb3561</string>
+	<string>1:926358794548:ios:dd69dca31dfaa6fdeb3561</string>
 </dict>
 </plist>

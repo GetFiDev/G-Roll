@@ -2585,7 +2585,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   pivot: {fileID: 77929727}
   distance: 20
-  minDistance: 15
+  minDistance: 9
   maxDistance: 60
   orbitSpeed: 5760
   zoomSpeed: 10
@@ -10824,7 +10824,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64aebb62d30854da29125e4f9d043bc3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  xCells: 16
+  xCells: 17
   zCells: 120
   mapChunkPrefab: {fileID: 5675756268594848654, guid: 76c853d9abb6d4609a55966858817535,
     type: 3}

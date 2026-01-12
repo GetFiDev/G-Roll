@@ -152,6 +152,10 @@ public class FirebaseLoginHandler : MonoBehaviour
         {
             AppFlowManager.Instance.OnAuthenticationSuccess();
         }
+        else
+        {
+            Log("⚠️ AppFlowManager.Instance missing.");
+        }
     }
     
     public void ForceHideLoading() => SetLoading(false);

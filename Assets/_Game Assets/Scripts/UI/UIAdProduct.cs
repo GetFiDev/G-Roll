@@ -147,11 +147,15 @@ public class UIAdProduct : MonoBehaviour
     /// <param name="onExternalSuccess">Optional callback executed specific to this call on success.</param>
     public void TriggerAdFromExternal(Action onExternalSuccess)
     {
-        if (_usedToday >= _dailyLimit) 
+        // If daily limit hasn't been fetched yet (_dailyLimit = 0), allow the ad
+        // The server will validate anyway
+        if (_dailyLimit > 0 && _usedToday >= _dailyLimit) 
         {
-            Debug.Log("[UIAdProduct] Daily limit reached. Cannot show ad.");
+            Debug.Log($"[UIAdProduct] Daily limit reached ({_usedToday}/{_dailyLimit}). Cannot show ad.");
             return;
         }
+        
+        Debug.Log($"[UIAdProduct] Triggering ad. Usage: {_usedToday}/{_dailyLimit}");
         
         if (actionButton != null) actionButton.interactable = false; // Prevent double clicks
 

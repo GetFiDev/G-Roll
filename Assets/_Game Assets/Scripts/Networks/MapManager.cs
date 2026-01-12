@@ -31,6 +31,7 @@ namespace RemoteApp
 
         [Title("Build Settings")]
         [SerializeField] private GameObject mapPrefab; // must have Map component
+        [SerializeField] private GameObject mapChunkPrefab; // Floor chunk prefab for runtime maps
         [SerializeField] private Transform mapsParent; // optional parent for all maps
         [SerializeField] private Vector3 startPosition = Vector3.zero; // first map origin
         [SerializeField] private Vector3 step = new Vector3(0f, 0f, 50f); // delta per map
@@ -242,8 +243,61 @@ namespace RemoteApp
                     SpawnRandomFromPool();
                 }
             }
+            
+            // 2) Spawn Extra Floor Chunks (at MapsParent level, not inside Map)
+            SpawnExtraFloorChunks();
   
             Debug.Log($"[MapManager] Built {activeMaps.Count} maps. Mode: {currentMode}");
+        }
+
+        /// <summary>
+        /// Spawns extra floor chunks at MapsParent level (not inside Map).
+        /// - Both modes: One chunk at z=-30 (behind the start)
+        /// - Chapter mode only: One chunk after the last map chunk
+        /// </summary>
+        private void SpawnExtraFloorChunks()
+        {
+            if (mapChunkPrefab == null)
+            {
+                Debug.LogWarning("[MapManager] mapChunkPrefab is null, cannot spawn extra floor chunks.");
+                return;
+            }
+
+            var parent = mapsParent != null ? mapsParent : this.transform;
+            const float CHUNK_UNITY_UNITS = 60f;
+
+            // --- Behind Chunk (z = -60) - Both modes ---
+            var behindChunk = Instantiate(mapChunkPrefab, parent);
+            behindChunk.name = "MapChunk_Behind";
+            behindChunk.transform.localPosition = new Vector3(0, 0, -60f);
+            behindChunk.transform.localRotation = Quaternion.identity;
+            Debug.Log("[MapManager] Spawned behind chunk at z=-60");
+
+            // --- End Chunk - Chapter mode only ---
+            if (currentMode == GameMode.Chapter && activeMaps.Count > 0)
+            {
+                // Get map length from the first (and only) chapter map
+                var chapterMap = activeMaps.First.Value;
+                var gridUtility = chapterMap?.GetComponentInChildren<MapGridCellUtility>();
+                
+                if (gridUtility != null)
+                {
+                    int chunkCount = gridUtility.GetChunkCount();
+                    // Regular chunk centers: z=30, z=90, z=150...
+                    // Last regular chunk center is at z = 30 + ((chunkCount-1) * 60)
+                    // End chunk should be +30 after last chunk center:
+                    // 1 chunk: last at z=30, end at z=60
+                    // 2 chunks: last at z=90, end at z=120
+                    float lastChunkZ = 30f + ((chunkCount - 1) * CHUNK_UNITY_UNITS);
+                    float endChunkZ = lastChunkZ + 30f;
+                    
+                    var endChunk = Instantiate(mapChunkPrefab, parent);
+                    endChunk.name = "MapChunk_End";
+                    endChunk.transform.localPosition = new Vector3(0, 0, endChunkZ);
+                    endChunk.transform.localRotation = Quaternion.identity;
+                    Debug.Log($"[MapManager] Spawned end chunk at z={endChunkZ} (chunkCount={chunkCount})");
+                }
+            }
         }
 
         private void SpawnRandomFromPool()
@@ -267,6 +321,13 @@ namespace RemoteApp
 
              if (map)
              {
+                 // Inject chunk prefab into GridUtility (runtime maps don't have it pre-assigned)
+                 var gridUtility = inst.GetComponentInChildren<MapGridCellUtility>();
+                 if (gridUtility != null && mapChunkPrefab != null)
+                 {
+                     gridUtility.mapChunkPrefab = mapChunkPrefab;
+                 }
+                 
                  map.mapJson = json;
                  map.Initialize();
                  activeMaps.AddLast(map);
