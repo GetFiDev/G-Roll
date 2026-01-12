@@ -330,6 +330,7 @@ namespace MapDesignerTool
             if (target != null && gridPlacer != null)
             {
                 gridPlacer.TryMoveObject(target, dx, dz);
+                FocusCameraOnObject(target);
             }
         }
 
@@ -338,7 +339,40 @@ namespace MapDesignerTool
             if (target != null && gridPlacer != null)
             {
                 gridPlacer.TryRotateObject(target);
+                FocusCameraOnObject(target);
             }
+        }
+        
+        /// <summary>
+        /// Focuses the camera on the given object (same as Modify mode selection)
+        /// </summary>
+        void FocusCameraOnObject(GameObject target)
+        {
+            if (target == null || orbitCam == null) return;
+            
+            // Calculate visual center similar to GridPlacer.SelectObject
+            Vector3 visualCenter = target.transform.position;
+            var placedData = target.GetComponent<PlacedItemData>();
+            
+            if (placedData != null && gridPlacer != null)
+            {
+                // Get grid utility from gridPlacer
+                var grid = gridPlacer.GetComponent<MapGridCellUtility>();
+                if (grid != null)
+                {
+                    Vector2Int size = placedData.item != null ? placedData.item.size : Vector2Int.one;
+                    // Apply rotation to size
+                    if (placedData.rotationIndex == 1 || placedData.rotationIndex == 3)
+                        size = new Vector2Int(size.y, size.x);
+                    
+                    Vector3 p1 = grid.GetCellCenterWorld(placedData.gridX, placedData.gridY);
+                    Vector3 p2 = grid.GetCellCenterWorld(placedData.gridX + size.x - 1, placedData.gridY + size.y - 1);
+                    visualCenter = (p1 + p2) * 0.5f;
+                }
+            }
+            
+            // Focus camera on the calculated center
+            orbitCam.FocusOn(visualCenter, orbitCam.minDistance, 0.25f);
         }
 
         void PopulatePlaceItems()
