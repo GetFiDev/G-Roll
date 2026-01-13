@@ -1937,6 +1937,9 @@ MonoBehaviour:
   m_MultiSelect: 0
   m_Options:
     m_Options:
+    - m_Text: Very Easy
+      m_Image: {fileID: 21300000, guid: 84487d73ca4b791498332d8f6858417f, type: 3}
+      m_Color: {r: 0, g: 1, b: 0.9374714, a: 1}
     - m_Text: Easy
       m_Image: {fileID: 21300000, guid: 84487d73ca4b791498332d8f6858417f, type: 3}
       m_Color: {r: 0.40699744, g: 1, b: 0, a: 1}
@@ -4314,10 +4317,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
-  m_ScaleFactor: 1
+  m_ScaleFactor: 1.03
   m_ReferenceResolution: {x: 1792, y: 828}
   m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0.52
+  m_MatchWidthOrHeight: 0.51
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
