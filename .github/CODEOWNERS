@@ -1,0 +1,80 @@
+# G-Roll Code Owners
+# These owners will be automatically requested for review
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything (Lead Developer)
+* @lead-developer
+
+# ============================================
+# LEVEL 0: HARD LOCK - Senior approval required
+# ============================================
+
+# IAP (Revenue Critical)
+Assets/_Game\ Assets/Scripts/Managers/IAPManager.cs @lead-developer
+Assets/_Game\ Assets/Scripts/Networks/IAPRemoteService.cs @lead-developer
+functions/src/modules/iap.functions.ts @lead-developer
+
+# Authentication
+Assets/_Game\ Assets/Scripts/Networks/FirebaseLoginHandler.cs @lead-developer
+functions/src/firebase.ts @lead-developer
+
+# Build & Release
+.github/workflows/ @lead-developer
+fastlane/ @lead-developer
+functions/deploy.sh @lead-developer
+exportOptions.plist @lead-developer
+
+# Credentials (should never be in repo, but just in case)
+**/service-account*.json @lead-developer
+**/*credential* @lead-developer
+**/*secret* @lead-developer
+
+# ============================================
+# LEVEL 1: GUARDED - Extra review required
+# ============================================
+
+# Monetization
+Assets/_Game\ Assets/Scripts/Managers/AdManager.cs @lead-developer
+Assets/_Game\ Assets/Scripts/Managers/ShopItemManager.cs @lead-developer
+functions/src/modules/ad.functions.ts @lead-developer
+functions/src/modules/shop.functions.ts @lead-developer
+
+# Economy
+Assets/_Game\ Assets/Scripts/Utility/CurrencyManager.cs @lead-developer
+functions/src/modules/energy.functions.ts @lead-developer
+
+# User Data
+Assets/_Game\ Assets/Scripts/Networks/UserDatabaseManager.cs @lead-developer
+functions/src/modules/user.functions.ts @lead-developer
+
+# Sessions
+functions/src/modules/session.functions.ts @lead-developer
+
+# Data Contracts
+functions/src/utils/constants.ts @lead-developer
+Assets/Resources/IAPProductCatalog.json @lead-developer
+
+# ============================================
+# LEVEL 2: SAFE - Standard review
+# ============================================
+
+# UI (any team member can review)
+Assets/_Game\ Assets/Scripts/UI/ @lead-developer
+
+# Gameplay
+Assets/_Game\ Assets/Scripts/Entities/ @lead-developer
+Assets/_Game\ Assets/Scripts/Controllers/ @lead-developer
+Assets/_Game\ Assets/Scripts/Player/ @lead-developer
+
+# Documentation
+docs/ @lead-developer
+*.md @lead-developer
+
+# ============================================
+# Notes:
+# - Replace @lead-developer with actual GitHub username
+# - Add more team members as the team grows:
+#   - @backend-developer for functions/
+#   - @mobile-developer for Assets/
+#   - @qa-lead for docs/qa/
+# ============================================
