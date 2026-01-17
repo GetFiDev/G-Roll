@@ -302,6 +302,30 @@ All remote communication goes through this layer. Services call Firebase Cloud F
 | `IAPRemoteService.cs` | `/Networks/` | Purchase verification | LEVEL 0 |
 | `InventoryRemoteService.cs` | `/Networks/` | Server-authoritative inventory | LEVEL 1 |
 
+**⚠️ UserDatabaseManager: What It Does / Doesn't Do**
+
+**⚠️ DEVELOPER NOTE (Çağıl):** UserDatabaseManager is **monolithic** (no separate UserProfileManager). It's the single point of contact for ALL user data operations.
+
+| Responsibility | What It DOES | What It DOESN'T Do |
+|----------------|--------------|-------------------|
+| **Data Fetching** | ✅ Fetches `/users/{uid}` (single document) on Initialize(uid) | ❌ Does NOT fetch session history (managed by Cloud Functions) |
+| **State Hydration** | ✅ Hydrates local managers (CurrencyManager, InventoryManager, StatsManager, EnergyManager) | ❌ Does NOT directly access Firestore for specific queries (delegates to services) |
+| **User Profile** | ✅ Manages profile data (nickname, referralCode, profileComplete) | ❌ No separate UserProfileManager class exists |
+| **Inventory/Stats** | ✅ Loads equippedItemIds and statsJson | ❌ Does NOT calculate stats (Cloud Functions do that on equip/unequip) |
+| **Cloud Functions** | ✅ Waits for Cloud Functions to complete operations (createUser, completeUserProfile) | ❌ Does NOT call Cloud Functions directly (services like IAPRemoteService do) |
+| **Real-time Sync** | ✅ MAY use Firestore listeners for currency/inventory changes | ❌ Does NOT poll Firestore repeatedly (event-driven) |
+| **Risk** | 🔴 **CRITICAL** - Single point of failure for ALL user data | ⚠️ Modify with extreme caution (60KB monolith) |
+
+**Why Monolithic?**
+- Historical design: Started small, grew to 60KB
+- Tightly coupled to multiple managers
+- High refactoring risk (CRITICAL surface)
+
+**When to Touch:**
+- ✅ Adding new field hydration (low risk)
+- ⚠️ Changing initialization flow (high risk - requires proposal)
+- ❌ Splitting into separate managers (AVOID - too risky for production)
+
 #### Session & Gameplay Services
 
 | Service | Path | Responsibility |
