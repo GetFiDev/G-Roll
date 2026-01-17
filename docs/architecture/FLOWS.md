@@ -159,36 +159,67 @@ The app follows a strict initialization sequence to ensure all systems are ready
 └──────────────────────────────────────────────────────┘
 ```
 
-### 2.2 New User Creation
+### 2.2 New User Creation (Two-Stage Process)
+
+**⚠️ DEVELOPER NOTE (Çağıl):** User creation is a **two-step process**:
+1. **createUser** - Creates base document (without nickname/profile)
+2. **completeUserProfile** - Finalizes profile after user inputs nickname and optional referral code
 
 ```
-FirebaseLoginHandler                    user.functions.ts                    Firestore
-        │                                       │                                │
-        │  New UID detected                     │                                │
-        │───────────────────────────────────────│                                │
-        │                                       │                                │
-        │  httpsCallable("createUser")          │                                │
-        │──────────────────────────────────────>│                                │
-        │                                       │                                │
-        │                                       │  Create /users/{uid}           │
-        │                                       │───────────────────────────────>│
-        │                                       │                                │
-        │                                       │  Initialize default values:    │
-        │                                       │  - profile (empty)             │
-        │                                       │  - stats (zeros)               │
-        │                                       │  - inventory (starter items)   │
-        │                                       │  - energy (full)               │
-        │                                       │  - streak (0)                  │
-        │                                       │                                │
-        │                                       │  Generate referral code        │
-        │                                       │───────────────────────────────>│
-        │                                       │                                │
-        │  { success: true, isNewUser: true }   │                                │
-        │<──────────────────────────────────────│                                │
-        │                                       │                                │
-        │  Show onboarding / name entry         │                                │
-        │                                       │                                │
+FirebaseLoginHandler          user.functions.ts (createUser)        Firestore
+        │                              │                                │
+        │  New UID detected            │                                │
+        │──────────────────────────────│                                │
+        │                              │                                │
+        │  httpsCallable("createUser") │                                │
+        │─────────────────────────────>│                                │
+        │                              │                                │
+        │                              │  Create /users/{uid}           │
+        │                              │  (BASE DOCUMENT ONLY)          │
+        │                              │───────────────────────────────>│
+        │                              │                                │
+        │                              │  Initialize:                   │
+        │                              │  - uid                         │
+        │                              │  - createdAt                   │
+        │                              │  - stats (zeros)               │
+        │                              │  - inventory (starter items)   │
+        │                              │  - energy (full)               │
+        │                              │  - streak (0)                  │
+        │                              │  - profile: INCOMPLETE         │
+        │                              │                                │
+        │  { success, isNewUser }      │                                │
+        │<─────────────────────────────│                                │
+        │                              │                                │
+        │  Show UI: Nickname entry     │                                │
+        │  + optional referral code    │                                │
+        │                              │                                │
+        │  User enters nickname        │                                │
+        │                              │                                │
+        │  httpsCallable               │                                │
+        │  ("completeUserProfile")     │                                │
+        │─────────────────────────────────────────────────────────────>│
+        │                              │                                │
+        │                              user.functions.ts                │
+        │                              (completeUserProfile)            │
+        │                              │                                │
+        │                              │  Validate nickname unique      │
+        │                              │  Generate referral code        │
+        │                              │  Update /users/{uid}:          │
+        │                              │  - nickname                    │
+        │                              │  - referralCode                │
+        │                              │  - profileComplete: true       │
+        │                              │───────────────────────────────>│
+        │                              │                                │
+        │  { success, referralCode }   │                                │
+        │<─────────────────────────────────────────────────────────────│
+        │                              │                                │
+        │  Proceed to main menu        │                                │
+        │                              │                                │
 ```
+
+**Cloud Functions Involved:**
+- `createUser` (user.functions.ts) - Creates base document
+- `completeUserProfile` (user.functions.ts) - Finalizes profile with nickname and referral code
 
 ### 2.3 Token Refresh
 
@@ -415,6 +446,8 @@ ad.functions.ts checks:
 
 ### 5.1 Session Lifecycle
 
+**⚠️ DEVELOPER NOTE (Çağıl):** "Transfaktör" feature status unclear - may have been removed. If still active, needs to be added to this flow. **TODO:** Code review required to confirm.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           SESSION LIFECYCLE                                  │
@@ -489,20 +522,41 @@ GameplayManager              SessionResultRemoteService          session.functio
       │                              │                                │
 ```
 
-### 5.4 Anti-Cheat Measures
+### 5.4 Anti-Cheat Validation System
 
-| Measure | Location | Description |
-|---------|----------|-------------|
-| Session token | Server | Each session has unique ID |
-| Time validation | Server | Session duration must be realistic |
-| Score validation | Server | Score must match time/distance ratio |
-| Duplicate check | Server | Same session can't submit twice |
+**⚠️ DEVELOPER NOTE (Çağıl):** Anti-cheat includes pen validation, score validation, duplicate check, session token, and additional checks like coin count validation.
+
+#### Minimum Validation Set (Game-Breaking if Removed)
+
+These validations are **CRITICAL**. If any is removed, the game becomes exploitable:
+
+| Validation | Location | What It Prevents | If Broken |
+|------------|----------|------------------|-----------|
+| **Session Token** | `session.functions.ts` | Replay attacks, forged sessions | Cheaters can submit fake sessions without playing |
+| **Duplicate Check** | `session.functions.ts` | Same sessionId submitted twice | Cheaters can replay one good session infinitely |
+| **Pen Validation** | `session.functions.ts` | Forged difficulty/map data | Cheaters can claim rewards for easy maps as hard maps |
+
+**Impact:** If these fail → **Revenue loss, leaderboard fraud, currency inflation**
+
+#### Additional Validations (Heuristics, Not Blockers)
+
+These detect suspicious behavior but don't block submissions:
+
+| Validation | Location | What It Checks | Action on Failure |
+|------------|----------|----------------|-------------------|
+| **Time Validation** | `session.functions.ts` | Session duration realistic (not 1 second for 1000m) | Flag user, log anomaly |
+| **Score Validation** | `session.functions.ts` | Score matches time/distance ratio | Cap rewards at reasonable max |
+| **Coin Count Validation** | `session.functions.ts` | Collected coins <= max possible for map | Cap at map maximum |
+
+**Impact:** If these fail → **Suspicious activity logged, rewards capped, but game still playable**
 
 ---
 
 ## 6. User Data Sync Flow
 
-### 6.1 Initial Load
+### 6.1 Initial Load (UID-Based State Hydration)
+
+**⚠️ DEVELOPER NOTE (Çağıl):** UserDatabaseManager does **NOT** fetch session history. It only fetches the main user document. Session history is managed separately by Cloud Functions.
 
 ```
 UserDatabaseManager                      Firestore
@@ -510,21 +564,35 @@ UserDatabaseManager                      Firestore
         │  Initialize(uid)                   │
         │                                    │
         │  Fetch /users/{uid}                │
+        │  (SINGLE DOCUMENT)                 │
         │───────────────────────────────────>│
         │                                    │
-        │  { profile, stats, inventory... }  │
+        │  { profile, stats, inventory,      │
+        │    energy, coins, diamonds,        │
+        │    equippedItemIds, statsJson }    │
         │<───────────────────────────────────│
         │                                    │
-        │  Fetch /users/{uid}/sessions       │
-        │───────────────────────────────────>│
+        │  Hydrate local state:              │
+        │  - CurrencyManager.SetCoins()      │
+        │  - InventoryManager.LoadItems()    │
+        │  - StatsManager.LoadStats()        │
+        │  - EnergyManager.SetEnergy()       │
         │                                    │
-        │  [session history]                 │
-        │<───────────────────────────────────│
-        │                                    │
-        │  Cache locally                     │
-        │  Notify listeners                  │
+        │  Notify listeners (data ready)     │
         │                                    │
 ```
+
+**State Hydration Flow:**
+1. **UID obtained** from Firebase Auth
+2. **Single Firestore fetch** to `/users/{uid}`
+3. **Local managers hydrate** from document fields
+4. **Cloud Functions handle** all server-side logic (session creation, result processing, achievements, etc.)
+
+**What is NOT fetched on startup:**
+- ❌ Session history (only fetched by Cloud Functions during result submission)
+- ❌ Achievement progress details (fetched on-demand when UI opens)
+- ❌ Leaderboard data (fetched on-demand)
+- ❌ Task history (fetched on-demand)
 
 ### 6.2 Real-time Updates
 
@@ -587,12 +655,13 @@ if (regenAmount > 0):
 
 ### 7.3 Energy Refill Options
 
+**⚠️ DEVELOPER NOTE (Çağıl):** Elite Pass does **NOT** provide faster energy regen.
+
 | Method | Cost | Result |
 |--------|------|--------|
-| Wait | Free | +1 per X minutes |
-| Watch Ad | Free | +Y energy |
-| Diamonds | Z diamonds | Full refill |
-| Elite Pass | Subscription | Faster regen |
+| Wait | Free | +1 per X minutes (natural regen) |
+| Watch Ad | Free | +Y energy (instant) |
+| Diamonds | Z diamonds | Full refill (instant) |
 
 ---
 
@@ -622,7 +691,9 @@ UIShopPanel                    InventoryRemoteService              shop.function
       │                              │                                │
 ```
 
-### 8.2 Equip Item
+### 8.2 Equip/Unequip Item (⚠️ HIGH-RISK: Stat Corruption)
+
+**⚠️ DEVELOPER NOTE (Çağıl):** Equip/Unequip modifies user stats. This area **frequently breaks** due to stat recomputation errors. **Stats must be recalculated** on EVERY equip/unequip operation.
 
 ```
 UIInventory                    InventoryRemoteService              shop.functions.ts
@@ -633,13 +704,55 @@ UIInventory                    InventoryRemoteService              shop.function
       │                              │  httpsCallable("equipItem")    │
       │                              │───────────────────────────────>│
       │                              │                                │
-      │                              │              Verify ownership  │
-      │                              │              Update equipped[] │
+      │                              │  ┌──────────────────────────┐ │
+      │                              │  │ CRITICAL STEPS:          │ │
+      │                              │  │ 1. Verify ownership      │ │
+      │                              │  │ 2. Add to equipped[]     │ │
+      │                              │  │ 3. **RECOMPUTE STATS**   │ │
+      │                              │  │    (base + all equipped) │ │
+      │                              │  │ 4. Save statsJson        │ │
+      │                              │  └──────────────────────────┘ │
       │                              │                                │
-      │                              │  { success }                   │
+      │                              │  { success, newStatsJson }     │
       │                              │<───────────────────────────────│
       │                              │                                │
+      │  Update local stats          │                                │
+      │<─────────────────────────────│                                │
+      │                              │                                │
 ```
+
+**Unequip Flow:**
+```
+UIInventory → httpsCallable("unequipItem")
+              │
+              ├── Remove from equipped[]
+              ├── **RECOMPUTE STATS** (base + remaining equipped items)
+              └── Save statsJson
+```
+
+**⚠️ COMMON BUG:**
+Forgetting to recalculate stats after equip/unequip results in:
+- Stats added/removed multiple times (double bonuses)
+- Stats not removed when unequipping
+- StatsJson out of sync with equippedItemIds
+
+**Stat Recomputation Logic:**
+```typescript
+// CORRECT approach
+const baseStats = getBaseStats(userId);
+const equippedItems = await getEquippedItems(userId);
+const totalStats = baseStats;
+
+for (const item of equippedItems) {
+  totalStats.speed += item.stats.speed;
+  totalStats.jump += item.stats.jump;
+  // ... apply all stat bonuses
+}
+
+await updateUser(userId, { statsJson: JSON.stringify(totalStats) });
+```
+
+**Risk Level:** 🟠 HIGH - Stat corruption breaks gameplay
 
 ---
 
@@ -663,90 +776,168 @@ session.functions.ts (submitSessionResult)
       │  Recalculate ranks
 ```
 
-### 9.2 Fetch Leaderboard
+### 9.2 Fetch Leaderboard (SeasonID-Based)
+
+**⚠️ DEVELOPER NOTE (Çağıl):** Leaderboard does **NOT** use daily/weekly periods. Instead, it uses **SeasonID** parameter + **all-time** leaderboard.
 
 ```
 LeaderboardService                    leaderboard.functions.ts
       │                                       │
-      │  GetLeaderboard(period, limit)        │
+      │  GetLeaderboard(seasonId, limit)      │
+      │  (seasonId: "season-2024-q1" or       │
+      │   "all-time")                         │
       │──────────────────────────────────────>│
       │                                       │
-      │                       Query top N     │
+      │                       Query top N for │
+      │                       specified season│
       │                       Include user    │
       │                       rank if outside │
+      │                       top N           │
       │                                       │
-      │  { entries[], userRank }              │
+      │  { entries[], userRank, seasonId }    │
       │<──────────────────────────────────────│
       │                                       │
 ```
 
-### 9.3 Leaderboard Periods
+### 9.3 Leaderboard Types
 
-| Period | Reset | Prize Distribution |
-|--------|-------|-------------------|
-| Daily | 00:00 UTC | Morning |
-| Weekly | Monday 00:00 UTC | Monday morning |
-| All-Time | Never | - |
+**⚠️ NO daily/weekly periods**. Only season-based and all-time:
+
+| Type | Parameter | Reset | Prize Distribution |
+|------|-----------|-------|-------------------|
+| **Seasonal** | `seasonId` (e.g., "season-2024-q1") | When new season starts | End of season |
+| **All-Time** | `"all-time"` | Never | - |
+
+**Example SeasonIDs:**
+- `"season-2024-q1"` - Q1 2024 season
+- `"season-2024-q2"` - Q2 2024 season
+- `"all-time"` - Cumulative leaderboard
+
+**Firestore Structure:**
+```
+/leaderboards/{seasonId}/entries/{uid}
+  - score: number
+  - rank: number
+  - username: string
+  - timestamp: Timestamp
+```
 
 ---
 
-## 10. Achievement & Task Flow
+## 10. Achievement & Daily Task Flow
 
-### 10.1 Achievement Unlock
+**⚠️ DEVELOPER NOTE (Çağıl):**
+- **NO local progress tracking** for coin collection or other in-game events
+- **ALL progress updates** happen server-side in `submitSessionResult` (Cloud Functions)
+- **Client UI only shows claimable state** (fetched from Firestore)
+- **Achievements** and **Daily Tasks** are separate systems but follow similar 3-stage flow
 
-```
-Client Event (e.g., PlayerCollision)          AchievementService            achievements.functions.ts
-              │                                      │                              │
-              │  OnCoinCollected()                   │                              │
-              │─────────────────────────────────────>│                              │
-              │                                      │                              │
-              │                                      │  Check local progress        │
-              │                                      │                              │
-              │                                      │  If threshold reached:       │
-              │                                      │  httpsCallable("unlock")     │
-              │                                      │─────────────────────────────>│
-              │                                      │                              │
-              │                                      │             Mark unlocked    │
-              │                                      │             Grant reward     │
-              │                                      │                              │
-              │                                      │  { reward }                  │
-              │                                      │<─────────────────────────────│
-              │                                      │                              │
-              │                                      │  Show achievement popup      │
-              │                                      │                              │
-```
+---
 
-### 10.2 Daily Task Progress
+### 10.1 Three-Stage Flow (Achievements & Tasks)
+
+Both Achievements and Daily Tasks follow this pattern:
+
+#### Stage 1: Progress Update (Server-Side ONLY)
 
 ```
-session.functions.ts (submitSessionResult)
-      │
-      │  For each active task:
-      │      Check if session contributes
-      │      Update task progress
-      │      │
-      │      └── If complete: Mark claimable
+GameplayManager              session.functions.ts (submitSessionResult)      Firestore
+      │                                  │                                      │
+      │  Player completes session        │                                      │
+      │  (collected 100 coins, etc.)     │                                      │
+      │──────────────────────────────────│                                      │
+      │                                  │                                      │
+      │                                  │  FOR EACH ACHIEVEMENT/TASK:          │
+      │                                  │  - Check session data contributes    │
+      │                                  │  - Update progress counter           │
+      │                                  │  - If threshold reached:             │
+      │                                  │    Set claimable = true              │
+      │                                  │───────────────────────────────────────>│
+      │                                  │                                      │
+      │                                  │  Progress saved                       │
+      │                                  │<──────────────────────────────────────│
+      │                                  │                                      │
 ```
 
-### 10.3 Claim Task Reward
+**Key Point:** Client does **NOT** track "I collected 50 coins this session". Cloud Functions calculate progress from submitted session data.
+
+---
+
+#### Stage 2: Claimable State Check (Client Fetch)
 
 ```
-UITaskPanel                    TaskService                    tasks.functions.ts
-      │                              │                              │
-      │  ClaimReward(taskId)         │                              │
-      │─────────────────────────────>│                              │
-      │                              │                              │
-      │                              │  httpsCallable("claimTask")  │
-      │                              │─────────────────────────────>│
-      │                              │                              │
-      │                              │         Verify completed     │
-      │                              │         Grant reward         │
-      │                              │         Mark claimed         │
-      │                              │                              │
-      │                              │  { reward }                  │
-      │                              │<─────────────────────────────│
-      │                              │                              │
+UIAchievementPanel / UITaskPanel        Firestore                AchievementService / TaskService
+         │                                  │                                │
+         │  User opens Achievements/Tasks   │                                │
+         │  panel                           │                                │
+         │──────────────────────────────────────────────────────────────────>│
+         │                                  │                                │
+         │                                  │  Fetch achievements/tasks      │
+         │                                  │  where claimable = true        │
+         │                                  │<───────────────────────────────│
+         │                                  │                                │
+         │                                  │  { claimableItems[] }          │
+         │                                  │───────────────────────────────>│
+         │                                  │                                │
+         │  Display "Claim" buttons         │                                │
+         │<──────────────────────────────────────────────────────────────────│
+         │                                  │                                │
 ```
+
+**UI shows:** "Collect 1000 coins: ✅ Claim Reward"
+
+---
+
+#### Stage 3: Claim Action (Server Validation)
+
+```
+UIAchievementPanel               AchievementService/TaskService      achievements.functions.ts / tasks.functions.ts
+      │                                  │                                      │
+      │  User taps "Claim"               │                                      │
+      │─────────────────────────────────>│                                      │
+      │                                  │                                      │
+      │                                  │  httpsCallable("claimAchievement")   │
+      │                                  │  or ("claimTask")                    │
+      │                                  │─────────────────────────────────────>│
+      │                                  │                                      │
+      │                                  │         SERVER RE-VALIDATES:         │
+      │                                  │         - Achievement unlocked?      │
+      │                                  │         - Already claimed?           │
+      │                                  │         - Grant reward (coins/items) │
+      │                                  │         - Mark claimed = true        │
+      │                                  │                                      │
+      │                                  │  { reward, newBalance }              │
+      │                                  │<─────────────────────────────────────│
+      │                                  │                                      │
+      │  Show reward popup               │                                      │
+      │<─────────────────────────────────│                                      │
+      │                                  │                                      │
+```
+
+---
+
+### 10.2 Achievements vs Daily Tasks (Key Differences)
+
+| Aspect | Achievements | Daily Tasks |
+|--------|-------------|-------------|
+| **Reset** | Never (permanent) | Daily at 00:00 UTC |
+| **Progress** | Cumulative across all sessions | Resets daily |
+| **Claimable** | Once per achievement | Once per day per task |
+| **Firestore Collection** | `/users/{uid}/achievements` | `/users/{uid}/tasks` |
+| **Cloud Function** | `claimAchievement` | `claimTask` |
+
+**Example:**
+- **Achievement:** "Collect 10,000 coins total" → Progress accumulates forever
+- **Daily Task:** "Collect 500 coins today" → Progress resets at midnight
+
+---
+
+### 10.3 Anti-Cheat Note
+
+**Why server-side progress tracking?**
+- Client cannot fake "collected 1000 coins" without submitting a valid session
+- All rewards gated behind server validation
+- Progress calculated from `submitSessionResult` data (server verifies session legitimacy)
 
 ---
 
@@ -754,30 +945,44 @@ UITaskPanel                    TaskService                    tasks.functions.ts
 
 ### 11.1 Daily Login Streak
 
+**⚠️ SOURCE OF TRUTH:** This flow is based on code analysis. Developer feedback suggests behavior may differ. **TODO:** Verify actual implementation in `streak.functions.ts`.
+
+**Expected Behavior:**
+
 ```
-App Start
+App Start (streak.functions.ts or client check)
     │
     ▼
-Check last login date
+Check lastLoginDate vs today
     │
-    ├── Same day → No action
+    ├── Same day (today) → No action (already logged in today)
     │
     ├── Yesterday → Increment streak
     │              │
-    │              ▼
-    │         streak.functions.ts
+    │              ├── streak = streak + 1
     │              │
     │              ▼
-    │         Grant streak reward
+    │         Grant streak reward (day N)
+    │         Update lastLoginDate = today
     │
-    └── Older → Reset streak to 1
+    └── Older than yesterday → Reset OR Continue?
                │
-               ▼
-          streak.functions.ts
+               ├── OPTION A (Reset): streak = 1, grant day 1 reward
                │
-               ▼
-          Grant day 1 reward
+               └── OPTION B (Continue): streak = streak + 1 (developer says no reset, just increment)
+                   │
+                   ▼
+               Update lastLoginDate = today
+               Grant reward for current streak day
 ```
+
+**Clarification Needed:**
+- **Does streak reset** if user skips 2+ days, or does it just continue incrementing?
+- Developer (Çağıl) mentioned: "her yeni günde +1" (every new day +1), suggesting **no reset**, but this needs code verification.
+
+**Streak Reward Logic:**
+- Each login grants reward based on current streak day
+- If streak exceeds 7 days, does it loop back to day 1 rewards or continue with day 7 rewards?
 
 ### 11.2 Streak Rewards
 
@@ -799,7 +1004,9 @@ Check last login date
 
 Uses IAP flow (Section 3) with subscription product type.
 
-### 12.2 Benefits Application
+### 12.2 Benefits Application (Corrected)
+
+**⚠️ DEVELOPER NOTE (Çağıl):** Previous documentation had incorrect benefits. Below are the **actual** Elite Pass benefits.
 
 ```
 UserDatabaseManager.Initialize()
@@ -809,16 +1016,55 @@ Check elitePass.isActive && elitePass.expiresAt > now
     │
     ├── Active:
     │       Set ElitePassService.IsActive = true
-    │       Apply benefits:
-    │       - 2x coin multiplier
-    │       - Faster energy regen
-    │       - Exclusive items unlocked
-    │       - No interstitial ads
+    │       Apply benefits (see table below)
     │
     └── Expired:
             Set ElitePassService.IsActive = false
             Remove benefits
 ```
+
+**Actual Elite Pass Benefits:**
+
+| Benefit | Description | Implementation Notes |
+|---------|-------------|---------------------|
+| **Remove Ads** | Removes rewarded video ads (NOT interstitial) | Does this disable ALL rewarded ads or just certain types? **TODO:** Clarify scope. |
+| **Exclusive Item Grant (Rent)** | Grants time-limited exclusive items | Uses `acquisitionType: "rent"` with `expiryDate`. If user already owns item, does **NOT** grant duplicate. |
+| **Double Life Slot** | Player gets 2 lives instead of 1 | Gameplay mechanic change, not energy-related. |
+| **2x Coin Multiplier (Conditional)** | Applies in certain systems (e.g., Autopilot) | **NOT** a universal 2x multiplier. Only specific game modes/features. **TODO:** Document exactly where it applies. |
+
+**What Elite Pass Does NOT Include:**
+- ❌ **NO faster energy regeneration**
+- ❌ **NO interstitial ad removal** (only rewarded ads affected)
+- ❌ **NO permanent items** (exclusive items are rentals with expiry)
+
+---
+
+**Item Grant Logic (Rent Acquisition):**
+
+```typescript
+// Elite Pass item grant (Cloud Functions)
+if (user.elitePass.isActive) {
+  const exclusiveItems = getElitePassItems();
+
+  for (const item of exclusiveItems) {
+    const alreadyOwned = user.inventory.includes(item.id);
+
+    if (!alreadyOwned) {
+      grantItem(userId, item.id, {
+        acquisitionType: "rent",
+        expiryDate: user.elitePass.expiresAt
+      });
+    }
+    // If already owned, skip (no duplicate)
+  }
+}
+```
+
+**When Elite Pass Expires:**
+- Rented items removed from inventory
+- 2x multiplier disabled
+- Double life slot reverts to single life
+- Rewarded ads re-enabled (if they were disabled)
 
 ### 12.3 Subscription Validation
 
@@ -955,42 +1201,96 @@ async UniTask<T> CallWithRetry<T>(Func<UniTask<T>> call, int maxRetries = 3)
 
 ### 15.2 Graceful Degradation
 
-| Scenario | Fallback |
-|----------|----------|
-| Firestore down | Use cached data |
-| Functions timeout | Retry with backoff |
-| Ads not loading | Hide ad buttons |
-| IAP store unavailable | Hide IAP shop |
+**⚠️ DEVELOPER NOTE (Çağıl):** Error messages are primarily for **developer debugging** (console logs), NOT always shown to players.
 
-### 15.3 User Feedback
+| Scenario | Fallback Behavior | Player-Facing UI |
+|----------|-------------------|------------------|
+| Firestore down | Use cached data | None (silent fallback) |
+| Functions timeout | Retry with backoff | Loading spinner continues |
+| Ads not loading | Hide ad buttons | Buttons disappear |
+| IAP store unavailable | **Block/wait** (does NOT hide shop) | "Store unavailable, please wait" or retry prompt |
 
-| Error Type | User Message |
-|------------|--------------|
-| Network | "Check your connection" |
-| Server | "Something went wrong. Try again." |
-| Auth | "Please log in again" |
-| Purchase | "Purchase failed. Not charged." |
+**IAP Unavailable Behavior:**
+- **NOT** hiding the shop as previously documented
+- Instead: **Blocks user flow** or shows "Store not ready" message
+- Waits for store initialization before allowing purchases
+
+---
+
+### 15.3 Error Feedback (Two Layers)
+
+**⚠️ DEVELOPER NOTE (Çağıl):** Most errors go to debug console, NOT to player UI.
+
+#### Layer 1: Developer Debug Logs (Console/Crashlytics)
+
+All errors logged for developer troubleshooting:
+
+```csharp
+Debug.LogError($"[NetworkService] Failed to fetch user data: {ex.Message}");
+FirebaseCrashlytics.RecordException(ex);
+```
+
+**Examples:**
+- `"[IAP] Store initialization timeout (30s)"`
+- `"[Firestore] Connection refused: Check your connection"`
+- `"[SessionService] submitSessionResult failed: Invalid session token"`
+
+---
+
+#### Layer 2: Player-Facing UI (When Necessary)
+
+Only **critical blockers** shown to player:
+
+| Error Type | When Shown to Player | Message |
+|------------|----------------------|---------|
+| **Network** | Cannot proceed (e.g., login, session start) | "Check your connection" |
+| **Server** | Critical failure after retries | "Something went wrong. Try again." |
+| **Auth** | Login failure | "Please log in again" |
+| **Purchase** | IAP failed | "Purchase failed. Not charged." |
+
+**Examples of NO player-facing UI:**
+- ❌ Leaderboard fetch fails → No error popup, just empty leaderboard
+- ❌ Ad fails to load → Ad button disappears silently
+- ❌ Achievement fetch fails → Empty achievement list, no error
+
+**Player Should Only See Errors When:**
+- Game cannot continue (e.g., session cannot start)
+- Purchase flow fails (must inform about payment status)
+- Login/authentication required
 
 ---
 
 ## Appendix: Flow Reference Quick Links
 
-| Flow | Section | Risk Level |
-|------|---------|------------|
-| App Startup | [1](#1-app-startup-flow) | Medium |
-| Authentication | [2](#2-authentication-flow) | High |
-| IAP Purchase | [3](#3-iap-purchase-flow) | CRITICAL |
-| Ad Reward | [4](#4-ad-reward-flow) | High |
-| Session | [5](#5-session--gameplay-flow) | Medium |
-| Data Sync | [6](#6-user-data-sync-flow) | High |
-| Energy | [7](#7-energy-system-flow) | Medium |
-| Shop | [8](#8-shop-purchase-flow) | Medium |
-| Leaderboard | [9](#9-leaderboard-flow) | Low |
-| Achievements | [10](#10-achievement--task-flow) | Low |
-| Streak | [11](#11-streak-system-flow) | Low |
-| Elite Pass | [12](#12-elite-pass-flow) | High |
-| Referral | [13](#13-referral-system-flow) | Low |
-| Map Loading | [14](#14-map-loading-flow) | Low |
+**⚠️ DEVELOPER NOTE (Çağıl):** Risk levels revised based on production impact. "If broken, what happens?"
+
+| Flow | Section | Risk Level | If Broken, Result |
+|------|---------|------------|-------------------|
+| **App Startup** | [1](#1-app-startup-flow) | 🔴 **CRITICAL** | Game won't launch - users cannot play |
+| **Authentication** | [2](#2-authentication-flow) | 🔴 **CRITICAL** | Users can't access accounts - total lockout |
+| **IAP Purchase** | [3](#3-iap-purchase-flow) | 🔴 **CRITICAL** | Revenue fraud / chargebacks / revenue loss |
+| **Map Loading** | [14](#14-map-loading-flow) | 🔴 **CRITICAL++** | Game unplayable - maps won't load |
+| **Data Sync** | [6](#6-user-data-sync-flow) | 🔴 **CRITICAL** | Progress loss - user data corrupted |
+| **Energy** | [7](#7-energy-system-flow) | 🟠 **VERY HIGH** | Gameplay gating broken - infinite plays or no plays |
+| **Shop** | [8](#8-shop-purchase-flow) | 🟠 **HIGH** | Currency exploits - economy broken |
+| **Elite Pass** | [12](#12-elite-pass-flow) | 🟠 **HIGH** | Subscription benefits not applied - refunds |
+| **Ad Reward** | [4](#4-ad-reward-flow) | 🟠 **HIGH** | Revenue loss (no ad monetization) |
+| **Session** | [5](#5-session--gameplay-flow) | 🟡 **MEDIUM** | Gameplay broken but game launches |
+| **Leaderboard** | [9](#9-leaderboard-flow) | 🟡 **MEDIUM** | Rankings wrong - competitive integrity lost |
+| **Achievements** | [10](#10-achievement--task-flow) | 🟢 **LOW** | Progress not tracked - annoying but not blocking |
+| **Streak** | [11](#11-streak-system-flow) | 🟢 **LOW** | Daily rewards broken - minor inconvenience |
+| **Referral** | [13](#13-referral-system-flow) | 🟢 **LOW** | Viral loop broken - growth impacted but not critical |
+
+---
+
+**Risk Level Definitions:**
+
+- 🔴 **CRITICAL** - Game unplayable, users locked out, or revenue fraud
+- 🔴 **CRITICAL++** - Even worse than CRITICAL (e.g., map loading = cannot play AT ALL)
+- 🟠 **VERY HIGH** - Major gameplay/economy systems broken
+- 🟠 **HIGH** - Important features broken, user experience severely degraded
+- 🟡 **MEDIUM** - Feature broken but game still playable
+- 🟢 **LOW** - Minor feature broken, minimal user impact
 
 ---
 
