@@ -132,6 +132,7 @@ GameObject:
   - component: {fileID: 199991539}
   - component: {fileID: 199991538}
   - component: {fileID: 199991540}
+  - component: {fileID: 199991541}
   m_Layer: 5
   m_Name: Loading BG
   m_TagString: Untagged
@@ -242,6 +243,20 @@ CanvasGroup:
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
+--- !u!114 &199991541
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 199991534}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b0d7345e40d504dec878d66dc950c0cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetRawImage: {fileID: 199991538}
+  autoCreateRenderTexture: 1
 --- !u!1 &465193232
 GameObject:
   m_ObjectHideFlags: 0
@@ -600,6 +615,7 @@ MonoBehaviour:
   m_VerticalAlignment: 8192
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
