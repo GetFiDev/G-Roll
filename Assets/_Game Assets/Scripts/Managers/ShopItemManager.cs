@@ -74,9 +74,8 @@ public class ShopItemManager : MonoBehaviour
                 return;
             }
 
-            // Repo hazır değilse initialize et
-            if (!ItemDatabaseManager.IsReady)
-                await ItemDatabaseManager.InitializeAsync();
+            // Lazy loading: ItemDatabaseManager boot sırasında yüklenmez, shop açılınca yüklenir
+            await ItemDatabaseManager.EnsureInitializedAsync();
             
             if (!isActiveAndEnabled) return;
 

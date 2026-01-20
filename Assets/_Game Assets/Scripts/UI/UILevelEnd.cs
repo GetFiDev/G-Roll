@@ -379,6 +379,33 @@ public class UILevelEnd : MonoBehaviour
         CompleteAndClose();
     }
 
+    /// <summary>
+    /// FIX #2: Chapter success sonrası continue butonu - loading screen ile geçiş
+    /// </summary>
+    public void OnChapterContinueButton()
+    {
+        if (!_isRunning) return;
+        _isRunning = false;
+        
+        // 1. Panel'i kapat
+        gameObject.SetActive(false);
+        
+        // 2. Loading screen göster
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowGameplayLoading(true);
+        }
+        
+        // 3. Kısa delay sonra sequence'ı tamamla (loading hissiyatı için)  
+        _ = DelayedCompleteSequence();
+    }
+
+    private async System.Threading.Tasks.Task DelayedCompleteSequence()
+    {
+        await System.Threading.Tasks.Task.Delay(1500); // 1.5 saniye loading
+        OnSequenceCompleted?.Invoke();
+    }
+
     public void OnClaimX2Button()
     {
          if (!_isRunning) return;
@@ -395,16 +422,32 @@ public class UILevelEnd : MonoBehaviour
          var btn = claimX2Button.GetComponent<UnityEngine.UI.Button>();
          if (btn) btn.interactable = false;
 
-         // Trigger Ad via UIAdProduct (handles limits/recording)
-         adProduct.TriggerAdFromExternal(() => 
-         {
+         // Trigger Ad via UIAdProduct (handles limits/recording) with failure callback
+         adProduct.TriggerAdFromExternal(
              // SUCCESS CALLBACK
-             // Add 1x more (total 2x)
-             GameplayManager.Instance.AddCoins(_targetCoins); 
-                 
-             // Close
-             CompleteAndClose();
-         });
+             () => 
+             {
+                 // Add 1x more (total 2x)
+                 GameplayManager.Instance.AddCoins(_targetCoins); 
+                     
+                 // FIX #2: Chapter modu için farklı kapanış - loading screen ile
+                 GameMode mode = GameplayManager.Instance?.CurrentMode ?? GameMode.Endless;
+                 if (mode == GameMode.Chapter)
+                 {
+                     OnChapterContinueButton();
+                 }
+                 else
+                 {
+                     CompleteAndClose();
+                 }
+             },
+             // FAILURE CALLBACK - FIX: Re-enable button so user can try again
+             () =>
+             {
+                 Debug.LogWarning("[UILevelEnd] ClaimX2 ad failed or skipped.");
+                 if (btn) btn.interactable = true;
+             }
+         );
     }
 
     // ---- REVIVE SYSTEM ----
@@ -610,31 +653,40 @@ public class UILevelEnd : MonoBehaviour
         // Disable button while ad is loading
         if (adReviveButton != null) adReviveButton.interactable = false;
 
-        // Trigger ad via UIAdProduct
-        adReviveProduct.TriggerAdFromExternal(() =>
-        {
-            // Ad watched successfully
-            Debug.Log("[UILevelEnd] Ad revive success!");
-            
-            _reviveCount++;
-
-            // Hide revive panel and trigger revive
-            if (revivePanel != null) revivePanel.SetActive(false);
-            
-            // Execute revive
-            if (ReviveController.Instance != null)
+        // Trigger ad via UIAdProduct with success AND failure callbacks
+        adReviveProduct.TriggerAdFromExternal(
+            // Success callback
+            () =>
             {
-                ReviveController.Instance.ExecuteAdRevive(() => {
+                // Ad watched successfully
+                Debug.Log("[UILevelEnd] Ad revive success!");
+                
+                _reviveCount++;
+
+                // Hide revive panel and trigger revive
+                if (revivePanel != null) revivePanel.SetActive(false);
+                
+                // Execute revive
+                if (ReviveController.Instance != null)
+                {
+                    ReviveController.Instance.ExecuteAdRevive(() => {
+                        _isRunning = false;
+                        gameObject.SetActive(false);
+                    });
+                }
+                else
+                {
+                    GameplayManager.Instance?.ResumeAfterRevive();
                     _isRunning = false;
                     gameObject.SetActive(false);
-                });
-            }
-            else
+                }
+            },
+            // Failure callback - FIX: Re-enable button so user can try again
+            () =>
             {
-                GameplayManager.Instance?.ResumeAfterRevive();
-                _isRunning = false;
-                gameObject.SetActive(false);
+                Debug.LogWarning("[UILevelEnd] Ad revive failed or skipped.");
+                if (adReviveButton != null) adReviveButton.interactable = true;
             }
-        });
+        );
     }
 }

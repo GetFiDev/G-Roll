@@ -5,57 +5,133 @@ using UnityEngine;
 
 /// <summary>
 /// RemoteItemService + ItemLocalDatabase üstünden tek kapı.
-/// Oyun açılışında InitializeAsync() çağır; sonrası sadece GetItemData/…
+/// Lazy loading destekli - Shop açıldığında InitializeAsync() çağrılır.
+/// EnsureInitializedAsync() ile güvenli erişim sağlanır.
 /// </summary>
 public static class ItemDatabaseManager
 {
     // Bellek-içi aktif veri
     private static Dictionary<string, RemoteItemService.ItemData> _items;
 
+    // Initialization state tracking
+    private static bool _isInitializing = false;
+    private static Task _initTask = null;
+
+    // Cache age tracking for conditional fetches
+    private static DateTime _lastRemoteFetchTime = DateTime.MinValue;
+    private const int CACHE_MAX_AGE_MINUTES = 60; // Re-fetch from remote if cache older than this
+
     public static bool IsReady => _items != null && _items.Count > 0;
 
     /// <summary>
+    /// Ensures ItemDatabaseManager is initialized before accessing items.
+    /// Safe to call multiple times - will only initialize once.
+    /// Use this method when you need items (e.g., when Shop opens).
+    /// </summary>
+    public static async Task EnsureInitializedAsync()
+    {
+        // Already initialized
+        if (IsReady) return;
+
+        // Initialization in progress - wait for it
+        if (_isInitializing && _initTask != null)
+        {
+            await _initTask;
+            return;
+        }
+
+        // Start initialization
+        await InitializeAsync();
+    }
+
+    /// <summary>
     /// 1) Local cache'i anında yükler (offline-friendly)
-    /// 2) Arkasından remote'tan taze veri çekip cache'i yeniler (başarırsa)
+    /// 2) Conditional fetch: Eğer cache yeterince yeniyse remote'a gitmez
+    /// 3) Arkasından remote'tan taze veri çekip cache'i yeniler (başarırsa)
     /// </summary>
     public static async Task InitializeAsync()
+    {
+        // Prevent concurrent initialization
+        if (_isInitializing) return;
+        _isInitializing = true;
+
+        try
+        {
+            _initTask = InitializeInternalAsync();
+            await _initTask;
+        }
+        finally
+        {
+            _isInitializing = false;
+            _initTask = null;
+        }
+    }
+
+    private static async Task InitializeInternalAsync()
     {
         // 1) Lokal cache'i hemen oku (null dönerse bile sorun yok)
         var local = ItemLocalDatabase.Load();
         Dictionary<string, RemoteItemService.ItemData> result = null;
 
-        // 2) Remote (asıl kaynak) – her açılışta denenecek
-        try
+        // 2) Check if local cache is fresh enough (optimization for repeat sessions)
+        bool shouldFetchRemote = true;
+        if (local != null && local.Count > 0)
         {
-            // Changed from FetchAllItemsWithIconsAsync to FetchAllItemsAsync for lazy loading
-            var fetched = await RemoteItemService.FetchAllItemsAsync();
-            if (fetched != null && fetched.Count > 0)
+            var cacheAge = DateTime.Now - _lastRemoteFetchTime;
+            if (_lastRemoteFetchTime != DateTime.MinValue && cacheAge.TotalMinutes < CACHE_MAX_AGE_MINUTES)
             {
-                result = fetched;
-                ItemLocalDatabase.Save(fetched);
-                Debug.Log($"[ItemDatabaseManager] Refreshed {fetched.Count} items from remote.");
+                // Cache is fresh, use it immediately without network call
+                Debug.Log($"[ItemDatabaseManager] Using fresh local cache ({cacheAge.TotalMinutes:F0}m old). Skipping remote fetch.");
+                _items = local;
+                shouldFetchRemote = false;
             }
             else
             {
-                Debug.LogError("[ItemDatabaseManager] Remote returned 0 items. This is treated as an error; falling back to local cache if available.");
+                // Cache exists but might be stale - use it immediately, fetch in background
+                _items = local;
+                Debug.Log("[ItemDatabaseManager] Using local cache immediately. Will refresh from remote.");
             }
         }
-        catch (Exception ex)
+
+        // 3) Remote fetch (if needed)
+        if (shouldFetchRemote)
         {
-            Debug.LogError($"[ItemDatabaseManager] Remote fetch failed, falling back to local cache if available. {ex.Message}");
+            try
+            {
+                // Changed from FetchAllItemsWithIconsAsync to FetchAllItemsAsync for lazy loading
+                var fetched = await RemoteItemService.FetchAllItemsAsync();
+                if (fetched != null && fetched.Count > 0)
+                {
+                    result = fetched;
+                    ItemLocalDatabase.Save(fetched);
+                    _lastRemoteFetchTime = DateTime.Now;
+                    Debug.Log($"[ItemDatabaseManager] Refreshed {fetched.Count} items from remote.");
+                }
+                else
+                {
+                    Debug.LogError("[ItemDatabaseManager] Remote returned 0 items. Using local cache if available.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ItemDatabaseManager] Remote fetch failed: {ex.Message}");
+            }
+
+            // 4) Remote başarısızsa ama lokal doluysa local cache'i kullan
+            if ((result == null || result.Count == 0) && local != null && local.Count > 0)
+            {
+                Debug.LogWarning("[ItemDatabaseManager] Using local item cache as fallback.");
+                result = local;
+            }
+
+            // 5) Sonucu belleğe yaz (remote başarılıysa override et)
+            if (result != null && result.Count > 0)
+            {
+                _items = result;
+            }
         }
 
-        // 3) Remote başarısızsa ama lokal doluysa local cache'i kullan
-        if ((result == null || result.Count == 0) && local != null && local.Count > 0)
-        {
-            Debug.LogWarning("[ItemDatabaseManager] Using local item cache as fallback.");
-            result = local;
-        }
-
-        // 4) Sonucu belleğe yaz
-        _items = result;
-
-        // 5) Hâlâ boşsa, IsReady false kalacak; shop bir sonraki denemeye kadar item gösteremez
+        // 6) Hâlâ boşsa, IsReady false kalacak
         if (_items == null || _items.Count == 0)
         {
             Debug.LogError("[ItemDatabaseManager] No items available after initialization. Shop will remain empty until a successful fetch.");

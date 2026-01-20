@@ -51,8 +51,16 @@ public class LevelFinishZone : MonoBehaviour
                 // Ensure we only trigger once
                 active = false;
                 
-                // Start Success Flow (Show UI then End Session)
-                GameplayManager.Instance.StartSuccessFlow();
+                // FIX #4: Chapter modda coasting ile success flow
+                if (GameplayManager.Instance.CurrentMode == GameMode.Chapter)
+                {
+                    GameplayManager.Instance.StartSuccessFlowWithCoasting();
+                }
+                else
+                {
+                    // Endless mode'da normal success flow
+                    GameplayManager.Instance.StartSuccessFlow();
+                }
             }
             else
             {

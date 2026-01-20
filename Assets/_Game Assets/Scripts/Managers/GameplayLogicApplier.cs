@@ -7,8 +7,8 @@ using UnityEngine;
 public class GameplayLogicApplier : MonoBehaviour
 {
     [Header("Speed")]
-    [SerializeField] private float startSpeed = 5f;
-    [SerializeField] private float maxSpeed   = 20f;
+    [SerializeField] private float startSpeed = 3.5f;  // %30 düşürüldü (5 -> 3.5)
+    [SerializeField] private float maxSpeed   = 14f;   // %30 düşürüldü (20 -> 14)
     [SerializeField] private float accelerationPerSecond = 0.75f;
 
     [Header("Start Mode")]
@@ -228,6 +228,57 @@ public class GameplayLogicApplier : MonoBehaviour
     }
     
     private bool _resumingFromRevive = false;
+    private bool _pausedWaitingForInput = false;
+
+    /// <summary>
+    /// FIX #3: Pause sonrası: Kamera durgun, oyun durgun, ilk swipe bekle
+    /// Combo ve skor korunur, sadece hareket ilk input'a kadar durur.
+    /// </summary>
+    public void PrepareForPauseResume()
+    {
+        Debug.Log("[GameplayLogicApplier] Preparing for pause resume (waiting for first input)...");
+        
+        _pausedWaitingForInput = true;
+        
+        // Stop running but DON'T reset anything
+        isRunning = false;
+        
+        // Speed to 0 - camera should NOT move until first player input  
+        CurrentSpeed = 0f;
+        
+        // Keep base speed for when run resumes
+        // baseSpeed is already set, don't touch it
+        
+        // Arm for first move
+        armedForFirstMove = true;
+    }
+
+    /// <summary>
+    /// FIX #3: İlk input algılandığında pause-resume modundan çık
+    /// TouchManager veya PlayerMovement'tan çağrılır
+    /// </summary>
+    public void OnFirstInputAfterPauseResume()
+    {
+        if (!_pausedWaitingForInput) return;
+        
+        Debug.Log("[GameplayLogicApplier] First input after pause resume - resuming gameplay");
+        _pausedWaitingForInput = false;
+        armedForFirstMove = false;
+        isRunning = true;
+        
+        // Restore speed
+        CurrentSpeed = baseSpeed * gameplaySpeedMultiplier;
+        
+        // Resume Time.timeScale
+        Time.timeScale = 1f;
+        
+        OnRunStarted?.Invoke(false); // false = not a revive (UI shouldn't reset)
+    }
+    
+    /// <summary>
+    /// Check if we are waiting for first input after pause
+    /// </summary>
+    public bool IsPausedWaitingForInput => _pausedWaitingForInput;
 
     // SubmitSessionResultAsync removed. Logic moved to UserDatabaseManager.SubmitGameplaySessionAsync.
 

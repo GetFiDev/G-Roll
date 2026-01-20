@@ -43,9 +43,34 @@ public class UIGameplaySettings : MonoBehaviour
 
     public void Resume()
     {
-        // Keep this GameObject active so coroutine can run.
+        // FIX #3: Geri sayım kaldırıldı
+        // Direk oyun ekranına dön, kamera durgun, ilk swipe ile devam
+        
         StopAllCoroutines();
-        StartCoroutine(Co_ResumeCountdown());
+        
+        // Geri sayım overlay'ini GÖSTERMEMİZ
+        if (countdownGroup) countdownGroup.gameObject.SetActive(false);
+        
+        // Pause panelini kapat
+        if (settingsPanel)
+        {
+            settingsPanel.alpha = 0f;
+            settingsPanel.interactable = false;
+            settingsPanel.blocksRaycasts = false;
+        }
+        
+        // Time.timeScale = 0 kalacak! Kamera ve oyun durmalı
+        // İlk swipe gelene kadar durgun kalacak
+        Time.timeScale = 0f;
+        
+        // GameplayLogicApplier'a "first input bekle" moduna geçmesini söyle
+        if (logicApplier != null)
+        {
+            logicApplier.PrepareForPauseResume();
+        }
+        
+        // onResumeGame invoke EdİLMEYECEK - oyun henüz devam etmedi
+        // İlk input geldiğinde GameplayLogicApplier.OnFirstInputAfterPauseResume() çağrılacak
     }
 
     public void EndGame()

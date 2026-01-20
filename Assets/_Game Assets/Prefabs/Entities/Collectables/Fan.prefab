@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6775565263587127932}
   - component: {fileID: 3484695746013554080}
-  - component: {fileID: 1779700819645825231}
+  - component: {fileID: 7578012522014335386}
   m_Layer: 0
   m_Name: Fan
   m_TagString: Interactable
@@ -51,8 +51,8 @@ MonoBehaviour:
   boostJumpHeight: 3.5
   boostJumpDuration: 1.25
   useLocalForward: 1
---- !u!135 &1779700819645825231
-SphereCollider:
+--- !u!65 &7578012522014335386
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -70,8 +70,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.72492313
-  m_Center: {x: 0.5, y: -0.39, z: 0.5}
+  m_Size: {x: 1.48, y: 1, z: 1.5}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &6145572922962001689
 GameObject:
   m_ObjectHideFlags: 0

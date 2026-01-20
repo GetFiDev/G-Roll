@@ -55,6 +55,10 @@ public class UITaskListElement : MonoBehaviour
         }
     }
 
+    // FIX #6: Task ID pending completion after URL redirect
+    private bool _taskPendingCompletion = false;
+    private string _pendingTaskId = null;
+
     private async Task OnGoButtonClick()
     {
         if (_isProcessing) return;
@@ -64,51 +68,86 @@ public class UITaskListElement : MonoBehaviour
         if (canvasGroup) canvasGroup.alpha = processingAlpha;
         if (goButton) goButton.interactable = false;
 
+        // FIX #6: URL varsa önce aç, reward sonra ver
+        if (!string.IsNullOrEmpty(_taskData.taskDirectionUrl))
+        {
+            _awaitingFocusReturn = true;
+            _taskPendingCompletion = true;
+            _pendingTaskId = _taskData.taskId;
+            
+            Application.OpenURL(_taskData.taskDirectionUrl);
+            // Kullanıcı uygulamadan çıkacak, OnApplicationFocus'ta devam edilecek
+            return;
+        }
+        
+        // URL yoksa direkt complete et
+        await CompleteTaskWithLoading();
+    }
+
+    /// <summary>
+    /// FIX #6: Task completion with loading delay for better UX
+    /// </summary>
+    private async Task CompleteTaskWithLoading()
+    {
         try
         {
-            // Call server to complete task and grant reward BEFORE opening URL
-            var result = await TaskService.CompleteTaskAsync(_taskData.taskId);
-
+            // 1. Loading göster (0.5 saniye minimum)
+            var startTime = Time.realtimeSinceStartup;
+            
+            // 2. Server'a complete isteği gönder
+            var result = await TaskService.CompleteTaskAsync(_pendingTaskId ?? _taskData.taskId);
+            
+            // 3. En az 0.5 saniye loading göster
+            float elapsed = Time.realtimeSinceStartup - startTime;
+            if (elapsed < 0.5f)
+            {
+                await Task.Delay((int)((0.5f - elapsed) * 1000));
+            }
+            
             if (result.ok)
             {
-                // Open external URL
-                if (!string.IsNullOrEmpty(_taskData.taskDirectionUrl))
-                {
-                    _awaitingFocusReturn = true;
-                    Application.OpenURL(_taskData.taskDirectionUrl);
-                }
-
-                // Refresh top panel currency display
+                // 4. Currency display güncelle
                 if (UITopPanel.Instance != null)
                 {
                     UITopPanel.Instance.Initialize();
                 }
-
-                // Notify parent to remove this element
+                
+                // 5. Elementi kaldır
                 _onCompleted?.Invoke();
             }
             else
             {
                 Debug.LogWarning($"[UITaskListElement] Task completion failed: {result.error}");
                 // Reset UI on failure
-                if (canvasGroup) canvasGroup.alpha = 1f;
-                if (goButton) goButton.interactable = true;
-                _isProcessing = false;
+                ResetUIState();
             }
         }
         catch (Exception ex)
         {
             Debug.LogError($"[UITaskListElement] Error completing task: {ex.Message}");
-            // Reset UI on error
-            if (canvasGroup) canvasGroup.alpha = 1f;
-            if (goButton) goButton.interactable = true;
-            _isProcessing = false;
+            ResetUIState();
         }
+    }
+
+    private void ResetUIState()
+    {
+        if (canvasGroup) canvasGroup.alpha = 1f;
+        if (goButton) goButton.interactable = true;
+        _isProcessing = false;
+        _taskPendingCompletion = false;
+        _pendingTaskId = null;
     }
 
     private void OnApplicationFocus(bool hasFocus)
     {
-        if (hasFocus && _awaitingFocusReturn)
+        if (hasFocus && _awaitingFocusReturn && _taskPendingCompletion)
+        {
+            _awaitingFocusReturn = false;
+            
+            // FIX #6: App'e geri dönüldü - şimdi ödül ver (0.5 saniye loading ile)
+            _ = CompleteTaskWithLoading();
+        }
+        else if (hasFocus && _awaitingFocusReturn)
         {
             _awaitingFocusReturn = false;
             

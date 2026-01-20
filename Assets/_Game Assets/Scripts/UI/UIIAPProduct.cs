@@ -18,11 +18,11 @@ public class UIIAPProduct : MonoBehaviour
     // [SerializeField] private TextMeshProUGUI titleText;
     // [SerializeField] private TextMeshProUGUI descriptionText;
 
-    private void Start()
+    private async void Start()
     {
         if (purchaseButton != null)
         {
-            purchaseButton.onClick.RemoveListener(OnBuyClicked); 
+            purchaseButton.onClick.RemoveListener(OnBuyClicked);
             purchaseButton.onClick.AddListener(OnBuyClicked);
         }
         else
@@ -30,18 +30,17 @@ public class UIIAPProduct : MonoBehaviour
             Debug.LogWarning($"[UIIAPProduct] Purchase Button not assigned on {gameObject.name}");
         }
 
-        // Wait for IAPManager initialization if needed
+        // Lazy loading: Initialize IAPManager when IAP UI opens
         if (IAPManager.Instance != null)
         {
-            if (IAPManager.Instance.IsInitialized())
+            // Show default/cached price immediately
+            RefreshPrice();
+
+            if (!IAPManager.Instance.IsInitialized())
             {
-                RefreshPrice();
-            }
-            else
-            {
-                // Show default price immediately
-                RefreshPrice();
                 IAPManager.Instance.OnIAPInitialized += RefreshPrice;
+                // Trigger lazy initialization in background
+                await IAPManager.Instance.EnsureInitializedAsync();
             }
         }
     }

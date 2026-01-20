@@ -9,10 +9,12 @@ public abstract class AdManager
     private class AdListener : IRewardedVideoAdListener, IInterstitialAdListener, IAppodealInitializationListener
     {
         private Action<bool> _onRewardedComplete;
+        private bool _hasReceivedReward;
 
         public void SetRewardedCallback(Action<bool> onComplete)
         {
             _onRewardedComplete = onComplete;
+            _hasReceivedReward = false;
         }
 
         // --- Rewarded Video ---
@@ -22,24 +24,28 @@ public abstract class AdManager
         { 
              _onRewardedComplete?.Invoke(false);
              _onRewardedComplete = null;
+             _hasReceivedReward = false;
         }
         public void onRewardedVideoShown() { }
         public void onRewardedVideoFinished(double amount, string name) 
         { 
-            // Mark validation success, but wait for closed? 
-            // Usually 'Finished' means they watched it all.
-            // verifying in 'Closed' is also common pattern but 'Finished' guarantees reward.
-             _onRewardedComplete?.Invoke(true);
-             _onRewardedComplete = null;
+            // FIX: Sadece reward alındığını işaretle, callback'i onRewardedVideoClosed'da çağır
+            // Bu, kullanıcının videoyu tam izlediğini garanti eder
+            Debug.Log($"[AdManager] onRewardedVideoFinished: amount={amount}, name={name}");
+            _hasReceivedReward = true;
         }
         public void onRewardedVideoClosed(bool finished) 
         { 
+            Debug.Log($"[AdManager] onRewardedVideoClosed: finished={finished}, hasReceivedReward={_hasReceivedReward}");
             if (_onRewardedComplete != null)
             {
-                // If we reach here and callback hasn't fired (e.g. skipped), fire false
-                _onRewardedComplete.Invoke(finished);
+                // FIX: Hem finished hem de reward received olmalı
+                bool success = finished && _hasReceivedReward;
+                Debug.Log($"[AdManager] Invoking callback with success={success}");
+                _onRewardedComplete.Invoke(success);
                 _onRewardedComplete = null;
             }
+            _hasReceivedReward = false;
         }
         public void onRewardedVideoExpired() { }
         public void onRewardedVideoClicked() { }

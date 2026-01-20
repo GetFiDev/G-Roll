@@ -364,7 +364,7 @@ public class UserDatabaseManager : MonoBehaviour
         try
         {
             // Make sure you created this user in Firebase Console -> Auth -> Email/Password
-            var r = await auth.SignInWithEmailAndPasswordAsync("testuser9@gmail.com", "123456");
+            var r = await auth.SignInWithEmailAndPasswordAsync("testuser@gmail.com", "123456");
             
             currentUser = r.User;
             currentLoggedUserID = currentUser?.UserId;

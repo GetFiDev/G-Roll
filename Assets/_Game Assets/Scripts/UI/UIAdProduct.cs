@@ -138,20 +138,22 @@ public class UIAdProduct : MonoBehaviour
 
     private void OnWatchAdClicked()
     {
-        TriggerAdFromExternal(null);
+        TriggerAdFromExternal(null, null);
     }
 
     /// <summary>
     /// Triggers the ad flow programmatically.
     /// </summary>
     /// <param name="onExternalSuccess">Optional callback executed specific to this call on success.</param>
-    public void TriggerAdFromExternal(Action onExternalSuccess)
+    /// <param name="onExternalFailure">Optional callback executed when ad fails or is skipped.</param>
+    public void TriggerAdFromExternal(Action onExternalSuccess, Action onExternalFailure = null)
     {
         // If daily limit hasn't been fetched yet (_dailyLimit = 0), allow the ad
         // The server will validate anyway
         if (_dailyLimit > 0 && _usedToday >= _dailyLimit) 
         {
             Debug.Log($"[UIAdProduct] Daily limit reached ({_usedToday}/{_dailyLimit}). Cannot show ad.");
+            onExternalFailure?.Invoke();
             return;
         }
         
@@ -177,6 +179,7 @@ public class UIAdProduct : MonoBehaviour
             {
                 Debug.Log("[UIAdProduct] Ad failed/skipped.");
                 if (actionButton != null) actionButton.interactable = true; // Re-enable
+                onExternalFailure?.Invoke(); // FIX: Notify caller about failure
             }
         });
 #endif

@@ -27,6 +27,13 @@ export const requestSession = onCall(async (req) => {
         // 1) lazy regen inside tx (always needed for energy info)
         const st = await lazyRegenInTx(tx, userRef, now);
 
+        // 2) Trust factor check - block low trust users
+        const uSnap = await tx.get(userRef);
+        const trustFactor = Number(uSnap.get("trustFactor") ?? 100);
+        if (trustFactor <= 50) {
+            throw new HttpsError("failed-precondition", "Trust factor too low");
+        }
+
         // CHAPTER MODE: Skip energy check and spend
         // Energy will be spent on fail via submitSessionResult
         if (isChapter) {
@@ -223,7 +230,32 @@ export const submitSessionResult = onCall(async (req) => {
             }
         }
 
-        // Base user update (currency, score, stats)
+        // --- TRUST FACTOR VALIDATION ---
+        // Check if session values are reasonable
+        const isReasonableSession = (): boolean => {
+            // earnedCurrency must be 0-1000
+            if (earnedCurrency < 0 || earnedCurrency > 1000) return false;
+            // earnedScore must be >= 0
+            if (earnedScore < 0) return false;
+            // playtimeSec must be >= 0 and <= 7200 (2 hours)
+            if (playtimeSec < 0 || playtimeSec > 7200) return false;
+            // Average coin per second must be <= 1
+            const avgCoinPerSec = playtimeSec > 0 ? earnedCurrency / playtimeSec : 0;
+            if (avgCoinPerSec > 1) return false;
+            return true;
+        };
+
+        const prevTrust = Number(uSnap.get("trustFactor") ?? 100);
+        const reasonable = isReasonableSession();
+        const newTrust = reasonable
+            ? Math.min(100, prevTrust + 1)   // +1, max 100
+            : Math.max(0, prevTrust - 5);    // -5, min 0
+
+        if (!reasonable) {
+            console.warn(`[submitSessionResult] UNREASONABLE session: uid=${uid} currency=${earnedCurrency} score=${earnedScore} playtime=${playtimeSec} trust=${prevTrust}->${newTrust}`);
+        }
+
+        // Base user update (currency, score, stats, trustFactor)
         tx.set(userRef, {
             currency: newCurrency,
             maxScore: newBest,
@@ -235,6 +267,7 @@ export const submitSessionResult = onCall(async (req) => {
             totalPlaytimeMinutesFloat: newPlayMinFloat,
             powerUpsCollected: newPups,
             maxCombo: newMaxCombo,
+            trustFactor: newTrust,
             updatedAt: FieldValue.serverTimestamp()
         }, {merge: true});
 

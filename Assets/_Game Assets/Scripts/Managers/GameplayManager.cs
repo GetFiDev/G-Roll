@@ -316,6 +316,59 @@ public class GameplayManager : MonoBehaviour
     }
 
     /// <summary>
+    /// FIX #4: Chapter mode için coasting ile success flow
+    /// Finish sonrası karakter 1.5sn yavaşlayarak ilerler, sonra 0.5sn'de durur, 
+    /// ardından success UI açılır
+    /// </summary>
+    public void StartSuccessFlowWithCoasting()
+    {
+        if (!sessionActive) return;
+        
+        // UI input'larını kilitle ama koşma devam etsin
+        // (StopRun çağırmıyoruz henüz)
+        
+        StartCoroutine(Co_ChapterFinishCoasting());
+    }
+
+    private System.Collections.IEnumerator Co_ChapterFinishCoasting()
+    {
+        // 1. Yavaşlama başlat
+        var playerMov = playerGO?.GetComponent<PlayerMovement>();
+        
+        if (playerMov != null)
+        {
+            playerMov.StartCoasting();
+        }
+        
+        // 2. 1.5 saniye boyunca yavaşlayarak devam et
+        float coastDuration = 1.5f;
+        yield return new WaitForSeconds(coastDuration);
+        
+        // 3. Tamamen dur (0.5 saniye deceleration)
+        if (playerMov != null)
+        {
+            yield return playerMov.StopCompletely(0.5f);
+        }
+        
+        // 4. Durma tamamlandı - şimdi success flow başlat
+        logicApplier?.StopRun();
+        
+        if (UIManager.Instance != null)
+        {
+            if (UIManager.Instance.levelEnd != null)
+            {
+                UIManager.Instance.levelEnd.OnSequenceCompleted -= HandleLevelEndCompleted;
+                UIManager.Instance.levelEnd.OnSequenceCompleted += HandleLevelWinCompleted;
+            }
+            
+            var score = logicApplier != null ? logicApplier.Score : 0f;
+            var coins = logicApplier != null ? logicApplier.Coins : 0f;
+            UIManager.Instance.levelEnd?.SetResultValues(score, coins);
+            UIManager.Instance?.ShowLevelEnd(true);
+        }
+    }
+
+    /// <summary>
     /// Standart FAIL akışı: LevelEnd UI sekansını başlat. Sekans bittiğinde EndSession(false) çağrılır.
     /// </summary>
     public void StartFailFlow()

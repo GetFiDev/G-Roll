@@ -147,7 +147,18 @@ public class IAPManager : MonoBehaviour, IDetailedStoreListener
     }
 
     /// <summary>
-    /// Explicit initialization called by AppFlowManager.
+    /// Ensures IAPManager is initialized before making purchases.
+    /// Safe to call multiple times - will only initialize once.
+    /// Use this method when IAP shop opens or before purchases.
+    /// </summary>
+    public async Task EnsureInitializedAsync()
+    {
+        if (IsInitialized()) return;
+        await InitializeAsync();
+    }
+
+    /// <summary>
+    /// Explicit initialization called by AppFlowManager or EnsureInitializedAsync.
     /// Now properly awaits until initialization completes or all retries are exhausted.
     /// </summary>
     public async Task InitializeAsync()

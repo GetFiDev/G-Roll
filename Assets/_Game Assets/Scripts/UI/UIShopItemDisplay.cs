@@ -72,6 +72,7 @@ public class UIShopItemDisplay : MonoBehaviour
     private bool _pendingRefresh; // if true, run refresh on OnEnable
     private Coroutine _countdownCo;
     private bool _isConsumable; // BullMarket kartları consumable olarak kabul ediliyor
+    private bool _iconFadeInProgress; // Prevents ApplyVisualState from resetting icon during fade
 
     // Icon için: orijinal sprite'ı sakla ve grayscale versiyonlarını cache'le
     private Sprite _originalIconSprite;
@@ -351,7 +352,8 @@ public class UIShopItemDisplay : MonoBehaviour
                 break;
         }
 
-        if (iconImage != null)
+        // Don't touch icon during fade-in to prevent flicker
+        if (iconImage != null && !_iconFadeInProgress)
         {
             iconImage.enabled = true;
 
@@ -608,6 +610,8 @@ public class UIShopItemDisplay : MonoBehaviour
         // Safety check
         if (string.IsNullOrEmpty(data.iconUrl)) yield break;
 
+        _iconFadeInProgress = true;
+
         // Download (this is async but we wrap in coroutine by waiting on Task)
         var task = RemoteItemService.DownloadTextureAsync(data.iconUrl);
         while (!task.IsCompleted) yield return null;
@@ -616,7 +620,7 @@ public class UIShopItemDisplay : MonoBehaviour
         {
             // Fail silently or maybe show placeholder
             Debug.LogWarning($"[UIShopItemDisplay] Failed to load icon for {data.id}");
-            // Optional: fallback to blink or default?
+            _iconFadeInProgress = false;
             yield break;
         }
 
@@ -631,7 +635,7 @@ public class UIShopItemDisplay : MonoBehaviour
         if (iconImage != null)
         {
             iconImage.sprite = sprite;
-            
+
             // Fade In Effect: 0 -> 1 over 0.5s
             float duration = 0.5f;
             float elapsed = 0f;
@@ -647,11 +651,13 @@ public class UIShopItemDisplay : MonoBehaviour
                 if (iconImage != null) iconImage.color = c;
                 yield return null;
             }
-            
+
             // Ensure full alpha at end
             c.a = 1f;
             if (iconImage != null) iconImage.color = c;
         }
+
+        _iconFadeInProgress = false;
     }
 
     private void Clear(Transform root)

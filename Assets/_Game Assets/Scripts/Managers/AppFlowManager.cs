@@ -182,12 +182,8 @@ public class AppFlowManager : MonoBehaviour
              tasks.Add(UserInventoryManager.Instance.InitializeAsync());
         }
 
-        // IAP (Optional for visual blocking, but good practice)
-        if (IAPManager.Instance != null)
-        {
-             Log("Queuing IAP Init...");
-             tasks.Add(IAPManager.Instance.InitializeAsync());
-        }
+        // IAP: Now lazy-loaded when IAP shop opens (boot optimization)
+        // IAPManager.Instance.InitializeAsync() will be called on-demand
 
         // Execute all fetches in parallel and WAIT until all are done
         Log("Awaiting all data services...");

@@ -12,6 +12,7 @@ namespace MapDesignerTool
         [Header("For Sliders")]
         public Slider slider;
         public TextMeshProUGUI valueText;
+        public TMP_InputField sliderInputField; // Optional input field synced with slider
 
         [Header("For Toggles")]
         public Toggle toggle;

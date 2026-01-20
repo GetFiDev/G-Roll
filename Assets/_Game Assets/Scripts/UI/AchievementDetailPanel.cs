@@ -61,15 +61,35 @@ public class AchievementDetailPanel : MonoBehaviour
             bool isClaimed = (state.claimedLevels != null) && state.claimedLevels.Contains(lv);
             float reward = (lv - 1) < def.rewards.Count ? def.rewards[lv - 1] : 0;
 
-            // Bind with target amount instead of level index
-            row.Bind(targetValue, reward, reachable, isClaimed, async () => {
-                int n = await AchievementService.ClaimAllEligibleAsync(def, state);
+            // Capture level for closure
+            int capturedLevel = lv;
+
+            // Bind with target amount instead of level index (optimistic UI - no waiting)
+            row.Bind(targetValue, reward, reachable, isClaimed, () => {
+                // Collect levels that will be claimed BEFORE the optimistic call modifies state
+                var levelsToClaimRow = new List<int>();
+                var haveRow = new HashSet<int>(state.claimedLevels ?? new List<int>());
+                for (int lvRow = 1; lvRow <= state.level; lvRow++)
+                {
+                    if (!haveRow.Contains(lvRow))
+                        levelsToClaimRow.Add(lvRow);
+                }
+
+                int totalReward = AchievementService.ClaimAllEligibleOptimistic(def, state);
                 _onAnyClaim?.Invoke();
-                if (n > 0)
+
+                // INSTANT badge update - no server round-trip needed
+                if (levelsToClaimRow.Count > 0 && NotificationBadgeManager.Instance != null)
+                {
+                    NotificationBadgeManager.Instance.OnAchievementClaimedMultiple(def.typeId, levelsToClaimRow);
+                }
+
+                if (totalReward > 0)
                 {
                     Close();
                     UITopPanel.Instance.Initialize();
                 }
+                return System.Threading.Tasks.Task.CompletedTask;
             });
 
             if (reachable && !isClaimed)
@@ -86,38 +106,38 @@ public class AchievementDetailPanel : MonoBehaviour
         claimAllButton.interactable = anyClaimable;
 
         claimAllButton.onClick.RemoveAllListeners();
-        claimAllButton.onClick.AddListener(async () => {
+        claimAllButton.onClick.AddListener(() => {
             // Disable the button immediately to prevent double taps
             claimAllButton.interactable = false;
 
-            // Turn on fetching overlay on every claimable row
-            var rows = levelsRoot.GetComponentsInChildren<AchievementLevelRow>(true);
-            foreach (var r in rows)
+            // Collect levels that will be claimed BEFORE the optimistic call modifies state
+            var levelsToClaim = new List<int>();
+            var have = new HashSet<int>(state.claimedLevels ?? new List<int>());
+            for (int lv = 1; lv <= state.level; lv++)
             {
-                if (r != null && r.IsClaimable)
-                    r.SetProcessing(true);
+                if (!have.Contains(lv))
+                    levelsToClaim.Add(lv);
             }
 
-            try
+            // Optimistic UI: immediately grant rewards and close panel
+            int totalReward = AchievementService.ClaimAllEligibleOptimistic(def, state);
+            _onAnyClaim?.Invoke();
+
+            // INSTANT badge update - no server round-trip needed
+            if (levelsToClaim.Count > 0 && NotificationBadgeManager.Instance != null)
             {
-                int n = await AchievementService.ClaimAllEligibleAsync(def, state);
-                _onAnyClaim?.Invoke();
-                await NotificationBadgeManager.Instance.RefreshAchievementBadges();
-                
-                if (n > 0)
-                {
-                    Close();
-                    UITopPanel.Instance.Initialize();
-                }
+                NotificationBadgeManager.Instance.OnAchievementClaimedMultiple(def.typeId, levelsToClaim);
             }
-            finally
+
+            if (totalReward > 0)
             {
-                // If the panel isn't immediately re-bound, make sure to turn overlays off
-                foreach (var r in rows)
-                {
-                    if (r != null)
-                        r.SetProcessing(false);
-                }
+                Close();
+                UITopPanel.Instance.Initialize();
+            }
+            else
+            {
+                // Re-enable button if nothing was claimed
+                claimAllButton.interactable = anyClaimable;
             }
         });
 

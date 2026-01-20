@@ -45,7 +45,8 @@ public class GameManager : MonoBehaviour
     public void Initialize()
     {
         SetPhase(GamePhase.Meta);
-        StartCoroutine(FetchAndDebugItems());
+        // ItemDatabaseManager is now lazy-loaded when Shop opens (boot optimization)
+        // Debug item logging removed to speed up boot time
     }
 
     private void OnRequestStartGameplay()
@@ -91,6 +92,28 @@ public class GameManager : MonoBehaviour
     public async System.Threading.Tasks.Task<bool> RequestSessionAndStartAsync(GameMode mode)
     {
         CurrentMode = mode;
+
+        // --- FIX #1: Chapter mode için client-side enerji ön kontrolü ---
+        // Charter modda enerji ancak fail olduğunda harcansa da, 
+        // giriş anında en az 1 enerji olmalı yoksa fail olunca -1'e düşer
+        if (mode == GameMode.Chapter)
+        {
+            try
+            {
+                var energySnapshot = await UserEnergyService.FetchSnapshotAsync();
+                if (energySnapshot.current < 1)
+                {
+                    Debug.LogWarning("[GameManager] Chapter mode requires at least 1 energy. Showing energy panel.");
+                    ShowInsufficientEnergyPanel();
+                    return false;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[GameManager] Energy check failed: {ex.Message}. Proceeding with session request.");
+                // Hata durumunda session request'e devam et, server kontrol edecek
+            }
+        }
 
         // 1. Request Session
         var task = SessionRemoteService.RequestSessionAsync(mode); // Updated to pass mode
@@ -151,13 +174,4 @@ public class GameManager : MonoBehaviour
 
     // Legacy internal wrapper removed to prevent accidental usage of old flow.
     // private System.Collections.IEnumerator RequestAndStartInternal(bool useGate) { ... }
-    private System.Collections.IEnumerator FetchAndDebugItems()
-    {
-        var initTask = ItemDatabaseManager.InitializeAsync();
-        while (!initTask.IsCompleted) yield return null;
-        foreach (var item in ItemDatabaseManager.GetAllItems())
-        {
-            Debug.Log(item);
-        }
-    }
 }

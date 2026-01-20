@@ -26,11 +26,16 @@ namespace MapDesignerTool
         public Transform endlessListParent;
         public GameObject endlessItemPrefab;
 
-        [Header("Confirmation Dialog")]
+        [Header("Delete Confirmation Dialog")]
         public GameObject confirmDialog;
         public TextMeshProUGUI confirmMessage;
         public Button confirmYesButton;
         public Button confirmNoButton;
+
+        [Header("Load Confirmation Dialog")]
+        public GameObject loadConfirmDialog;
+        public Button loadConfirmYesButton;
+        public Button loadConfirmNoButton;
 
         [Header("Loading")]
         public GameObject loadingIndicator;
@@ -46,6 +51,10 @@ namespace MapDesignerTool
         private string _pendingDeleteType;
         private string _pendingDeleteId;
 
+        // Pending load
+        private string _pendingLoadType;
+        private string _pendingLoadId;
+
         [Serializable]
         public class MapListItem
         {
@@ -56,20 +65,32 @@ namespace MapDesignerTool
             public string createdAt;
         }
 
+        private bool _initialized = false;
+
         void Awake()
         {
-            if (panelRoot) panelRoot.SetActive(false);
+            Initialize();
+        }
+
+        void Initialize()
+        {
+            if (_initialized) return;
+            _initialized = true;
+
             if (confirmDialog) confirmDialog.SetActive(false);
+            if (loadConfirmDialog) loadConfirmDialog.SetActive(false);
 
             if (closeButton) closeButton.onClick.AddListener(Close);
             if (refreshButton) refreshButton.onClick.AddListener(() => StartCoroutine(RefreshCoroutine()));
             if (confirmYesButton) confirmYesButton.onClick.AddListener(OnConfirmYes);
             if (confirmNoButton) confirmNoButton.onClick.AddListener(() => confirmDialog.SetActive(false));
+            if (loadConfirmYesButton) loadConfirmYesButton.onClick.AddListener(OnLoadConfirmYes);
+            if (loadConfirmNoButton) loadConfirmNoButton.onClick.AddListener(() => loadConfirmDialog.SetActive(false));
         }
 
         public void Open()
         {
-            // Just activate panel - caller can start refresh if needed
+            Initialize(); // Ensure initialized even if Awake didn't run
             gameObject.SetActive(true);
             if (panelRoot && panelRoot != gameObject) panelRoot.SetActive(true);
         }
@@ -241,7 +262,17 @@ namespace MapDesignerTool
 
         void OnEditClicked(string mapType, string mapId)
         {
-            StartCoroutine(LoadMapForEditCoroutine(mapType, mapId));
+            // Show confirmation dialog before loading
+            _pendingLoadType = mapType;
+            _pendingLoadId = mapId;
+
+            if (loadConfirmDialog) loadConfirmDialog.SetActive(true);
+        }
+
+        void OnLoadConfirmYes()
+        {
+            if (loadConfirmDialog) loadConfirmDialog.SetActive(false);
+            StartCoroutine(LoadMapForEditCoroutine(_pendingLoadType, _pendingLoadId));
         }
 
         IEnumerator LoadMapForEditCoroutine(string mapType, string mapId)

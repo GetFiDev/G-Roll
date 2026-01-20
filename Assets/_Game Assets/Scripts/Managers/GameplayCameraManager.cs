@@ -5,6 +5,8 @@ using UnityEngine.InputSystem;
 
 public class GameplayCameraManager : MonoBehaviour
 {
+    public static GameplayCameraManager Instance { get; private set; }
+    
     [Header("References")]
     [SerializeField] private Camera targetCamera;
     
@@ -27,6 +29,40 @@ public class GameplayCameraManager : MonoBehaviour
     [SerializeField] private bool useSmoothFollow = true;
     [SerializeField] private float horizontalDeadZone = 2.2f; // Camera X stays static if player X is within +/- this range
 
+    // Public accessors for runtime adjustment (SRDebugger)
+    public Vector3 GameplayOffset
+    {
+        get => gameplayOffset;
+        set
+        {
+            gameplayOffset = value;
+            _currentOffset = value; // Always update current offset
+        }
+    }
+    
+    public Vector3 GameplayRotation
+    {
+        get => gameplayRotation;
+        set
+        {
+            gameplayRotation = value;
+            if (targetCamera != null) 
+                targetCamera.transform.rotation = Quaternion.Euler(value);
+        }
+    }
+    
+    public float GameplayFOV
+    {
+        get => gameplayFOV;
+        set
+        {
+            gameplayFOV = value;
+            if (targetCamera != null) 
+                targetCamera.fieldOfView = value;
+        }
+    }
+
+
     [Header("Dependencies")]
     [SerializeField] private GameplayLogicApplier logicApplier;
 
@@ -41,6 +77,8 @@ public class GameplayCameraManager : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
+        
         if (targetCamera == null)
         {
             targetCamera = Camera.main;

@@ -186,13 +186,25 @@ public class PlayerMovement : MonoBehaviour
         // Teleport sırasında normal hareket/rotasyon akışını durdur
         if (teleportInProgress) return;
 
+        // FIX #4: Coasting aktifken sadece yavaşlama hareketi yap
+        if (_isCoasting)
+        {
+            UpdateCoasting();
+            return;
+        }
+
         if (_isActive)
         {
-            if (_isFrozen && hardRotationLockOnFreeze)
+            if (_isFrozen)
             {
-                transform.rotation = _frozenRotation;
+                // Donmuş durumdayken sadece rotasyon kilitle, başka işlem yapma
+                if (hardRotationLockOnFreeze)
+                {
+                    transform.rotation = _frozenRotation;
+                }
+                return;
             }
-            
+
             // INTRO: If intro is playing, we only allow logic that happens inside the tween sequence.
             // External movement/rotation logic is completely blocked.
             if (_isIntroPlaying) return;
@@ -344,16 +356,8 @@ public class PlayerMovement : MonoBehaviour
         
         if (_isFrozen || _isIntroPlaying) return;
 
-        // Filter accidental "Up" swipes after side swipes
-        if (swipeDirection == SwipeDirection.Up && 
-           (_lastSwipeDirection == SwipeDirection.Left || _lastSwipeDirection == SwipeDirection.Right))
-        {
-            if (Time.time - _lastSwipeTime < 0.35f)
-            {
-                Debug.Log($"[PlayerMovement] Ignored rapid UP swipe (dt={Time.time - _lastSwipeTime:F3}s) after SIDE swipe.");
-                return;
-            }
-        }
+        // NOT: Eski "rapid UP swipe filter" kaldırıldı
+        // TouchManager'daki continuous swipe logic artık bunu doğru şekilde ele alıyor
 
         _lastSwipeTime = Time.time;
         _lastSwipeDirection = swipeDirection;
@@ -802,6 +806,62 @@ public class PlayerMovement : MonoBehaviour
     public void StopImmediately()
     {
         // lateralVelocity removed
+    }
+
+    // ---- FIX #4: Chapter Finish Coasting Methods ----
+    private bool _isCoasting = false;
+    private float _coastingDeceleration = 3f; // metres/sec decrease per second
+    
+    /// <summary>
+    /// FIX #4: Yavaşlama moduna geç - hız zamanla azalır
+    /// Chapter modda finish line geçildiğinde çağrılır
+    /// </summary>
+    public void StartCoasting()
+    {
+        _isCoasting = true;
+        Debug.Log($"[PlayerMovement] Started coasting, current speed: {Speed}");
+    }
+
+    /// <summary>
+    /// FIX #4: Tamamen durma animasyonu - Coroutine olarak çağrılabilir
+    /// </summary>
+    public IEnumerator StopCompletely(float duration)
+    {
+        float startSpeed = Speed;
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            float easedT = 1f - Mathf.Pow(1f - t, 2f); // EaseOutQuad
+            Speed = Mathf.Lerp(startSpeed, 0f, easedT);
+            movementSpeed = Speed; // Also update base to sync
+            yield return null;
+        }
+        
+        Speed = 0f;
+        movementSpeed = 0f;
+        _movementDirection = Vector3.zero;
+        _isCoasting = false;
+        Debug.Log("[PlayerMovement] Coasting complete, fully stopped.");
+    }
+    
+    /// <summary>
+    /// FIX #4: Check if player is currently coasting (for external queries)
+    /// </summary>
+    public bool IsCoasting => _isCoasting;
+
+    private void UpdateCoasting()
+    {
+        if (!_isCoasting) return;
+        
+        // Yavaşça hız azalt
+        Speed = Mathf.Max(0, Speed - _coastingDeceleration * Time.deltaTime);
+        movementSpeed = Speed;
+        
+        // Hâlâ ileri git (forward direction)
+        transform.position += Vector3.forward * Speed * Time.deltaTime;
     }
 
     /// <summary>Duvara çarpma hissi: sadece geriye (XZ) knockback.</summary>

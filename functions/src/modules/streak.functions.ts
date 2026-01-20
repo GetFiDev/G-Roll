@@ -47,9 +47,9 @@ async function applyDailyStreakIncrement(uid: string): Promise<{
 
         if (lastDate !== today) {
             if (!sSnap.exists) {
-                // First time ever: Start streak at 0, NO reward (unclaimed=0)
-                // Next day it will become 1 (total) and 1 (unclaimed).
-                totalDays = 0;
+                // FIX #5: First time ever: Start streak at 1, NO reward (unclaimed=0)
+                // This shows "Day 1" to user but no reward claim available
+                totalDays = 1;
                 unclaimedDays = 0;
             } else {
                 // Ongoing streak or broken streak logic could go here if we tracked breaks

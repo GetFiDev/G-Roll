@@ -253,8 +253,8 @@ export const createUserProfile = functionsV1.auth.user().onCreate(async (user) =
         level: 1,
         rank: rank,
         trustFactor: 100,
-        streak: 0,
-        bestStreak: 0,
+        streak: 1, // FIX #5: Streak starts at 1
+        bestStreak: 1, // Match initial streak
         chapterProgress: 1,
 
         // Game Stats

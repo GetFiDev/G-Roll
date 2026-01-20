@@ -460,56 +460,130 @@ namespace MapDesignerTool
                     var ui = Instantiate(configSliderPrefab, configContainer);
                     ui.gameObject.SetActive(true);
                     if (ui.labelText) ui.labelText.text = def.displayName;
-                    
+
                     float currentVal = def.defaultValue;
-                    
+
                     // Check saved value
                     if (dataInfo != null && dataInfo.runtimeConfig.TryGetValue(def.key, out var savedStr))
                     {
                         if (float.TryParse(savedStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
                             currentVal = f;
                     }
-                    
+
+                    // Track if we're currently updating to prevent infinite loops
+                    bool isUpdating = false;
+
+                    // Helper to apply value changes
+                    void ApplyValue(float v)
+                    {
+                        if (ui.valueText) ui.valueText.text = v.ToString("F1");
+
+                        if (dataInfo)
+                        {
+                            dataInfo.runtimeConfig[def.key] = v.ToString(CultureInfo.InvariantCulture);
+                            dataInfo.SaveConfigFromRuntime();
+                        }
+
+                        var dict = new Dictionary<string, string> {{def.key, v.ToString(CultureInfo.InvariantCulture)}};
+                        configurable.ApplyConfig(dict);
+                    }
+
                     if (ui.slider)
                     {
                         ui.slider.minValue = def.min;
                         ui.slider.maxValue = def.max;
                         ui.slider.value = currentVal;
 
-                        // Update value text
                         if (ui.valueText) ui.valueText.text = currentVal.ToString("F1");
 
-                        // Bind Listener
+                        // Slider listener
                         ui.slider.onValueChanged.AddListener((rawVal) =>
                         {
+                            if (isUpdating) return;
+
                             // Enforce 0.1 step
                             float v = Mathf.Round(rawVal * 10f) / 10f;
-                            
-                            // Only update if value actually changed after snap (prevents infinite loop if setting slider.value)
+
                             if (Mathf.Abs(ui.slider.value - v) > 0.001f)
                             {
                                 ui.slider.value = v;
-                                return; // Will trigger listener again with clean value
+                                return;
                             }
 
-                            if (ui.valueText) ui.valueText.text = v.ToString("F1"); // Display cleanly
-                            
-                            // 1. Update Runtime Dict
-                            if (dataInfo)
+                            isUpdating = true;
+
+                            // Sync input field if exists
+                            if (ui.sliderInputField)
                             {
-                                dataInfo.runtimeConfig[def.key] = v.ToString(CultureInfo.InvariantCulture);
-                                dataInfo.SaveConfigFromRuntime(); // Sync to list for serialization
+                                Debug.Log($"[ConfigUI] Slider changed, syncing input to: {v}");
+                                ui.sliderInputField.text = v.ToString("F1");
                             }
 
-                            // 2. Apply Live
-                            var dict = new Dictionary<string, string> {{def.key, v.ToString(CultureInfo.InvariantCulture)}};
-                            configurable.ApplyConfig(dict);
+                            ApplyValue(v);
+                            isUpdating = false;
                         });
                     }
-                    
+
+                    // Input field listener (synced with slider)
+                    if (ui.sliderInputField)
+                    {
+                        ui.sliderInputField.contentType = TMP_InputField.ContentType.DecimalNumber;
+                        ui.sliderInputField.text = currentVal.ToString("F1");
+
+                        // Live update while typing
+                        ui.sliderInputField.onValueChanged.AddListener((val) =>
+                        {
+                            if (isUpdating) return;
+
+                            // Skip incomplete input (still typing)
+                            if (string.IsNullOrEmpty(val) || val == "." || val == "-" || val == "-." || val.EndsWith("."))
+                                return;
+
+                            if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
+                            {
+                                // Clamp to slider range
+                                float clamped = Mathf.Clamp(parsed, def.min, def.max);
+
+                                isUpdating = true;
+
+                                // Sync slider (don't round during typing for smoother experience)
+                                if (ui.slider)
+                                    ui.slider.value = clamped;
+
+                                ApplyValue(clamped);
+                                isUpdating = false;
+                            }
+                        });
+
+                        // On end edit: clamp and format the displayed value
+                        ui.sliderInputField.onEndEdit.AddListener((val) =>
+                        {
+                            if (isUpdating) return;
+
+                            if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
+                            {
+                                float clamped = Mathf.Clamp(parsed, def.min, def.max);
+                                clamped = Mathf.Round(clamped * 10f) / 10f;
+
+                                isUpdating = true;
+                                ui.sliderInputField.text = clamped.ToString("F1");
+                                if (ui.slider) ui.slider.value = clamped;
+                                ApplyValue(clamped);
+                                isUpdating = false;
+                            }
+                            else
+                            {
+                                // Invalid input - reset to slider value
+                                isUpdating = true;
+                                ui.sliderInputField.text = ui.slider.value.ToString("F1");
+                                isUpdating = false;
+                            }
+                        });
+                    }
+
                     // Initial Apply (to ensure sync)
-                     var initDict = new Dictionary<string, string> {{def.key, currentVal.ToString(CultureInfo.InvariantCulture)}};
-                     configurable.ApplyConfig(initDict);
+                    var initDict = new Dictionary<string, string> {{def.key, currentVal.ToString(CultureInfo.InvariantCulture)}};
+                    configurable.ApplyConfig(initDict);
                 }
                 else if (def.type == ConfigType.Bool && configTogglePrefab)
                 {

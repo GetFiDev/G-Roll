@@ -43,13 +43,25 @@ public class UserStatManager : MonoBehaviour
 
     /// <summary>
     /// Firestore'dan tüm UserData'yı çeker ve Last'i günceller.
+    /// If useCachedIfAvailable is true and UserDatabaseManager has recent cached data,
+    /// it will use that instead of fetching fresh data (optimization for boot sequence).
     /// </summary>
-    public async Task<UserData> RefreshAllAsync()
+    public async Task<UserData> RefreshAllAsync(bool useCachedIfAvailable = true)
     {
         if (manager == null)
         {
             Debug.LogWarning("[UserStatManager] manager ref yok");
             return null;
+        }
+
+        // Optimization: If cached data is available and recent, use it
+        // This avoids duplicate Firestore reads during boot sequence
+        if (useCachedIfAvailable && manager.currentUserData != null)
+        {
+            Last = manager.currentUserData;
+            OnStatsRefreshed?.Invoke(Last);
+            Debug.Log("[UserStatManager] Using cached UserData (skipping fetch)");
+            return Last;
         }
 
         var data = await manager.LoadUserData(); // Firestore -> POCO

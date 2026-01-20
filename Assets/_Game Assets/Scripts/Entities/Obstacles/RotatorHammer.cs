@@ -73,31 +73,32 @@ public class RotatorHammer : Wall, IMapConfigurable
         // --- GLOBAL TIME SYNC MOVEMENT ---
         if (movingPart != null)
         {
-            float angleDiff = Mathf.Abs(angle2 - angle1);
-            if (angleDiff < 0.01f) angleDiff = 360f; // full spin if enabled logic, but hammer usually oscillates
+            // Calculate the shortest angular distance between the two angles
+            float angleDiff = Mathf.DeltaAngle(angle1, angle2);
+            float absAngleDiff = Mathf.Abs(angleDiff);
 
-            float totalDist = angleDiff; 
-            
+            if (absAngleDiff < 0.01f) absAngleDiff = 360f; // full spin if angles are same
+
+            float totalDist = absAngleDiff;
+
             if (totalDist > 0.01f && speed > 0.1f)
             {
                float oneWayTime = totalDist / speed;
                float cycleDuration = oneWayTime * 2f;
-               
+
                if (cycleDuration > 0.001f)
                {
                    float t = (Time.time + startOffset) % cycleDuration;
-                   
-                   float startAngle = clockwise ? angle1 : angle2; // "Clockwise" implies start point preference?
-                   // Consistent with LimitedRotator: Oscilate Angle1 <-> Angle2.
-                   // "Clockwise" flag previously swapped start/end for tween.
+
+                   float startAngle = clockwise ? angle1 : angle2;
                    float endAngle   = clockwise ? angle2 : angle1;
 
+                   // Calculate the delta for proper interpolation (handles 0/360 wrap)
+                   float delta = Mathf.DeltaAngle(startAngle, endAngle);
+
                    float progress = 0f;
-                   // Logic: 0 -> oneWayTime: Start -> End
-                   // oneWayTime -> cycleDuration: End -> Start
-                   
                    bool goingForward = (t < oneWayTime);
-                   
+
                    if (goingForward)
                    {
                        progress = t / oneWayTime; // 0..1
@@ -105,8 +106,6 @@ public class RotatorHammer : Wall, IMapConfigurable
                    else
                    {
                        progress = (t - oneWayTime) / oneWayTime; // 0..1
-                       // We want to go BACK from End to Start.
-                       // progress 0 = End, 1 = Start.
                    }
 
                    // Apply Curve
@@ -115,21 +114,19 @@ public class RotatorHammer : Wall, IMapConfigurable
                    {
                        easedProgress = movementCurve.Evaluate(progress);
                    }
-                   
+
                    float currentAngle;
                    if (goingForward)
                    {
-                       currentAngle = Mathf.Lerp(startAngle, endAngle, easedProgress);
+                       // Use delta to go the shortest path
+                       currentAngle = startAngle + delta * easedProgress;
                    }
                    else
                    {
-                       currentAngle = Mathf.Lerp(endAngle, startAngle, easedProgress);
+                       // Reverse: from end back to start
+                       currentAngle = endAngle - delta * easedProgress;
                    }
-                   
-                   // Particles logic (simple trigger based on phase change could be tricky in Update)
-                   // We just skip Particles in Sync Mode for now or implement Phase triggers.
-                   // User asked for movement sync.
-                   
+
                    movingPart.localRotation = Quaternion.Euler(0, 0, currentAngle);
                }
             }

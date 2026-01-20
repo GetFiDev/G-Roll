@@ -5,24 +5,23 @@ using System.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Dışardan çalışan, tek merkezli notification badge yöneticisi.
-/// - Achievement badge: claim edilebilir ödül varsa yanar.
-/// - Shop badge: oyuna yeni bir item eklendiyse yanar.
-/// 
-/// Mevcut sistemlere dokunmadan çalışır:
-///  - AchievementService üzerinden snapshot çeker.
-///  - ItemDatabaseManager üzerinden item listesini okur.
-/// 
-/// Kullanım:
-///  1) Sahneye bir GameObject ekle ve bu scripti koy.
-///  2) Inspector'da:
-///     - achievementTabBadge      (bottom bar "Tasks/Achievements" butonunun köşesindeki kırmızı nokta)
-///     - shopTabBadge             (bottom bar "Shop" butonunun köşesindeki kırmızı nokta)
-///     - achievementRowBadges     (isteğe bağlı: her bir achievement row için typeId + badge objesi)
-///  3) Achievement paneli açılırken/claim sonrası:
-///       NotificationBadgeManager.Instance.RefreshAchievementBadges();
-///  4) Shop paneli açıldığında:
-///       NotificationBadgeManager.Instance.MarkAllShopItemsSeen();
+/// Robust, event-driven notification badge manager.
+/// - Achievement badge: Lights up when there are claimable rewards. Updates INSTANTLY on claim.
+/// - Shop badge: Lights up when new items exist. Clears INSTANTLY when shop is opened.
+///
+/// Modern game design principles:
+///  1. Optimistic UI: Update badges immediately without waiting for server
+///  2. Event-driven: Components can subscribe to badge state changes
+///  3. Local state tracking: Maintain local claim state for instant feedback
+///
+/// Usage:
+///  1) Add this script to a GameObject in the scene
+///  2) In Inspector, assign:
+///     - achievementTabBadge (red dot on Tasks/Achievements button)
+///     - shopTabBadge (red dot on Shop button)
+///     - achievementRowBadges (optional: per-achievement row badges)
+///  3) Call OnAchievementClaimed(typeId, level) after claiming - badge updates instantly
+///  4) Call MarkAllShopItemsSeen() when shop opens - badge clears instantly
 /// </summary>
 public class NotificationBadgeManager : MonoBehaviour
 {
@@ -32,7 +31,7 @@ public class NotificationBadgeManager : MonoBehaviour
     [Tooltip("Bottom panelde Tasks/Achievements sekmesini açan butonun köşesindeki kırmızı nokta.")]
     public GameObject achievementTabBadge;
 
-    [Tooltip("İsteğe bağlı: Her bir achievement satırı için typeId + row üzerindeki badge GameObject’i.")]
+    [Tooltip("İsteğe bağlı: Her bir achievement satırı için typeId + row üzerindeki badge GameObject'i.")]
     public List<AchievementRowBinding> achievementRowBadges = new List<AchievementRowBinding>();
 
     [Header("Shop Badges")]
@@ -43,9 +42,19 @@ public class NotificationBadgeManager : MonoBehaviour
     [Tooltip("Oyun açılışında otomatik olarak achievement & shop badge refresh yapılsın mı?")]
     public bool autoRefreshOnStart = true;
 
+    // --- Events for external listeners ---
+    /// <summary>Fired when achievement badge visibility changes. Parameter: hasClaimable</summary>
+    public event Action<bool> OnAchievementBadgeChanged;
+
+    /// <summary>Fired when shop badge visibility changes. Parameter: hasNewItems</summary>
+    public event Action<bool> OnShopBadgeChanged;
+
     // --- internal state ---
     private AchSnapshot _lastAchSnapshot;
     private bool _isRefreshingAchievements;
+
+    // Local tracking of claimed levels (for instant UI updates before server confirms)
+    private HashSet<string> _locallyClaimedKeys = new HashSet<string>();
 
     private HashSet<string> _seenShopItemIds;
     private const string SHOP_SEEN_KEY = "NOTIF_SHOP_SEEN_ITEMS_V1";
@@ -77,6 +86,13 @@ public class NotificationBadgeManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // IMPORTANT: Start with badges OFF until we confirm there's something to show
+        // This prevents badges showing incorrectly before data is loaded
+        if (achievementTabBadge != null)
+            achievementTabBadge.SetActive(false);
+        if (shopTabBadge != null)
+            shopTabBadge.SetActive(false);
 
         LoadSeenShopItems();
     }
@@ -115,11 +131,13 @@ public class NotificationBadgeManager : MonoBehaviour
             var snap = await AchievementService.GetSnapshotAsync();
             _lastAchSnapshot = snap;
 
+            // Server'dan gelen veri ile local tracking'i senkronize et
+            SyncLocalClaimedWithSnapshot(snap);
+
             bool anyClaimable = HasAnyClaimableAchievement(snap);
 
             // Bottom tab badge
-            if (achievementTabBadge != null)
-                achievementTabBadge.SetActive(anyClaimable);
+            SetAchievementBadgeState(anyClaimable);
 
             // Row bazlı badge'ler
             UpdateAchievementRowBadges(snap);
@@ -128,14 +146,88 @@ public class NotificationBadgeManager : MonoBehaviour
         {
             Debug.LogWarning($"[NotificationBadgeManager] RefreshAchievementBadges error: {e.Message}");
             // Hata durumunda tüm achievement badge'lerini kapatmak daha güvenli
-            if (achievementTabBadge != null)
-                achievementTabBadge.SetActive(false);
+            SetAchievementBadgeState(false);
             UpdateAchievementRowBadges(null);
         }
         finally
         {
             _isRefreshingAchievements = false;
         }
+    }
+
+    /// <summary>
+    /// INSTANT UPDATE: Call this immediately after claiming an achievement reward.
+    /// Updates badges without waiting for server refresh.
+    /// </summary>
+    /// <param name="typeId">The achievement type ID that was claimed</param>
+    /// <param name="level">The level that was claimed</param>
+    public void OnAchievementClaimed(string typeId, int level)
+    {
+        // Track locally for instant UI feedback
+        string key = $"{typeId}:{level}";
+        _locallyClaimedKeys.Add(key);
+
+        // Update local snapshot if available
+        if (_lastAchSnapshot != null)
+        {
+            var state = _lastAchSnapshot.StateOf(typeId);
+            if (state != null)
+            {
+                state.claimedLevels ??= new List<int>();
+                if (!state.claimedLevels.Contains(level))
+                {
+                    state.claimedLevels.Add(level);
+                }
+            }
+
+            // Immediately recalculate badge state
+            bool anyClaimable = HasAnyClaimableAchievement(_lastAchSnapshot);
+            SetAchievementBadgeState(anyClaimable);
+            UpdateAchievementRowBadges(_lastAchSnapshot);
+        }
+
+        Debug.Log($"[NotificationBadgeManager] Achievement claimed instantly: {typeId} lv{level}");
+    }
+
+    /// <summary>
+    /// INSTANT UPDATE: Call this after claiming ALL eligible levels for an achievement.
+    /// Updates badges without waiting for server refresh.
+    /// </summary>
+    /// <param name="typeId">The achievement type ID</param>
+    /// <param name="claimedLevels">List of levels that were claimed</param>
+    public void OnAchievementClaimedMultiple(string typeId, List<int> claimedLevels)
+    {
+        if (claimedLevels == null || claimedLevels.Count == 0) return;
+
+        foreach (var level in claimedLevels)
+        {
+            string key = $"{typeId}:{level}";
+            _locallyClaimedKeys.Add(key);
+        }
+
+        // Update local snapshot
+        if (_lastAchSnapshot != null)
+        {
+            var state = _lastAchSnapshot.StateOf(typeId);
+            if (state != null)
+            {
+                state.claimedLevels ??= new List<int>();
+                foreach (var level in claimedLevels)
+                {
+                    if (!state.claimedLevels.Contains(level))
+                    {
+                        state.claimedLevels.Add(level);
+                    }
+                }
+            }
+
+            // Immediately recalculate badge state
+            bool anyClaimable = HasAnyClaimableAchievement(_lastAchSnapshot);
+            SetAchievementBadgeState(anyClaimable);
+            UpdateAchievementRowBadges(_lastAchSnapshot);
+        }
+
+        Debug.Log($"[NotificationBadgeManager] Multiple achievements claimed instantly: {typeId} x{claimedLevels.Count}");
     }
 
     /// <summary>
@@ -146,6 +238,48 @@ public class NotificationBadgeManager : MonoBehaviour
         _lastAchSnapshot != null && HasAnyClaimableAchievement(_lastAchSnapshot);
 
     /// <summary>
+    /// Helper to set achievement badge state and fire event
+    /// </summary>
+    private void SetAchievementBadgeState(bool hasClaimable)
+    {
+        if (achievementTabBadge != null)
+            achievementTabBadge.SetActive(hasClaimable);
+
+        // Fire event for any listeners
+        OnAchievementBadgeChanged?.Invoke(hasClaimable);
+    }
+
+    /// <summary>
+    /// Sync local claimed keys with server snapshot (clears local tracking for items server confirms)
+    /// </summary>
+    private void SyncLocalClaimedWithSnapshot(AchSnapshot snap)
+    {
+        if (snap?.states == null) return;
+
+        // Clear local keys that are now confirmed by server
+        var keysToRemove = new List<string>();
+        foreach (var key in _locallyClaimedKeys)
+        {
+            var parts = key.Split(':');
+            if (parts.Length != 2) continue;
+
+            var typeId = parts[0];
+            if (!int.TryParse(parts[1], out int level)) continue;
+
+            var state = snap.StateOf(typeId);
+            if (state?.claimedLevels != null && state.claimedLevels.Contains(level))
+            {
+                keysToRemove.Add(key);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            _locallyClaimedKeys.Remove(key);
+        }
+    }
+
+    /// <summary>
     /// Shop için "yeni item" kontrolü yapar ve shopTabBadge durumunu günceller.
     /// </summary>
     public void RefreshShopBadge()
@@ -153,8 +287,7 @@ public class NotificationBadgeManager : MonoBehaviour
         // ItemDatabaseManager henüz hazır değilse badge'i kapatmak güvenli.
         if (!ItemDatabaseManager.IsReady)
         {
-            if (shopTabBadge != null)
-                shopTabBadge.SetActive(false);
+            SetShopBadgeState(false);
             return;
         }
 
@@ -171,25 +304,25 @@ public class NotificationBadgeManager : MonoBehaviour
 
         if (allIds.Count == 0)
         {
-            if (shopTabBadge != null)
-                shopTabBadge.SetActive(false);
+            SetShopBadgeState(false);
             return;
         }
 
         // Seen listemizde olmayan herhangi bir id var mı?
         bool hasNew = allIds.Any(id => !_seenShopItemIds.Contains(id));
 
-        if (shopTabBadge != null)
-            shopTabBadge.SetActive(hasNew);
+        SetShopBadgeState(hasNew);
     }
 
     /// <summary>
-    /// Shop panelini açtığında çağır:
-    ///  - O anki tüm item'ları "görülmüş" olarak işaretler,
-    ///  - Shop badge'ini kapatır.
+    /// INSTANT UPDATE: Call when shop panel is opened.
+    /// Immediately clears the badge and marks all items as seen.
     /// </summary>
     public void MarkAllShopItemsSeen()
     {
+        // INSTANT: Clear badge immediately, before any async operations
+        SetShopBadgeState(false);
+
         if (!ItemDatabaseManager.IsReady)
         {
             // Henüz itemlar yoksa yapacak bir şey yok.
@@ -207,8 +340,19 @@ public class NotificationBadgeManager : MonoBehaviour
 
         SaveSeenShopItems();
 
+        Debug.Log("[NotificationBadgeManager] Shop badge cleared instantly - all items marked as seen");
+    }
+
+    /// <summary>
+    /// Helper to set shop badge state and fire event
+    /// </summary>
+    private void SetShopBadgeState(bool hasNewItems)
+    {
         if (shopTabBadge != null)
-            shopTabBadge.SetActive(false);
+            shopTabBadge.SetActive(hasNewItems);
+
+        // Fire event for any listeners
+        OnShopBadgeChanged?.Invoke(hasNewItems);
     }
 
     /// <summary>
@@ -228,6 +372,7 @@ public class NotificationBadgeManager : MonoBehaviour
     /// Herhangi bir achievement type için claim edilebilir seviyeler var mı?
     /// Definition: ClaimAllEligibleAsync ile birebir aynı mantık:
     ///   lv = 1..state.level içinde claimedLevels'te olmayan seviyeler claim edilebilir.
+    /// Also considers locally claimed items that haven't been confirmed by server yet.
     /// </summary>
     private bool HasAnyClaimableAchievement(AchSnapshot snap)
     {
@@ -249,12 +394,25 @@ public class NotificationBadgeManager : MonoBehaviour
 
     /// <summary>
     /// Belirli bir typeId için claim edilebilir en az bir seviye var mı?
+    /// Considers both server-confirmed claims AND local optimistic claims.
     /// </summary>
     private bool IsTypeClaimable(AchDef def, AchState st)
     {
         if (def == null || st == null) return false;
 
+        // Combine server-confirmed claimed levels with locally claimed levels
         var claimed = new HashSet<int>(st.claimedLevels ?? new List<int>());
+
+        // Also add locally claimed levels (optimistic)
+        foreach (var key in _locallyClaimedKeys)
+        {
+            var parts = key.Split(':');
+            if (parts.Length == 2 && parts[0] == st.typeId && int.TryParse(parts[1], out int localLevel))
+            {
+                claimed.Add(localLevel);
+            }
+        }
+
         // level: server'ın "ulaşılmış seviye" bilgisi
         for (int lv = 1; lv <= st.level; lv++)
         {
@@ -263,6 +421,20 @@ public class NotificationBadgeManager : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Check if a specific achievement type has any claimable levels.
+    /// Public accessor for UI components.
+    /// </summary>
+    public bool IsAchievementClaimable(string typeId)
+    {
+        if (_lastAchSnapshot == null) return false;
+
+        var def = _lastAchSnapshot.DefOf(typeId);
+        var st = _lastAchSnapshot.StateOf(typeId);
+
+        return IsTypeClaimable(def, st);
     }
 
     /// <summary>

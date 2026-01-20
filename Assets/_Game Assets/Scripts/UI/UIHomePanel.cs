@@ -39,6 +39,7 @@ public class UIHomePanel : MonoBehaviour
     [SerializeField] private Button endlessButton;
     [SerializeField] private Button chapterButton;
     [SerializeField] private TextMeshProUGUI chapterButtonText;
+    [SerializeField] private GameObject chapterComingSoonOverlay;
 
     public void Initialize()
     {
@@ -113,10 +114,10 @@ public class UIHomePanel : MonoBehaviour
     private async Task UpdateChapterButtonStateAsync()
     {
         if (chapterButton == null) return;
-        
+
         // Default safe state
         chapterButton.interactable = false;
-        if (chapterButtonText) chapterButtonText.text = "Loading...";
+        if (chapterComingSoonOverlay) chapterComingSoonOverlay.SetActive(false);
 
         if (UserDatabaseManager.Instance == null) return;
 
@@ -124,7 +125,6 @@ public class UIHomePanel : MonoBehaviour
         var userData = await UserDatabaseManager.Instance.LoadUserData();
         if (userData == null)
         {
-            if (chapterButtonText) chapterButtonText.text = "Error";
             return;
         }
 
@@ -134,13 +134,12 @@ public class UIHomePanel : MonoBehaviour
         if (exists)
         {
             chapterButton.interactable = true;
-            if (chapterButtonText) chapterButtonText.text = $"Chapter {currentChapter}";
+            if (chapterComingSoonOverlay) chapterComingSoonOverlay.SetActive(false);
         }
         else
         {
             chapterButton.interactable = false;
-            // "Chapter X - Coming Soon" might be too long for button, maybe just "Coming Soon" or multiline
-            if (chapterButtonText) chapterButtonText.text = $"Chapter {currentChapter}\nComing Soon";
+            if (chapterComingSoonOverlay) chapterComingSoonOverlay.SetActive(true);
         }
     }
 

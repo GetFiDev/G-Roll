@@ -223,10 +223,21 @@ public class UserStatsDisplayer : MonoBehaviour
             // --- Handling Currency ---
             if (data != null)
             {
-                double prev = LoadLastCurrency(); 
-                double curr = (double)data.currency;
-                
-                // Only animate if changed. 
+                double prev = LoadLastCurrency();
+                double serverCurrency = (double)data.currency;
+
+                // Optimistic UI: Use the higher of server value or local CurrencyManager value
+                // This ensures optimistic claims show immediately before server syncs
+                double localCurrency = CurrencyManager.Get(CurrencyType.SoftCurrency);
+                double curr = Math.Max(serverCurrency, localCurrency);
+
+                // Sync CurrencyManager with server if server has higher value
+                if (serverCurrency > localCurrency)
+                {
+                    CurrencyManager.Set(CurrencyType.SoftCurrency, (int)serverCurrency);
+                }
+
+                // Only animate if changed.
                 // Delay: 1.0s if currency increased (to sync with potential FX), else 0.
                 bool increased = curr > prev + 0.0001;
                 float delay = increased ? 1.0f : 0f;

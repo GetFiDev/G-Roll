@@ -13,7 +13,7 @@ namespace NetworkingData
         // Yeni eklenenler:
         [FirestoreProperty] public string statsJson { get; set; } = "";   // string
         [FirestoreProperty] public string adClaimsJson { get; set; } = ""; // JSON for daily ad limits: { "productId": { "lastClaimDate": "2023-10-27", "count": 2 } }
-        [FirestoreProperty] public int streak { get; set; } = 0;          // int
+        [FirestoreProperty] public int streak { get; set; } = 1;          // FIX #5: Streak starts at 1 (server-side also needs update)
         [FirestoreProperty] public int trustFactor { get; set; } = 100;   // int
         [FirestoreProperty] public int rank { get; set; } = 0;            // int
         [FirestoreProperty] public double maxScore { get; set; } = 0;     // number

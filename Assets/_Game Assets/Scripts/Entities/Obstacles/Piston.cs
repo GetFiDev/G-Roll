@@ -29,6 +29,11 @@ public class Piston : Wall, IMapConfigurable
     private const float StrikeDuration = 0.3f;
     private const float ReturnDuration = 0.1f;
 
+    // Cached local positions for consistent movement
+    private Vector3 _startLocalPos;
+    private Vector3 _targetLocalPos;
+    private bool _initialized = false;
+
     private void Start()
     {
         if (movingPart == null || startTransform == null || targetTransform == null)
@@ -37,9 +42,30 @@ public class Piston : Wall, IMapConfigurable
             return;
         }
 
-        // Piston starts at startTransform. 
-        // We will move it in Update based on time.
-        movingPart.position = startTransform.position;
+        // Cache local positions relative to movingPart's parent
+        // This ensures consistent movement regardless of parent transforms
+        Transform parentTransform = movingPart.parent;
+        if (parentTransform != null)
+        {
+            _startLocalPos = parentTransform.InverseTransformPoint(startTransform.position);
+            _targetLocalPos = parentTransform.InverseTransformPoint(targetTransform.position);
+        }
+        else
+        {
+            _startLocalPos = startTransform.position;
+            _targetLocalPos = targetTransform.position;
+        }
+
+        // Validate that positions are different
+        float dist = Vector3.Distance(_startLocalPos, _targetLocalPos);
+        if (dist < 0.01f)
+        {
+            Debug.LogWarning($"Piston: Start and Target positions are too close! Distance: {dist}", this);
+        }
+
+        // Piston starts at startTransform
+        movingPart.localPosition = _startLocalPos;
+        _initialized = true;
 
         // Setup Collision Proxy on ALL child colliders recursively (from Root)
         var allColliders = GetComponentsInChildren<Collider>(true);
@@ -53,13 +79,20 @@ public class Piston : Wall, IMapConfigurable
 
     private void Update()
     {
-        if (movingPart == null || startTransform == null || targetTransform == null) return;
+        if (!_initialized || movingPart == null) return;
+
+        // Check if start and target are the same (no movement possible)
+        float distance = Vector3.Distance(_startLocalPos, _targetLocalPos);
+        if (distance < 0.001f)
+        {
+            return;
+        }
 
         // GLOBAL TIME SYNC
         // Cycle: Strike (0.3) -> Callback(Particle) -> Return (0.1) -> Wait (interval)
         // Total Cycle Time = StrikeDuration + ReturnDuration + interval
         float totalCycle = StrikeDuration + ReturnDuration + interval;
-        if (totalCycle < 0.1f) return;
+        if (totalCycle < 0.1f) totalCycle = 0.1f; // Ensure minimum cycle time
 
         // Where are we in the cycle (0..totalCycle)
         float t = (Time.time + startOffset) % totalCycle;
@@ -68,45 +101,27 @@ public class Piston : Wall, IMapConfigurable
         {
             // STRIKE PHASE (Start -> Target)
             float progress = t / StrikeDuration; // 0..1
-            // Use Tween Ease logic manually? Or standard linear?
-            // User likes easing. Helper function?
-            // Usually simpler to use Lerp if we want simple robustness.
-            // But lets try to respect 'strikeEase' if possible via a helper or simple easing.
-            // For now, simple Slerp or similar is decent, but let's use DOVirtual.EasedValue ideally.
-            // But we don't want to spam it.
-            // Let's settle for simple Lerp for robustness in Sync Mode.
-            // Or cubic manual lerp: p*p*p
-            
             float eased = DOVirtual.EasedValue(0, 1, progress, strikeEase);
-            movingPart.position = Vector3.Lerp(startTransform.position, targetTransform.position, eased);
+            movingPart.localPosition = Vector3.Lerp(_startLocalPos, _targetLocalPos, eased);
         }
         else if (t < StrikeDuration + ReturnDuration)
         {
             // RETURN PHASE (Target -> Start)
-            // But first, did we just transition from Strike? (Particle trigger)
-            // Triggering particles in Update is tricky. 
-            // We can check if `t` just passed the threshold delta but that's unreliable with frames.
-            // For Sync Mode, maybe we skip Particle trigger OR we just loop an independeny particle system?
-            // Let's focus on Movement Sync.
-            
             float tRel = t - StrikeDuration;
             float progress = tRel / ReturnDuration; // 0..1
             float eased = DOVirtual.EasedValue(0, 1, progress, returnEase);
-            movingPart.position = Vector3.Lerp(targetTransform.position, startTransform.position, eased);
-            
-            // Hacky Particle: if progress < 0.2f (start of return), try play?
-            // Better to ignore particles or use a separate loop.
+            movingPart.localPosition = Vector3.Lerp(_targetLocalPos, _startLocalPos, eased);
+
+            // Particle trigger at the start of return phase
             if (enableParticle && pistonParticle != null && !pistonParticle.isPlaying && progress < 0.2f)
             {
-               // This might spam play if frame rate is high?
-               // ParticleSystem.isPlaying check helps.
                pistonParticle.Play();
             }
         }
         else
         {
             // WAIT PHASE (Stay at Start)
-            movingPart.position = startTransform.position;
+            movingPart.localPosition = _startLocalPos;
         }
     }
 

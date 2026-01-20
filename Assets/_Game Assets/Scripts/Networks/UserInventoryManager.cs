@@ -123,19 +123,23 @@ public class UserInventoryManager : MonoBehaviour
 
         Debug.Log("[UserInventoryManager] Fetching inventory...");
 
-        var snapshot = await InventoryRemoteService.GetInventoryAsync();
+        // Run both requests in parallel for faster initialization
+        var inventoryTask = InventoryRemoteService.GetInventoryAsync();
+        var consumablesTask = RefreshActiveConsumablesAsync();
+
+        // Wait for inventory first (required for initialization)
+        var snapshot = await inventoryTask;
         if (snapshot == null || !snapshot.ok)
         {
             Debug.LogWarning("[UserInventoryManager] Failed to fetch inventory snapshot.");
-            // We do NOT mark initialized if failed, allowing retry? 
-            // Or should we mark it to avoid blocking loop? 
-            // For now, let's allow retry or handle error upstream.
+            // Still wait for consumables task to complete to avoid orphaned tasks
+            try { await consumablesTask; } catch { }
             return;
         }
 
         ReplaceInventory(snapshot.inventory, snapshot.equippedItemIds);
-        // Also pull active consumables so shop/UI can render countdowns immediately
-        await RefreshActiveConsumablesAsync();
+        // Wait for consumables to finish (already running in parallel)
+        await consumablesTask;
         
         IsInitialized = true;
         OnInventoryChanged?.Invoke();

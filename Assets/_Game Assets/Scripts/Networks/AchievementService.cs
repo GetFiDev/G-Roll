@@ -199,4 +199,65 @@ public static class AchievementService
         UITopPanel.Instance.Initialize();
         return claimed;
     }
+
+    /// <summary>
+    /// Optimistic UI version: Immediately adds reward locally, fires server request in background.
+    /// Returns the total reward amount that was optimistically granted.
+    /// </summary>
+    public static int ClaimAllEligibleOptimistic(AchDef def, AchState st)
+    {
+        if (def == null || st == null) return 0;
+
+        int totalReward = 0;
+        var have = new HashSet<int>(st.claimedLevels ?? new List<int>());
+        var levelsToClaim = new List<int>();
+
+        // Calculate total reward and collect levels to claim
+        for (int lv = 1; lv <= st.level; lv++)
+        {
+            if (have.Contains(lv)) continue;
+
+            int reward = (lv - 1) < def.rewards.Count ? def.rewards[lv - 1] : 0;
+            totalReward += reward;
+            levelsToClaim.Add(lv);
+
+            // Mark as claimed locally to prevent double-claiming
+            st.claimedLevels ??= new List<int>();
+            st.claimedLevels.Add(lv);
+        }
+
+        if (totalReward > 0)
+        {
+            // Immediately add currency locally
+            CurrencyManager.Add(CurrencyType.SoftCurrency, totalReward);
+            Debug.Log($"[AchievementService] Optimistic: Added {totalReward} coins locally");
+        }
+
+        // Fire server requests in background (fire-and-forget)
+        if (levelsToClaim.Count > 0)
+        {
+            _ = ClaimLevelsInBackgroundAsync(st.typeId, levelsToClaim);
+        }
+
+        return totalReward;
+    }
+
+    private static async Task ClaimLevelsInBackgroundAsync(string typeId, List<int> levels)
+    {
+        foreach (var lv in levels)
+        {
+            try
+            {
+                var res = await ClaimAsyncEx(typeId, lv);
+                if (res.code != ClaimResultCode.Ok && res.code != ClaimResultCode.AlreadyClaimed)
+                {
+                    Debug.LogWarning($"[AchievementService] Background claim failed for {typeId} lv{lv}: {res.message}");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[AchievementService] Background claim exception for {typeId} lv{lv}: {e.Message}");
+            }
+        }
+    }
 }
