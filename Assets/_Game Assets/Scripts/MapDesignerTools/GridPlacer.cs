@@ -693,20 +693,18 @@ public class GridPlacer : MonoBehaviour
     public bool IsScreenPointOnGrid(Vector2 screenPos, out int gx, out int gz)
     {
         gx = 0; gz = 0;
-        if (cam == null) return false;
+        if (cam == null || grid == null) return false;
 
         Ray ray = cam.ScreenPointToRay(screenPos);
-        Vector3 worldPos;
 
-        if (Physics.Raycast(ray, out var hit, 5000f, groundMask))
-            worldPos = hit.point;
-        else
-        {
-            Plane p = new Plane(transform.up, transform.position);
-            if (!p.Raycast(ray, out float enter)) return false;
-            worldPos = ray.GetPoint(enter);
-        }
+        // Use a horizontal plane at grid's Y level for reliable detection
+        // This works regardless of object colliders
+        Plane gridPlane = new Plane(Vector3.up, grid.transform.position);
 
+        if (!gridPlane.Raycast(ray, out float enter))
+            return false;
+
+        Vector3 worldPos = ray.GetPoint(enter);
         return grid.TryWorldToCell(worldPos, out gx, out gz);
     }
 

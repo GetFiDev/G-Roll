@@ -167,7 +167,7 @@ public class UIAdProduct : MonoBehaviour
         OnAdSuccess(onExternalSuccess);
 #else
         // Using "product_reward" as placement ID. Assuming standard AdManager.
-        AdManager.ShowRewarded("product_reward", (success) =>
+        /*AdManager.ShowRewarded("product_reward", (success) =>
         {
             if (success)
             {
@@ -181,7 +181,7 @@ public class UIAdProduct : MonoBehaviour
                 if (actionButton != null) actionButton.interactable = true; // Re-enable
                 onExternalFailure?.Invoke(); // FIX: Notify caller about failure
             }
-        });
+        });*/
 #endif
     }
 

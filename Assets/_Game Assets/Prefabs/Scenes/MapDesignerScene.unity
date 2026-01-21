@@ -4433,12 +4433,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_UiScaleMode: 0
+  m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
+  m_ReferenceResolution: {x: 1892, y: 828}
   m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0
+  m_MatchWidthOrHeight: 0.53
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
@@ -8320,7 +8320,7 @@ Light:
     m_Type: 2
     m_Resolution: -1
     m_CustomResolution: -1
-    m_Strength: 1
+    m_Strength: 0.5
     m_Bias: 0.02
     m_NormalBias: 0.1
     m_NearPlane: 0.1
@@ -8373,13 +8373,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1152730720}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.8047942, y: -0.0313963, z: 0.04274089, w: -0.59118}
+  m_LocalRotation: {x: 0.5671176, y: 0.1834785, z: -0.13136081, w: 0.79212224}
   m_LocalPosition: {x: -10.254579, y: 8.39585, z: -12.120904}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: -252.6, y: 6.08, z: 0}
+  m_LocalEulerAnglesHint: {x: 71.201, y: 26.083, z: 0}
 --- !u!1 &1170276861
 GameObject:
   m_ObjectHideFlags: 0

@@ -18,7 +18,7 @@ public class AppManager : MonoSingleton<AppManager>
         ReviewManager.Initialize();
         HapticManager.Initialize();
         NotificationManager.Initialize();
-        AdManager.Initialize();
+        //AdManager.Initialize();
         
         if (Application.platform == RuntimePlatform.IPhonePlayer)
         {
