@@ -208,12 +208,19 @@ namespace MapDesignerTool
         {
             if (overwriteDialog) overwriteDialog.SetActive(false);
 
+            // Show saving toast immediately
+            var saver = FindObjectOfType<MapSaver>();
+            if (saver != null)
+            {
+                saver.ShowSaveToast("Saving...", Color.yellow);
+            }
+
             string mapName = "";
             string displayName = "Untitled";
             string type = (modeDropdown.value == 0) ? "endless" : "chapter";
             int difficulty = 1;
             int order = 1;
-            
+
             var grid = FindObjectOfType<MapGridCellUtility>();
             int length = 120; // Default for Endless
 
@@ -272,17 +279,20 @@ namespace MapDesignerTool
             if (string.IsNullOrWhiteSpace(mapName))
             {
                 Debug.LogError("Invalid Map Name");
+                if (saver != null)
+                {
+                    saver.ShowSaveToast("Invalid Map Name!", Color.red);
+                }
                 return;
             }
 
             // Collect Data
-            var saver = FindObjectOfType<MapSaver>();
             if (!saver)
             {
                 Debug.LogError("No MapSaver found!");
                 return;
             }
-            
+
             var data = saver.Collect(mapName, displayName, type, order, difficulty, length, 0);
 
             // Upload
@@ -291,9 +301,16 @@ namespace MapDesignerTool
             if (status == "success")
             {
                 Debug.Log("Map Saved Successfully!");
+                saver.ShowSaveToast("Map Saved!", Color.green);
             }
             else if (status == "exists")
             {
+                // Hide saving toast since we're showing dialog
+                if (saver.saveToast != null)
+                {
+                    saver.saveToast.gameObject.SetActive(false);
+                }
+
                 // Show Overwrite Dialog with type-specific message
                 if (overwriteDialog)
                 {
@@ -314,6 +331,7 @@ namespace MapDesignerTool
             else
             {
                 Debug.LogError("Save Failed.");
+                saver.ShowSaveToast("Save Failed!", Color.red);
             }
         }
 

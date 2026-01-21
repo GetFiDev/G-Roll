@@ -15,12 +15,48 @@ using UnityEditor;
 public class MapSaver : MonoBehaviour
 {
     [Header("Toast (optional)")]
-    [SerializeField] private TextMeshProUGUI saveToast;
-    [SerializeField, Min(0.1f)] private float toastDuration = 3f;
+    [SerializeField] private TextMeshProUGUI _saveToast;
+    [SerializeField, Min(0.1f)] private float toastDuration = 4f;
+
+    public TextMeshProUGUI saveToast => _saveToast;
+
+    private Coroutine _toastCoroutine;
 
     private void Awake()
     {
-        if (saveToast != null) saveToast.gameObject.SetActive(false);
+        if (_saveToast != null) _saveToast.gameObject.SetActive(false);
+    }
+
+    /// <summary>
+    /// Shows a toast message with color. Auto-hides after toastDuration seconds.
+    /// </summary>
+    public void ShowSaveToast(string message, Color color)
+    {
+        if (_saveToast == null) return;
+
+        // Stop any existing toast timer
+        if (_toastCoroutine != null)
+        {
+            StopCoroutine(_toastCoroutine);
+        }
+
+        // Show toast
+        _saveToast.text = message;
+        _saveToast.color = color;
+        _saveToast.gameObject.SetActive(true);
+
+        // Auto-hide after duration
+        _toastCoroutine = StartCoroutine(HideToastAfterDelay());
+    }
+
+    private System.Collections.IEnumerator HideToastAfterDelay()
+    {
+        yield return new WaitForSeconds(toastDuration);
+        if (_saveToast != null)
+        {
+            _saveToast.gameObject.SetActive(false);
+        }
+        _toastCoroutine = null;
     }
     
     // === Cloud Functions ===
