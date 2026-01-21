@@ -11,26 +11,23 @@ Material:
   m_Shader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
-  - _SURFACE_TYPE_TRANSPARENT
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 3000
+  m_CustomRenderQueue: 2000
   stringTagMap:
-    RenderType: Transparent
+    RenderType: Opaque
   disabledShaderPasses:
   - MOTIONVECTORS
-  - DepthOnly
-  - SHADOWCASTER
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
         m_Texture: {fileID: 2800000, guid: 271e9c9eb3c25f641aa7d815f7286b74, type: 3}
-        m_Scale: {x: 8.98, y: 2.4}
+        m_Scale: {x: 10, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BumpMap:
         m_Texture: {fileID: 0}
@@ -54,7 +51,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _MainTex:
         m_Texture: {fileID: 2800000, guid: 271e9c9eb3c25f641aa7d815f7286b74, type: 3}
-        m_Scale: {x: 8.98, y: 2.4}
+        m_Scale: {x: 10, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MatCapMask:
         m_Texture: {fileID: 0}
@@ -116,12 +113,12 @@ Material:
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _Cull: 2
-    - _Cutoff: 0.5
+    - _Cutoff: 0.466
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
     - _DirectIntensityOutline: 1
-    - _DstBlend: 10
-    - _DstBlendAlpha: 10
+    - _DstBlend: 0
+    - _DstBlendAlpha: 0
     - _EmissionChannel: 4
     - _EnvironmentReflections: 1
     - _FresnelMax: 1.5
@@ -171,9 +168,9 @@ Material:
     - _SpecularToonSize: 0.25
     - _SpecularToonSmoothness: 0.05
     - _SpecularType: 0
-    - _SrcBlend: 5
+    - _SrcBlend: 1
     - _SrcBlendAlpha: 1
-    - _Surface: 1
+    - _Surface: 0
     - _UseAlphaTest: 0
     - _UseEmission: 0
     - _UseFresnelReflections: 1
@@ -189,7 +186,7 @@ Material:
     - _UseShadowTexture: 0
     - _UseSpecular: 0
     - _WorkflowMode: 1
-    - _ZWrite: 0
+    - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 0.27058825}
     - _Color: {r: 1, g: 1, b: 1, a: 0.27058825}

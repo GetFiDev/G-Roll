@@ -617,16 +617,28 @@ public class UserDatabaseManager : MonoBehaviour
             }
             
             // Update cache with the (potentially merged) fresh data
-            _cachedUserData = data; 
-            
+            _cachedUserData = data;
+
+            // --- CRITICAL: Sync all currency caches to prevent desync ---
+            // CurrencyManager and PlayerPrefs must match server data on fresh load
+            try
+            {
+                CurrencyManager.Set(CurrencyType.SoftCurrency, (int)data.currency);
+                PlayerPrefs.SetString("UserStatsDisplayer.LastCurrency", data.currency.ToString("G17", System.Globalization.CultureInfo.InvariantCulture));
+            }
+            catch (System.Exception ex)
+            {
+                EmitLog($"⚠️ Failed to sync currency caches: {ex.Message}");
+            }
+
             // --- NEW: Cache Referral Key immediately ---
             if (!string.IsNullOrEmpty(data.referralKey) && data.referralKey != "-")
             {
                 PlayerPrefs.SetString(PREF_KEY_REFERRAL_CODE, data.referralKey);
-                PlayerPrefs.Save();
             }
+            PlayerPrefs.Save();
 
-            EmitLog("✅ User data loaded");
+            EmitLog($"✅ User data loaded (currency: {data.currency})");
             return data;
         }
         catch (Exception e)

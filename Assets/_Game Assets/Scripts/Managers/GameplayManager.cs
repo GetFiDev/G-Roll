@@ -234,6 +234,12 @@ public class GameplayManager : MonoBehaviour
         _sessionCurrencyTotal = 0d; // reset session currency accumulator
         _usedRevives = 0; // reset revive count for new session
 
+        // Reset revive cost in UILevelEnd for new session
+        if (UIManager.Instance != null && UIManager.Instance.levelEnd != null)
+        {
+            UIManager.Instance.levelEnd.ResetReviveState();
+        }
+
         // Trigger Intro Animation (Look back -> Jump -> Look forward)
         // Matches the 1.25s camera transition duration
         if (playerMov != null)
@@ -432,13 +438,24 @@ public class GameplayManager : MonoBehaviour
             if (waitMs > 0) await System.Threading.Tasks.Task.Delay(waitMs);
         }
 
+        // Hide loading screen BEFORE checking high score (so user sees result)
+        if (UIManager.Instance != null && UIManager.Instance.gameplayLoading != null)
+        {
+            var fp = UIManager.Instance.gameplayLoading.GetComponent<UIFadePanel>();
+            if (fp != null) fp.Hide();
+            else UIManager.Instance.gameplayLoading.gameObject.SetActive(false);
+        }
+
+        // Small delay to let loading fade out before showing high score panel
+        await System.Threading.Tasks.Task.Delay(300);
+
         // Check for New High Score AFTER server submission (just to be safe, though local check is fine)
         if (earnedScore > _initialMaxScore)
         {
             Debug.Log($"[GameplayManager] New High Score! {earnedScore} > {_initialMaxScore}");
             if (UIManager.Instance != null)
             {
-                UIManager.Instance.ShowNewHighScore(earnedScore, () => 
+                UIManager.Instance.ShowNewHighScore(earnedScore, () =>
                 {
                     // Fazı Meta'ya geri aldır (Panel kapandıktan sonra)
                     requestReturnToMeta.Raise();

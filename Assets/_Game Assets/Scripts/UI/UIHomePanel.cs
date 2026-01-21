@@ -131,6 +131,12 @@ public class UIHomePanel : MonoBehaviour
         int currentChapter = userData.chapterProgress;
         bool exists = await UserDatabaseManager.Instance.CheckIfChapterExists(currentChapter);
 
+        // Update button text to show current chapter number
+        if (chapterButtonText != null)
+        {
+            chapterButtonText.text = $"Chapter {currentChapter}";
+        }
+
         if (exists)
         {
             chapterButton.interactable = true;

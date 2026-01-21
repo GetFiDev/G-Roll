@@ -112,7 +112,9 @@
         <androidPackage id="appodeal_startio" spec="com.appodeal.ads.sdk.networks:startio:3.12.0.0" />
         <androidPackage id="appodeal_taurusx" spec="com.appodeal.ads.sdk.networks:taurusx:3.12.0.0" />
         <androidPackage id="appodeal_unity_ads" spec="com.appodeal.ads.sdk.networks:unity_ads:3.12.0.0" />
+        <!-- DISABLED: com.verve:atom.sdk dependency not available
         <androidPackage id="appodeal_verve" spec="com.appodeal.ads.sdk.networks:verve:3.12.0.0" />
+        -->
         <androidPackage id="appodeal_vungle" spec="com.appodeal.ads.sdk.networks:vungle:3.12.0.0" />
         <androidPackage id="appodeal_yandex_ads" spec="com.appodeal.ads.sdk.networks:yandex:3.12.0.0" />
         <androidPackage id="bidmachine_amazon" spec="io.bidmachine:ads.networks.amazon:3.5.0.19" />
@@ -153,7 +155,9 @@
         <androidPackage id="levelplay_my_target" spec="com.unity3d.ads-mediation:mytarget-adapter:5.2.0" />
         <androidPackage id="levelplay_pangle" spec="com.unity3d.ads-mediation:pangle-adapter:5.3.0" />
         <androidPackage id="levelplay_unity_ads" spec="com.unity3d.ads-mediation:unityads-adapter:5.3.0" />
+        <!-- DISABLED: com.verve:atom.sdk dependency not available
         <androidPackage id="levelplay_verve" spec="com.unity3d.ads-mediation:verve-adapter:5.2.0" />
+        -->
         <androidPackage id="levelplay_vungle" spec="com.unity3d.ads-mediation:vungle-adapter:5.2.0" />
         <androidPackage id="levelplay_yandex_ads" spec="com.unity3d.ads-mediation:yandex-adapter:5.2.0" />
         <androidPackage id="max_admob" spec="com.applovin.mediation:google-adapter:24.7.0.0" />
@@ -172,7 +176,9 @@
         <androidPackage id="max_pangle" spec="com.applovin.mediation:bytedance-adapter:7.7.0.2.0" />
         <androidPackage id="max_pubmatic" spec="com.applovin.mediation:pubmatic-adapter:4.10.0.0" />
         <androidPackage id="max_unity_ads" spec="com.applovin.mediation:unityads-adapter:4.16.4.0" />
+        <!-- DISABLED: com.verve:atom.sdk dependency not available
         <androidPackage id="max_verve" spec="com.applovin.mediation:verve-adapter:3.7.1.0" />
+        -->
         <androidPackage id="max_vungle" spec="com.applovin.mediation:vungle-adapter:7.6.1.0" />
         <androidPackage id="max_yandex_ads" spec="com.applovin.mediation:yandex-adapter:7.17.0.0" />
         <repositories>

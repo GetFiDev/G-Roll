@@ -99,6 +99,12 @@ public class NotificationBadgeManager : MonoBehaviour
 
     private async void Start()
     {
+        // Subscribe to login event so we refresh badges after authentication completes
+        if (UserDatabaseManager.Instance != null)
+        {
+            UserDatabaseManager.Instance.OnLoginSucceeded += OnUserLoggedIn;
+        }
+
         if (!autoRefreshOnStart) return;
 
         // Ensure we are authenticated before trying to fetch remote data
@@ -108,6 +114,25 @@ public class NotificationBadgeManager : MonoBehaviour
         }
 
         // Achievement & Shop badge durumlarını oyun açılışında bir kere değerlendir.
+        await RefreshAchievementBadges();
+        RefreshShopBadge();
+    }
+
+    private void OnDestroy()
+    {
+        // Unsubscribe from login event
+        if (UserDatabaseManager.Instance != null)
+        {
+            UserDatabaseManager.Instance.OnLoginSucceeded -= OnUserLoggedIn;
+        }
+    }
+
+    private async void OnUserLoggedIn()
+    {
+        // Small delay to ensure user data is fully loaded
+        await Task.Delay(500);
+
+        Debug.Log("[NotificationBadgeManager] User logged in - refreshing badges");
         await RefreshAchievementBadges();
         RefreshShopBadge();
     }

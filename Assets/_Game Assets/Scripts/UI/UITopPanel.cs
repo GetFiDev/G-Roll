@@ -28,6 +28,13 @@ public class UITopPanel : MonoBehaviour
         {
             UserDatabaseManager.Instance.OnUserDataSaved += OnUserDataUpdated;
         }
+
+        // Always refresh stats when panel becomes visible (e.g., returning from gameplay)
+        // This catches optimistic updates that happened while panel was disabled
+        if (statsDisplayer != null)
+        {
+            statsDisplayer.RefreshUserStats();
+        }
     }
 
     private void OnDisable()

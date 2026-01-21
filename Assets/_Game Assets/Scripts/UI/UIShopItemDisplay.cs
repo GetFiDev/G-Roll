@@ -847,9 +847,48 @@ public class UIShopItemDisplay : MonoBehaviour
 
         var result = task.Result; // PurchaseResult beklenir (ok/alreadyOwned bilgisi içerir)
         bool success = result.ok || result.alreadyOwned;
+        Debug.Log($"[UIShopItemDisplay] Purchase result: ok={result.ok}, alreadyOwned={result.alreadyOwned}, success={success}, isPremium={isPremium}, method={method}, price={Data.getPrice}");
+
         if (success)
         {
             ShowStatus("Purchase done!");
+
+            // Update local currency cache - deduct the price we paid
+            // Server's currencyLeft can be unreliable (calculated before transaction commits)
+            // So we do optimistic local deduction instead
+            if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.currentUserData != null && !result.alreadyOwned)
+            {
+                var ud = UserDatabaseManager.Instance.currentUserData;
+                double oldCurrency = ud.currency;
+                double oldPremium = ud.premiumCurrency;
+
+                if (isPremium)
+                {
+                    ud.premiumCurrency = Mathf.Max(0, (float)(ud.premiumCurrency - Data.premiumPrice));
+                    Debug.Log($"[UIShopItemDisplay] Premium currency: {oldPremium} -> {ud.premiumCurrency} (deducted {Data.premiumPrice})");
+                }
+                else if (method != UserInventoryManager.PurchaseMethod.Ad)
+                {
+                    ud.currency = Mathf.Max(0, (float)(ud.currency - Data.getPrice));
+                    Debug.Log($"[UIShopItemDisplay] Currency: {oldCurrency} -> {ud.currency} (deducted {Data.getPrice})");
+
+                    // CRITICAL: Also update CurrencyManager and PlayerPrefs cache
+                    // UserStatsDisplayer uses Math.Max(serverCurrency, localCurrency) so we must sync all caches
+                    CurrencyManager.Set(CurrencyType.SoftCurrency, (int)ud.currency);
+                    PlayerPrefs.SetString("UserStatsDisplayer.LastCurrency", ud.currency.ToString("G17", System.Globalization.CultureInfo.InvariantCulture));
+                    PlayerPrefs.Save();
+                }
+
+                // Refresh UI immediately after updating cache
+                if (UITopPanel.Instance != null)
+                {
+                    UITopPanel.Instance.Initialize();
+                }
+            }
+            else
+            {
+                Debug.Log($"[UIShopItemDisplay] Skipped currency deduction: UDM={UserDatabaseManager.Instance != null}, userData={UserDatabaseManager.Instance?.currentUserData != null}, alreadyOwned={result.alreadyOwned}");
+            }
         }
         else
         {
@@ -878,7 +917,7 @@ public class UIShopItemDisplay : MonoBehaviour
         if (fetchingPanel != null) fetchingPanel.SetActive(false);
         _buyInProgress = false;
         if (actionButton != null) actionButton.interactable = true;
-        UITopPanel.Instance.Initialize();
+        // UITopPanel.Initialize() already called above after currency deduction
     }
 
     private IEnumerator RefreshVisualStateCoroutine()

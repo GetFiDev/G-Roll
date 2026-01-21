@@ -21,7 +21,7 @@ dependencies {
     implementation 'com.applovin.mediation:mytarget-adapter:5.27.4.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:171
     implementation 'com.applovin.mediation:pubmatic-adapter:4.10.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:173
     implementation 'com.applovin.mediation:unityads-adapter:4.16.4.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:174
-    implementation 'com.applovin.mediation:verve-adapter:3.7.1.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:175
+    // implementation 'com.applovin.mediation:verve-adapter:3.7.1.0' // DISABLED: com.verve:atom.sdk dependency not available
     implementation 'com.applovin.mediation:vungle-adapter:7.6.1.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:176
     implementation 'com.applovin.mediation:yandex-adapter:7.17.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:177
     implementation 'com.appodeal.ads.sdk.networks:admob:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:88
@@ -47,7 +47,7 @@ dependencies {
     implementation 'com.appodeal.ads.sdk.networks:startio:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:112
     implementation 'com.appodeal.ads.sdk.networks:taurusx:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:113
     implementation 'com.appodeal.ads.sdk.networks:unity_ads:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:114
-    implementation 'com.appodeal.ads.sdk.networks:verve:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:115
+    // implementation 'com.appodeal.ads.sdk.networks:verve:3.12.0.0' // DISABLED: com.verve:atom.sdk dependency not available
     implementation 'com.appodeal.ads.sdk.networks:vungle:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:116
     implementation 'com.appodeal.ads.sdk.networks:yandex:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:117
     implementation 'com.appodeal.ads.sdk.services:adjust:3.12.0.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:87
@@ -89,7 +89,7 @@ dependencies {
     implementation 'com.unity3d.ads-mediation:mytarget-adapter:5.2.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:153
     implementation 'com.unity3d.ads-mediation:pangle-adapter:5.3.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:154
     implementation 'com.unity3d.ads-mediation:unityads-adapter:5.3.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:155
-    implementation 'com.unity3d.ads-mediation:verve-adapter:5.2.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:156
+    // implementation 'com.unity3d.ads-mediation:verve-adapter:5.2.0' // DISABLED: com.verve:atom.sdk dependency not available
     implementation 'com.unity3d.ads-mediation:vungle-adapter:5.2.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:157
     implementation 'com.unity3d.ads-mediation:yandex-adapter:5.2.0' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:158
     implementation 'io.bidmachine:ads.adapters.ironsource:3.5.0.11' // Assets/Appodeal/Editor/NetworkConfigs/AppodealDependencies.xml:145

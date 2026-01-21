@@ -228,9 +228,21 @@ public static class AchievementService
 
         if (totalReward > 0)
         {
-            // Immediately add currency locally
+            // Immediately add currency locally - update ALL caches for consistency
             CurrencyManager.Add(CurrencyType.SoftCurrency, totalReward);
-            Debug.Log($"[AchievementService] Optimistic: Added {totalReward} coins locally");
+
+            // Also update UserDatabaseManager cache and PlayerPrefs
+            if (UserDatabaseManager.Instance != null && UserDatabaseManager.Instance.currentUserData != null)
+            {
+                var ud = UserDatabaseManager.Instance.currentUserData;
+                ud.currency += totalReward;
+
+                // Sync PlayerPrefs cache so UserStatsDisplayer shows correct value
+                PlayerPrefs.SetString("UserStatsDisplayer.LastCurrency", ud.currency.ToString("G17", System.Globalization.CultureInfo.InvariantCulture));
+                PlayerPrefs.Save();
+            }
+
+            Debug.Log($"[AchievementService] Optimistic: Added {totalReward} coins locally (all caches synced)");
         }
 
         // Fire server requests in background (fire-and-forget)

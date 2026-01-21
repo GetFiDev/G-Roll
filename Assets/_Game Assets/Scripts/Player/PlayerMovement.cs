@@ -732,8 +732,11 @@ public class PlayerMovement : MonoBehaviour
         float upDur = totalAir * ascentFraction;
         float downDur = totalAir - upDur;
 
-        float startY = posTarget.position.y;
-        float apexY = startY + jumpHeight;
+        // Use ground level (0.25) as landing point, not current Y position
+        // This prevents getting stuck in air when jumping while already airborne
+        const float groundY = 0.25f;
+        float startY = groundY;
+        float apexY = Mathf.Max(posTarget.position.y, startY) + jumpHeight;
 
         // Scale tepesini büyüt (ortografik kamerada yüksekliği hissettirmek için)
         float peakScale = Mathf.Max(0.01f, jumpArcScalePeak * Mathf.Max(1f, scaleMultiplier));
