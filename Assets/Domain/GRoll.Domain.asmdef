@@ -1,0 +1,19 @@
+{
+    "name": "GRoll.Domain",
+    "rootNamespace": "GRoll.Domain",
+    "references": [
+        "UniTask",
+        "VContainer",
+        "GRoll.Core",
+        "GRoll.Infrastructure"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
