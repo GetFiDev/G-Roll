@@ -13,7 +13,7 @@ namespace GRoll.Infrastructure.Firebase.Interfaces
         /// <summary>
         /// Yeni session için token ister.
         /// </summary>
-        UniTask<RequestSessionResponse> RequestSessionAsync(GameMode mode);
+        UniTask<RequestSessionResponse> RequestSessionAsync(Core.GameMode mode);
 
         /// <summary>
         /// Session sonuçlarını gönderir.

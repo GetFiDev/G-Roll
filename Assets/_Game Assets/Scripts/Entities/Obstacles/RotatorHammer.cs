@@ -1,6 +1,6 @@
 using UnityEngine;
 using DG.Tweening;
-using MapDesignerTool; // for IMapConfigurable, PlacedItemData
+using MapDesignerTool; // for IMapConfigurable
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -9,7 +9,7 @@ public class RotatorHammer : Wall, IMapConfigurable
     [Header("Hammer Settings")]
     [Tooltip("The actual object that will rotate.")]
     public Transform movingPart;
-    
+
     [Tooltip("Rotation speed in degrees per second.")]
     public float speed = 45f;
     [Tooltip("Start time offset (0-10s) to create wave effects.")]
@@ -32,7 +32,6 @@ public class RotatorHammer : Wall, IMapConfigurable
 
     // Visualization
     private LineRenderer _previewLine;
-    private GridPlacer _placer;
     private PlacedItemData _placedData;
 
     private void Start()
@@ -43,7 +42,6 @@ public class RotatorHammer : Wall, IMapConfigurable
             return;
         }
 
-        _placer = FindFirstObjectByType<GridPlacer>();
         _placedData = GetComponent<PlacedItemData>();
 
         // Setup Collision Proxy on ALL child colliders
@@ -58,81 +56,96 @@ public class RotatorHammer : Wall, IMapConfigurable
 
     private void Update()
     {
-        // Lazy find
-        if (_placer == null) _placer = FindFirstObjectByType<GridPlacer>();
-        if (_placedData == null) _placedData = GetComponent<PlacedItemData>();
-
+        // Editor-only selection visualization
         bool isSelected = false;
-        if (_placer != null && _placedData != null && _placer.currentMode == BuildMode.Modify)
-        {
-            if (_placer.SelectedObject == _placedData.gameObject) isSelected = true;
-        }
+#if UNITY_EDITOR
+        isSelected = CheckEditorSelection();
+#endif
 
         UpdateVisualization(isSelected);
 
         // --- GLOBAL TIME SYNC MOVEMENT ---
         if (movingPart != null)
         {
-            // Calculate the shortest angular distance between the two angles
             float angleDiff = Mathf.DeltaAngle(angle1, angle2);
             float absAngleDiff = Mathf.Abs(angleDiff);
 
-            if (absAngleDiff < 0.01f) absAngleDiff = 360f; // full spin if angles are same
+            if (absAngleDiff < 0.01f) absAngleDiff = 360f;
 
             float totalDist = absAngleDiff;
 
             if (totalDist > 0.01f && speed > 0.1f)
             {
-               float oneWayTime = totalDist / speed;
-               float cycleDuration = oneWayTime * 2f;
+                float oneWayTime = totalDist / speed;
+                float cycleDuration = oneWayTime * 2f;
 
-               if (cycleDuration > 0.001f)
-               {
-                   float t = (Time.time + startOffset) % cycleDuration;
+                if (cycleDuration > 0.001f)
+                {
+                    float t = (Time.time + startOffset) % cycleDuration;
 
-                   float startAngle = clockwise ? angle1 : angle2;
-                   float endAngle   = clockwise ? angle2 : angle1;
+                    float startAngle = clockwise ? angle1 : angle2;
+                    float endAngle = clockwise ? angle2 : angle1;
+                    float delta = Mathf.DeltaAngle(startAngle, endAngle);
 
-                   // Calculate the delta for proper interpolation (handles 0/360 wrap)
-                   float delta = Mathf.DeltaAngle(startAngle, endAngle);
+                    float progress = 0f;
+                    bool goingForward = (t < oneWayTime);
 
-                   float progress = 0f;
-                   bool goingForward = (t < oneWayTime);
+                    if (goingForward)
+                    {
+                        progress = t / oneWayTime;
+                    }
+                    else
+                    {
+                        progress = (t - oneWayTime) / oneWayTime;
+                    }
 
-                   if (goingForward)
-                   {
-                       progress = t / oneWayTime; // 0..1
-                   }
-                   else
-                   {
-                       progress = (t - oneWayTime) / oneWayTime; // 0..1
-                   }
+                    float easedProgress = progress;
+                    if (powerfulAnimation && movementCurve != null)
+                    {
+                        easedProgress = movementCurve.Evaluate(progress);
+                    }
 
-                   // Apply Curve
-                   float easedProgress = progress;
-                   if (powerfulAnimation && movementCurve != null)
-                   {
-                       easedProgress = movementCurve.Evaluate(progress);
-                   }
+                    float currentAngle;
+                    if (goingForward)
+                    {
+                        currentAngle = startAngle + delta * easedProgress;
+                    }
+                    else
+                    {
+                        currentAngle = endAngle - delta * easedProgress;
+                    }
 
-                   float currentAngle;
-                   if (goingForward)
-                   {
-                       // Use delta to go the shortest path
-                       currentAngle = startAngle + delta * easedProgress;
-                   }
-                   else
-                   {
-                       // Reverse: from end back to start
-                       currentAngle = endAngle - delta * easedProgress;
-                   }
-
-                   movingPart.localRotation = Quaternion.Euler(0, 0, currentAngle);
-               }
+                    movingPart.localRotation = Quaternion.Euler(0, 0, currentAngle);
+                }
             }
         }
     }
-    
+
+#if UNITY_EDITOR
+    private bool CheckEditorSelection()
+    {
+        if (_placedData == null) _placedData = GetComponent<PlacedItemData>();
+        if (_placedData == null) return false;
+
+        var placerType = System.Type.GetType("GridPlacer, GRoll.MapDesignerTools");
+        if (placerType == null) return false;
+
+        var placer = FindFirstObjectByType(placerType);
+        if (placer == null) return false;
+
+        var modeField = placerType.GetField("currentMode");
+        var selectedField = placerType.GetProperty("SelectedObject");
+        if (modeField == null || selectedField == null) return false;
+
+        var mode = modeField.GetValue(placer);
+        const int BuildMode_Modify = 3; // BuildMode.Modify value
+        if (mode == null || (int)mode != BuildMode_Modify) return false;
+
+        var selected = selectedField.GetValue(placer) as GameObject;
+        return selected == _placedData.gameObject;
+    }
+#endif
+
     private void UpdateVisualization(bool show)
     {
         if (!show)
@@ -145,16 +158,16 @@ public class RotatorHammer : Wall, IMapConfigurable
         {
             var lineObj = new GameObject("_HammerAnglePreview");
             lineObj.transform.SetParent(this.transform);
-            
+
             _previewLine = lineObj.AddComponent<LineRenderer>();
             _previewLine.useWorldSpace = true;
-            
+
             var shader = Shader.Find("Particles/Standard Unlit");
             if (shader == null) shader = Shader.Find("Sprites/Default");
-            
+
             var mat = new Material(shader);
-            mat.renderQueue = 3500; 
-            
+            mat.renderQueue = 3500;
+
             _previewLine.material = mat;
             _previewLine.startColor = Color.magenta;
             _previewLine.endColor = Color.magenta;
@@ -173,7 +186,7 @@ public class RotatorHammer : Wall, IMapConfigurable
 
         Vector3 worldDir1 = transform.rotation * dir1;
         Vector3 worldDir2 = transform.rotation * dir2;
-        
+
         Vector3 p1 = center + worldDir1 * 3f;
         Vector3 p2 = center + worldDir2 * 3f;
 
@@ -181,8 +194,7 @@ public class RotatorHammer : Wall, IMapConfigurable
         _previewLine.SetPosition(1, center);
         _previewLine.SetPosition(2, p2);
     }
-    
-    // Public methods for the proxy to call
+
     public void OnProxyTriggerEnter(Collider other)
     {
         if (expectTrigger) NotifyPlayer(other);
@@ -273,13 +285,13 @@ public class RotatorHammer : Wall, IMapConfigurable
             if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
                 speed = Mathf.Clamp(f, 1f, 720f);
         }
-        
+
         if (config.TryGetValue("offset", out var oVal))
         {
             if (float.TryParse(oVal, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
                 startOffset = Mathf.Clamp(f, 0f, 10f);
         }
-        
+
         if (config.TryGetValue("angle1", out var a1))
         {
             if (float.TryParse(a1, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
@@ -291,7 +303,7 @@ public class RotatorHammer : Wall, IMapConfigurable
             if (float.TryParse(a2, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
                 angle2 = Mathf.Clamp(f, 0f, 360f);
         }
-        
+
         if (config.TryGetValue("clockwise", out var cw)) clockwise = bool.Parse(cw);
         if (config.TryGetValue("powerfulAnimation", out var pa)) powerfulAnimation = bool.Parse(pa);
 
@@ -300,7 +312,6 @@ public class RotatorHammer : Wall, IMapConfigurable
     }
 }
 
-// Helper component added automatically
 public class RotatorHammerCollisionProxy : MonoBehaviour
 {
     public RotatorHammer owner;
@@ -315,4 +326,3 @@ public class RotatorHammerCollisionProxy : MonoBehaviour
         if (owner != null) owner.OnProxyCollisionEnter(collision);
     }
 }
-// Force Recompile Fri Jan  9 23:15:37 +03 2026

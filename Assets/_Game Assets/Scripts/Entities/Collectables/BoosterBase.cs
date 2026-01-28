@@ -1,4 +1,9 @@
+using GRoll.Core.Events;
+using GRoll.Core.Events.Messages;
+using GRoll.Gameplay.Player.Core;
+using GRoll.Gameplay.Player.Interfaces;
 using UnityEngine;
+using VContainer;
 
 public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
 {
@@ -15,6 +20,8 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
 
     [Tooltip("Optional kind/category for debugging/telemetry (e.g., Magnet, Shield, ScoreBoost)")]
     public string powerUpKind = "generic";
+
+    [Inject] protected IMessageBus _messageBus;
 
     protected bool _used;
     protected virtual void PlayFx()
@@ -48,24 +55,29 @@ public abstract class BoosterBase : MonoBehaviour, IPlayerInteractable
         Apply(player);
         PlayFx();
 
-        // Trigger Notification
+        // Trigger Notification via MessageBus (UIGamePlay subscribes to this)
         if (!string.IsNullOrEmpty(notificationString))
         {
-            GameplayManager.TriggerCollectibleNotification(notificationString);
+            _messageBus?.Publish(new PlayerCollectMessage(
+                itemType: "Notification",
+                amount: 0,
+                position: transform.position
+            ));
+            Debug.Log($"[BoosterBase] Notification: {notificationString}");
         }
 
-        // Notify gameplay logic for Power-Up tracking (achievement: Power-Up Explorer)
+        // Notify gameplay logic for Power-Up tracking via MessageBus
         if (countsAsPowerUp)
         {
-            var logic = FindFirstObjectByType<GameplayLogicApplier>();
-            if (logic != null)
-            {
-                logic.RegisterPowerUpPickup();
+            _messageBus?.Publish(new PlayerCollectMessage(
+                itemType: $"PowerUp_{powerUpKind}",
+                amount: 1,
+                position: transform.position
+            ));
 #if UNITY_EDITOR
-                if (!string.IsNullOrEmpty(powerUpKind))
-                    Debug.Log($"[BoosterBase] Power-Up collected: {powerUpKind}");
+            if (!string.IsNullOrEmpty(powerUpKind))
+                Debug.Log($"[BoosterBase] Power-Up collected: {powerUpKind}");
 #endif
-            }
         }
 
         if (destroyOnUse)

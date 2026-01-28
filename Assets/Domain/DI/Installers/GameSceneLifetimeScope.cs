@@ -31,6 +31,7 @@ namespace GRoll.Domain.DI.Installers
             // Gameplay Domain
             builder.Register<IEnergyService, EnergyService>(Lifetime.Scoped);
             builder.Register<ISessionService, SessionService>(Lifetime.Scoped);
+            builder.Register<IGameStateService, GameStateService>(Lifetime.Scoped);
 
             // Social Domain
             builder.Register<ILeaderboardService, LeaderboardService>(Lifetime.Scoped);

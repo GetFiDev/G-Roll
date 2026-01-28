@@ -1,7 +1,12 @@
-﻿using AssetKits.ParticleImage;
+using System;
+using AssetKits.ParticleImage;
 using DG.Tweening;
+using GRoll.Core.Events;
+using GRoll.Core.Events.Messages;
 using Sirenix.OdinInspector;
 using UnityEngine;
+using VContainer;
+using CoreCurrencyType = GRoll.Core.CurrencyType;
 
 namespace _Project.Scripts.Utility.Currency.UI
 {
@@ -12,11 +17,30 @@ namespace _Project.Scripts.Utility.Currency.UI
         private const int MaxCount = 20;
         private const int MinPrice = 1;
 
+        private IMessageBus _messageBus;
+        private IDisposable _subscription;
+
+        [Inject]
+        public void Construct(IMessageBus messageBus)
+        {
+            _messageBus = messageBus;
+        }
+
         protected override void OnEnable()
         {
             base.OnEnable();
 
-            CurrencyEvents.OnCollected.Subscribe(currencyType, SpawnCurrencyOnCollected);
+            if (_messageBus != null)
+            {
+                _subscription = _messageBus.Subscribe<CurrencyCollectedMessage>(OnCurrencyCollected);
+            }
+        }
+
+        private void OnCurrencyCollected(CurrencyCollectedMessage message)
+        {
+            // Compare by underlying int value since CurrencyType exists in two namespaces
+            if ((int)message.Type != (int)currencyType) return;
+            SpawnCurrencyOnCollected(message.Amount, message.WorldPosition);
         }
 
         private Tween _punchTween;
@@ -35,13 +59,13 @@ namespace _Project.Scripts.Utility.Currency.UI
         [Button("Spawn", ButtonSizes.Large, ButtonStyle.Box)]
         private void SpawnCurrency(int amount)
         {
-            SpawnCurrencyOnCollected(new CurrencyCollectedData(amount, new Vector3(Screen.width / 2f, Screen.height / 2f, 0)));
+            SpawnCurrencyOnCollected(amount, new Vector3(Screen.width / 2f, Screen.height / 2f, 0));
         }
-        
-        private void SpawnCurrencyOnCollected(CurrencyCollectedData payload)
+
+        private void SpawnCurrencyOnCollected(int amount, Vector3 position)
         {
-            var newParticle = CreateParticle(payload.Position);
-            var spawnInfo = SpawnPriceInfo.Calculate(payload.Amount);
+            var newParticle = CreateParticle(position);
+            var spawnInfo = SpawnPriceInfo.Calculate(amount);
 
             SetupParticleListeners(spawnInfo, newParticle);
             PlayParticle(spawnInfo, newParticle);
@@ -88,7 +112,8 @@ namespace _Project.Scripts.Utility.Currency.UI
         {
             base.OnDisable();
 
-            CurrencyEvents.OnCollected.Unsubscribe(currencyType, SpawnCurrencyOnCollected);
+            _subscription?.Dispose();
+            _subscription = null;
         }
 
         private class SpawnPriceInfo

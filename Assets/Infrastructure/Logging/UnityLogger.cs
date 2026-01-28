@@ -33,6 +33,12 @@ namespace GRoll.Infrastructure.Logging
             Debug.Log($"{_prefix} {message}");
         }
 
+        public void LogInfo(string message)
+        {
+            if (!_isEnabled) return;
+            Debug.Log($"{_prefix} [INFO] {message}");
+        }
+
         public void LogWarning(string message)
         {
             if (!_isEnabled) return;
@@ -66,6 +72,7 @@ namespace GRoll.Infrastructure.Logging
         public static readonly NullLogger Instance = new();
 
         public void Log(string message) { }
+        public void LogInfo(string message) { }
         public void LogWarning(string message) { }
         public void LogError(string message) { }
         public void LogError(string message, Exception exception) { }

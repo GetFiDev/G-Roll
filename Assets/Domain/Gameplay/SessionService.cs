@@ -133,6 +133,14 @@ namespace GRoll.Domain.Gameplay
         }
 
         /// <summary>
+        /// Session başlatır (RequestSessionAsync alias).
+        /// </summary>
+        public UniTask<OperationResult<SessionInfo>> StartSessionAsync(GameMode mode)
+        {
+            return RequestSessionAsync(mode);
+        }
+
+        /// <summary>
         /// Session submit - PESSIMISTIC
         /// Sonuçlar server'a gönderilip onaylanana kadar UI'da bekleme gösterilir.
         /// Thread-safe.
@@ -198,6 +206,27 @@ namespace GRoll.Domain.Gameplay
                 _logger.LogError($"[Session] Submit error: {ex.Message}");
                 return OperationResult<SessionResult>.NetworkError(ex);
             }
+        }
+
+        /// <summary>
+        /// Session'ı sonlandırır (basit skor ve coin ile).
+        /// </summary>
+        public async UniTask<OperationResult> EndSessionAsync(string sessionId, int score, int coins, bool success)
+        {
+            var data = new SessionData
+            {
+                SessionId = sessionId,
+                Score = score,
+                CoinsCollected = coins,
+                EndReason = success ? "completed" : "died"
+            };
+
+            var result = await SubmitSessionAsync(data);
+
+            if (result.IsSuccess)
+                return OperationResult.Success();
+            else
+                return OperationResult.RolledBack(result.Message);
         }
 
         /// <summary>

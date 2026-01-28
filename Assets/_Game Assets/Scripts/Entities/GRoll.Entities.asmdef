@@ -1,0 +1,21 @@
+{
+    "name": "GRoll.Entities",
+    "rootNamespace": "GRoll.Entities",
+    "references": [
+        "GRoll.Core",
+        "GRoll.Gameplay",
+        "GRoll.MapData",
+        "VContainer"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "DOTween.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

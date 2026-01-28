@@ -20,7 +20,7 @@ using UnityEngine.Android;
 #endif
 using UnityEngine;
 
-namespace Appodeal.Unity.Editor.Utils
+namespace AppodealAds.Unity.Editor.Utils
 {
     public class AppodealPreProcess :
 #if UNITY_2018_1_OR_NEWER

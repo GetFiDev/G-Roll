@@ -1,3 +1,6 @@
+using GRoll.Gameplay.Player.Core;
+using GRoll.Gameplay.Player.Interfaces;
+using GRoll.Gameplay.Player.Movement;
 using UnityEngine;
 
 public class Teleport : MonoBehaviour, IPlayerInteractable

@@ -15,7 +15,7 @@ using UnityEngine;
 
 #pragma warning disable 618
 
-namespace Appodeal.Unity.Editor.Utils
+namespace AppodealAds.Unity.Editor.Utils
 {
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [SuppressMessage("ReSharper", "AssignNullToNotNullAttribute")]

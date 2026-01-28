@@ -1,5 +1,5 @@
 ﻿#if UNITY_IPHONE
-using Appodeal.Unity.Editor.Utils;
+using AppodealAds.Unity.Editor.Utils;
 using UnityEditor;
 using UnityEditor.Callbacks;
 using UnityEngine;

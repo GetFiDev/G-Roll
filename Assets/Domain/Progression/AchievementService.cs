@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using GRoll.Core;
 using GRoll.Core.Events;
 using GRoll.Core.Events.Messages;
 using GRoll.Core.Interfaces.Infrastructure;
@@ -16,29 +17,39 @@ namespace GRoll.Domain.Progression
     /// Achievement service implementation.
     /// Optimistic update pattern ile achievement yönetimi yapar.
     /// Full snapshot/rollback desteği ile.
+    ///
+    /// NOT: Circular dependency önlemek için ICurrencyService'e Lazy injection kullanılır.
+    /// Bu sayede AchievementService başlatılırken CurrencyService henüz hazır olmasa bile sorun çıkmaz.
     /// </summary>
-    public class AchievementService : IAchievementService, ISnapshotable<AchievementStateSnapshot>
+    public class AchievementService : IAchievementService, ISnapshotable<AchievementStateSnapshot>, IDisposable
     {
         private readonly AchievementState _state;
         private readonly IAchievementRemoteService _remoteService;
-        private readonly ICurrencyService _currencyService;
+        private readonly Lazy<ICurrencyService> _currencyServiceLazy;
         private readonly IMessageBus _messageBus;
         private readonly IGRollLogger _logger;
+
+        private ICurrencyService CurrencyService => _currencyServiceLazy.Value;
 
         public event Action<AchievementChangedMessage> OnAchievementChanged;
 
         [Inject]
         public AchievementService(
             IAchievementRemoteService remoteService,
-            ICurrencyService currencyService,
+            Lazy<ICurrencyService> currencyService,
             IMessageBus messageBus,
             IGRollLogger logger)
         {
             _state = new AchievementState();
             _remoteService = remoteService;
-            _currencyService = currencyService;
+            _currencyServiceLazy = currencyService;
             _messageBus = messageBus;
             _logger = logger;
+        }
+
+        public void Dispose()
+        {
+            // Cleanup if needed
         }
 
         #region ISnapshotable<AchievementStateSnapshot> Implementation
@@ -117,7 +128,7 @@ namespace GRoll.Domain.Progression
             // 1. DUAL SNAPSHOT - Full achievement state AND currency state BEFORE any changes
             // Bu sayede herhangi bir hata durumunda her ikisi de tutarlı şekilde geri alınabilir
             var achievementSnapshot = CreateSnapshot();
-            var currencySnapshot = _currencyService.CreateSnapshot();
+            var currencySnapshot = CurrencyService.CreateSnapshot();
             var rewardGiven = false;
 
             // 2. OPTIMISTIC UPDATE - Mark achievement as claimed
@@ -130,7 +141,7 @@ namespace GRoll.Domain.Progression
             // 3. Give reward optimistically (track if given for rollback decision)
             if (achievement.Reward != null)
             {
-                var rewardResult = await _currencyService.AddCurrencyOptimisticAsync(
+                var rewardResult = await CurrencyService.AddCurrencyOptimisticAsync(
                     achievement.Reward.CurrencyType,
                     achievement.Reward.Amount,
                     $"achievement_{achievementId}"
@@ -165,7 +176,7 @@ namespace GRoll.Domain.Progression
                     RestoreSnapshot(achievementSnapshot);
                     if (rewardGiven)
                     {
-                        _currencyService.RestoreSnapshot(currencySnapshot);
+                        CurrencyService.RestoreSnapshot(currencySnapshot);
                     }
                     PublishChange(achievementId, AchievementChangeType.RolledBack, false,
                         achievement.CurrentProgress, achievement.TargetProgress);
@@ -180,7 +191,7 @@ namespace GRoll.Domain.Progression
                 RestoreSnapshot(achievementSnapshot);
                 if (rewardGiven)
                 {
-                    _currencyService.RestoreSnapshot(currencySnapshot);
+                    CurrencyService.RestoreSnapshot(currencySnapshot);
                 }
                 PublishChange(achievementId, AchievementChangeType.RolledBack, false,
                     achievement.CurrentProgress, achievement.TargetProgress);
@@ -202,6 +213,106 @@ namespace GRoll.Domain.Progression
             catch (Exception ex)
             {
                 _logger.LogError($"[Achievement] Sync failed: {ex.Message}");
+            }
+        }
+
+        public IReadOnlyList<AchievementDefinition> GetDefinitions()
+        {
+            return _state.GetDefinitions();
+        }
+
+        public async UniTask<OperationResult<int>> ClaimAllEligibleOptimisticAsync(string achievementId)
+        {
+            var achievement = _state.GetAchievement(achievementId);
+
+            if (achievement == null)
+                return OperationResult<int>.ValidationError("Achievement not found");
+
+            if (!achievement.HasMultipleLevels)
+                return OperationResult<int>.ValidationError("Achievement has no multiple levels");
+
+            // Find all eligible levels that are not yet claimed
+            var eligibleLevels = new List<int>();
+            for (int i = 0; i < achievement.Levels.Count; i++)
+            {
+                var level = achievement.Levels[i];
+                var levelNumber = level.Level;
+                if (achievement.CurrentProgress >= level.TargetProgress && !achievement.IsLevelClaimed(levelNumber))
+                {
+                    eligibleLevels.Add(levelNumber);
+                }
+            }
+
+            if (eligibleLevels.Count == 0)
+                return OperationResult<int>.ValidationError("No eligible levels to claim");
+
+            // 1. DUAL SNAPSHOT
+            var achievementSnapshot = CreateSnapshot();
+            var currencySnapshot = CurrencyService.CreateSnapshot();
+            int totalRewardGiven = 0;
+
+            // 2. OPTIMISTIC UPDATE - Claim all eligible levels
+            foreach (var levelNumber in eligibleLevels)
+            {
+                _state.MarkLevelClaimed(achievementId, levelNumber);
+
+                // Give reward for each level
+                var levelIndex = levelNumber - 1; // 1-indexed to 0-indexed
+                if (levelIndex >= 0 && levelIndex < achievement.Levels.Count)
+                {
+                    var levelData = achievement.Levels[levelIndex];
+                    if (levelData != null)
+                    {
+                        var rewardResult = await CurrencyService.AddCurrencyOptimisticAsync(
+                            levelData.RewardType,
+                            levelData.RewardAmount,
+                            $"achievement_{achievementId}_level_{levelNumber}"
+                        );
+                        if (rewardResult.IsSuccess)
+                        {
+                            totalRewardGiven += levelData.RewardAmount;
+                        }
+                    }
+                }
+            }
+
+            PublishChange(achievementId, AchievementChangeType.Claimed, true,
+                achievement.CurrentProgress, achievement.TargetProgress);
+
+            _logger.Log($"[Achievement] Optimistic claim all eligible: {achievementId}, levels: {eligibleLevels.Count}");
+
+            // 3. SERVER REQUEST
+            try
+            {
+                var response = await _remoteService.ClaimAllEligibleLevelsAsync(achievementId);
+
+                if (response.Success)
+                {
+                    PublishChange(achievementId, AchievementChangeType.Claimed, false,
+                        achievement.CurrentProgress, achievement.TargetProgress);
+                    return OperationResult<int>.Success(eligibleLevels.Count);
+                }
+                else
+                {
+                    // ROLLBACK
+                    RestoreSnapshot(achievementSnapshot);
+                    CurrencyService.RestoreSnapshot(currencySnapshot);
+                    PublishChange(achievementId, AchievementChangeType.RolledBack, false,
+                        achievement.CurrentProgress, achievement.TargetProgress);
+                    PublishRollback("ClaimAllEligible", response.ErrorMessage, RollbackCategory.BusinessRule);
+                    return OperationResult<int>.RolledBack(response.ErrorMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                // ROLLBACK
+                _logger.LogError($"[Achievement] ClaimAllEligible error: {ex.Message}");
+                RestoreSnapshot(achievementSnapshot);
+                CurrencyService.RestoreSnapshot(currencySnapshot);
+                PublishChange(achievementId, AchievementChangeType.RolledBack, false,
+                    achievement.CurrentProgress, achievement.TargetProgress);
+                PublishRollback("ClaimAllEligible", ex.Message, RollbackCategory.Transient);
+                return OperationResult<int>.NetworkError(ex);
             }
         }
 

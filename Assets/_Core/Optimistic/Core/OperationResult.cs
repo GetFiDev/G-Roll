@@ -67,11 +67,22 @@ namespace GRoll.Core.Optimistic
         /// <summary>Rollback yapıldı mı?</summary>
         public bool WasRolledBack => Status == OperationStatus.RolledBack;
 
+        /// <summary>Hata mesajı (Alias for Message)</summary>
+        public string ErrorMessage => Message;
+
         // Factory methods
 
         /// <summary>Başarılı sonuç oluşturur</summary>
-        public static OperationResult Success(string message = null)
+        public static OperationResult Succeeded(string message = null)
             => new(OperationStatus.Success, message, null, false, true);
+
+        /// <summary>Başarılı sonuç oluşturur (legacy - use Succeeded instead)</summary>
+        public static OperationResult Success(string message = null)
+            => Succeeded(message);
+
+        /// <summary>Başarısız sonuç oluşturur</summary>
+        public static OperationResult Failed(string message)
+            => new(OperationStatus.ValidationError, message, null, false, false);
 
         /// <summary>Rollback yapılmış sonuç oluşturur</summary>
         public static OperationResult RolledBack(string reason)
@@ -114,8 +125,16 @@ namespace GRoll.Core.Optimistic
         // Factory methods
 
         /// <summary>Başarılı sonuç oluşturur</summary>
-        public static OperationResult<T> Success(T data, string message = null)
+        public static OperationResult<T> Succeeded(T data, string message = null)
             => new(OperationStatus.Success, data, message, null, false, true);
+
+        /// <summary>Başarısız sonuç oluşturur</summary>
+        public new static OperationResult<T> Failed(string message)
+            => new(OperationStatus.ValidationError, default, message, null, false, false);
+
+        /// <summary>Başarılı sonuç oluşturur (legacy)</summary>
+        public static OperationResult<T> Success(T data, string message = null)
+            => Succeeded(data, message);
 
         /// <summary>Rollback yapılmış sonuç oluşturur</summary>
         public new static OperationResult<T> RolledBack(string reason)

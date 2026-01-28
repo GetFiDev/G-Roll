@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+using GRoll.Gameplay.Player.Core;
+using GRoll.Gameplay.Player.Movement;
+using UnityEngine;
+
 public class Wall : MonoBehaviour
 {
     [Tooltip("Bu collider trigger olmalı veya Player tarafı trigger olmalı.")]
@@ -27,6 +30,14 @@ public class Wall : MonoBehaviour
         Vector3 dir       = (playerPos - hitPoint);
         Vector3 hitNormal = dir.sqrMagnitude > 1e-5f ? dir.normalized : -transform.forward;
 
-        player.HitTheWall(hitPoint, hitNormal);
+        // PlayerMovement'a doğrudan feedback ver (aynı assembly'de)
+        var movement = player.GetComponent<PlayerMovement>();
+        if (movement != null)
+        {
+            movement.WallHitFeedback(hitPoint, hitNormal);
+        }
+
+        // PlayerController'a da bildir (state machine ve event için)
+        player.HitTheWall();
     }
 }

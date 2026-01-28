@@ -61,6 +61,21 @@ namespace GRoll.Core
     {
         Classic,
         TimeAttack,
-        Endless
+        Endless,
+        Chapter,
+        DailyChallenge,
+        Tutorial
+    }
+
+    /// <summary>
+    /// Swipe yönleri (input sistemi için)
+    /// </summary>
+    public enum SwipeDirection
+    {
+        None,
+        Up,
+        Down,
+        Left,
+        Right
     }
 }

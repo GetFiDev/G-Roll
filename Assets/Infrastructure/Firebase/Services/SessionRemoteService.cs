@@ -19,7 +19,7 @@ namespace GRoll.Infrastructure.Firebase.Services
             _firebase = firebase;
         }
 
-        public async UniTask<RequestSessionResponse> RequestSessionAsync(GameMode mode)
+        public async UniTask<RequestSessionResponse> RequestSessionAsync(Core.GameMode mode)
         {
             var result = await _firebase.CallFunctionAsync<RequestSessionResponse>(
                 "requestSession",

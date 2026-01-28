@@ -37,6 +37,16 @@ namespace GRoll.Core.Interfaces.UI
         UniTask PopScreenAsync();
 
         /// <summary>
+        /// Geri döner (PopScreenAsync ile aynı, eski API uyumluluğu).
+        /// </summary>
+        UniTask GoBack();
+
+        /// <summary>
+        /// Belirtilen screen'e navigate eder (string-based, eski API uyumluluğu).
+        /// </summary>
+        UniTask NavigateTo(string screenId, object parameters = null, bool clearStack = false);
+
+        /// <summary>
         /// Root screen'e kadar tüm stack'i temizler.
         /// </summary>
         UniTask PopToRootAsync();
@@ -55,9 +65,15 @@ namespace GRoll.Core.Interfaces.UI
         UniTask<T> ShowPopupAsync<T>(object parameters = null) where T : IUIPopup;
 
         /// <summary>
-        /// Belirtilen popup'ı kapatır.
+        /// Belirtilen tipteki popup'ı kapatır.
         /// </summary>
         UniTask HidePopupAsync<T>() where T : IUIPopup;
+
+        /// <summary>
+        /// Belirtilen popup instance'ını kapatır.
+        /// Popup'ın kendi Close() metodundan çağrılır.
+        /// </summary>
+        UniTask HidePopupAsync(IUIPopup popup);
 
         /// <summary>
         /// Tüm popup'ları kapatır.

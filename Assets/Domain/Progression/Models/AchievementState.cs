@@ -102,6 +102,60 @@ namespace GRoll.Domain.Progression.Models
         }
 
         /// <summary>
+        /// Multi-level achievement için belirli bir level'ı claimed olarak işaretler.
+        /// </summary>
+        public void MarkLevelClaimed(string achievementId, int level)
+        {
+            lock (_lock)
+            {
+                if (_achievements.TryGetValue(achievementId, out var achievement))
+                {
+                    if (achievement.ClaimedLevels is List<int> claimedList)
+                    {
+                        if (!claimedList.Contains(level))
+                        {
+                            claimedList.Add(level);
+                        }
+                    }
+                    else
+                    {
+                        var newList = achievement.ClaimedLevels != null
+                            ? new List<int>(achievement.ClaimedLevels)
+                            : new List<int>();
+                        if (!newList.Contains(level))
+                        {
+                            newList.Add(level);
+                        }
+                        achievement.ClaimedLevels = newList;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Achievement definitions'larını döndürür.
+        /// </summary>
+        public IReadOnlyList<AchievementDefinition> GetDefinitions()
+        {
+            lock (_lock)
+            {
+                var definitions = new List<AchievementDefinition>();
+                foreach (var achievement in _achievements.Values)
+                {
+                    definitions.Add(new AchievementDefinition
+                    {
+                        TypeId = achievement.AchievementId,
+                        DisplayName = achievement.Name,
+                        Description = achievement.Description,
+                        IconUrl = achievement.IconUrl,
+                        Levels = achievement.Levels
+                    });
+                }
+                return definitions;
+            }
+        }
+
+        /// <summary>
         /// Achievement'ın claimed durumunu ayarlar.
         /// </summary>
         public void SetClaimed(string achievementId, bool isClaimed)
@@ -150,14 +204,42 @@ namespace GRoll.Domain.Progression.Models
 
         private static Achievement CloneAchievement(Achievement achievement)
         {
+            // Clone levels
+            List<AchievementLevel> clonedLevels = null;
+            if (achievement.Levels != null)
+            {
+                clonedLevels = new List<AchievementLevel>(achievement.Levels.Count);
+                foreach (var level in achievement.Levels)
+                {
+                    clonedLevels.Add(new AchievementLevel
+                    {
+                        Level = level.Level,
+                        TargetProgress = level.TargetProgress,
+                        RewardAmount = level.RewardAmount,
+                        RewardType = level.RewardType
+                    });
+                }
+            }
+
+            // Clone claimed levels
+            List<int> clonedClaimedLevels = null;
+            if (achievement.ClaimedLevels != null)
+            {
+                clonedClaimedLevels = new List<int>(achievement.ClaimedLevels);
+            }
+
             return new Achievement
             {
                 AchievementId = achievement.AchievementId,
                 Name = achievement.Name,
                 Description = achievement.Description,
+                IconUrl = achievement.IconUrl,
                 CurrentProgress = achievement.CurrentProgress,
                 TargetProgress = achievement.TargetProgress,
                 IsClaimed = achievement.IsClaimed,
+                CurrentLevel = achievement.CurrentLevel,
+                Levels = clonedLevels,
+                ClaimedLevels = clonedClaimedLevels,
                 Reward = achievement.Reward != null ? new AchievementReward
                 {
                     CurrencyType = achievement.Reward.CurrencyType,

@@ -1,3 +1,4 @@
+using GRoll.Gameplay.Player.Core;
 using UnityEngine;
 
 public class RandomBooster : BoosterBase

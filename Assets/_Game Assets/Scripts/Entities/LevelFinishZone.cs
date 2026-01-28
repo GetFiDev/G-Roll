@@ -1,30 +1,49 @@
+using GRoll.Core.Events;
+using GRoll.Core.Events.Messages;
 using UnityEngine;
+using VContainer;
 
 /// <summary>
-/// Trigger zone that marks the level as successfully completed.
-/// Attach this to a GameObject with a Trigger Collider at the end of Chapter maps.
-/// If the collider is on a child object, add LevelFinishZoneTrigger to that child.
+/// Level finish zone - oyuncu bu alana girdiğinde level tamamlanır.
+/// MessageBus üzerinden LevelCompleteMessage yayınlar.
 /// </summary>
 public class LevelFinishZone : MonoBehaviour
 {
-    [SerializeField] private bool active = true;
+    [Header("Settings")]
+    [SerializeField] private string requiredTag = "Player";
+    [SerializeField] private bool triggerOnce = true;
 
-    private void Awake()
+    [Inject] private IMessageBus _messageBus;
+
+    private bool _triggered;
+
+    public event System.Action OnPlayerReachedFinish;
+
+    /// <summary>
+    /// Called by LevelFinishZoneTrigger when player enters the trigger zone.
+    /// </summary>
+    public void HandleTriggerEnter(Collider other)
     {
-        // Auto-setup: If we don't have a collider on this object, 
-        // check children and add LevelFinishZoneTrigger if needed
-        if (GetComponent<Collider>() == null)
-        {
-            var childColliders = GetComponentsInChildren<Collider>();
-            foreach (var col in childColliders)
-            {
-                if (col.isTrigger && col.GetComponent<LevelFinishZoneTrigger>() == null)
-                {
-                    col.gameObject.AddComponent<LevelFinishZoneTrigger>();
-                    Debug.Log($"[LevelFinishZone] Auto-added LevelFinishZoneTrigger to child: {col.gameObject.name}");
-                }
-            }
-        }
+        if (other == null) return;
+        if (_triggered && triggerOnce) return;
+
+        // Tag check
+        GameObject tagTarget = other.attachedRigidbody != null
+            ? other.attachedRigidbody.gameObject
+            : other.gameObject;
+
+        if (!string.IsNullOrEmpty(requiredTag) && !tagTarget.CompareTag(requiredTag))
+            return;
+
+        _triggered = true;
+
+        Debug.Log("[LevelFinishZone] Player reached finish zone");
+
+        // Notify via event (for legacy listeners)
+        OnPlayerReachedFinish?.Invoke();
+
+        // Publish level complete message via MessageBus
+        _messageBus?.Publish(new LevelCompleteMessage(transform.position));
     }
 
     private void OnTriggerEnter(Collider other)
@@ -33,39 +52,10 @@ public class LevelFinishZone : MonoBehaviour
     }
 
     /// <summary>
-    /// Called when a collider enters the finish zone.
-    /// Can be called from child LevelFinishZoneTrigger scripts.
+    /// Resets the trigger state (useful for level restart).
     /// </summary>
-    public void HandleTriggerEnter(Collider other)
+    public void ResetTrigger()
     {
-        if (!active) return;
-
-        // Check for player tag or component
-        if (other.CompareTag("Player") || other.GetComponent<PlayerController>() != null)
-        {
-            Debug.Log("[LevelFinishZone] Player reached the finish line!");
-            
-            // Trigger Logic
-            if (GameplayManager.Instance != null)
-            {
-                // Ensure we only trigger once
-                active = false;
-                
-                // FIX #4: Chapter modda coasting ile success flow
-                if (GameplayManager.Instance.CurrentMode == GameMode.Chapter)
-                {
-                    GameplayManager.Instance.StartSuccessFlowWithCoasting();
-                }
-                else
-                {
-                    // Endless mode'da normal success flow
-                    GameplayManager.Instance.StartSuccessFlow();
-                }
-            }
-            else
-            {
-                Debug.LogError("[LevelFinishZone] GameplayManager instance is null!");
-            }
-        }
+        _triggered = false;
     }
 }

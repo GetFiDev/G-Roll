@@ -1,5 +1,5 @@
 using UnityEngine;
-using MapDesignerTool; // for IMapConfigurable, PlacedItemData
+using MapDesignerTool; // for IMapConfigurable
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -18,62 +18,50 @@ public class MovingWall : Wall, IMapConfigurable
     public float rangeZ = 0f;
 
     // Runtime state
-    private Vector3 _centerPosition; // Spawn position = oscillation center
+    private Vector3 _centerPosition;
     private bool _initialized = false;
-    
+
     // Editor-only references (optional)
     private MapGridCellUtility _grid;
     private PlacedItemData _placedData;
-    private GridPlacer _placer;
-    
+
     // Runtime Visualization
     private LineRenderer _previewLine;
 
     private void Start()
     {
-        // Store spawn position as the oscillation center (works in both Editor and Gameplay)
         _centerPosition = transform.position;
         _initialized = true;
-        
-        // Optional: Editor references for visualization
+
         _grid = FindFirstObjectByType<MapGridCellUtility>();
-        _placer = FindFirstObjectByType<GridPlacer>();
         _placedData = GetComponentInParent<PlacedItemData>();
     }
 
     private void Update()
     {
-        // Ensure we have a center position
         if (!_initialized)
         {
             _centerPosition = transform.position;
             _initialized = true;
         }
 
-        // Use stored center position (not dependent on PlacedItemData)
         Vector3 centerPos = _centerPosition;
-        
+
         // In Editor with PlacedItemData, update center dynamically for editing
         if (_placedData != null && _grid != null)
         {
             centerPos = _grid.GetCellCenterWorld(_placedData.gridX, _placedData.gridY);
-            _centerPosition = centerPos; // Update for when we leave edit mode
+            _centerPosition = centerPos;
         }
 
         // Movement Logic
-        float cycleDuration = 0f;
-        float t = 0f;
-
-        // Use RAW local range for distance to ensure stability (ignore rotation FP errors)
         float localMag = new Vector3(rangeX, 0, rangeZ).magnitude;
         float dist = 2 * localMag;
-        
-        // Still need WorldOffset for TargetA/B positions
+
         Vector3 worldOffset = CalculateWorldOffset();
         Vector3 targetA = centerPos + worldOffset;
         Vector3 targetB = centerPos - worldOffset;
 
-        // If range is zero, stay at center
         if (dist < 0.0001f)
         {
             if (Vector3.Distance(transform.position, centerPos) > 0.01f)
@@ -81,55 +69,65 @@ public class MovingWall : Wall, IMapConfigurable
         }
         else
         {
-            // GLOBAL TIME SYNC
             if (speed > 0.001f)
             {
-                // Duration for one full crossing (A -> B or B -> A)
-                // time = dist / speed
-                float oneWayTime = dist / speed; // Time to go from one end to the other
-                cycleDuration = oneWayTime * 2f; // Return Trip
-                
-                // use Time.time + offset
-                t = (Time.time + startOffset) % cycleDuration;
-                
-                // PingPong logic simulation manually to get position
-                // 0 -> oneWayTime: A -> B
-                // oneWayTime -> cycleDuration: B -> A
-                
+                float oneWayTime = dist / speed;
+                float cycleDuration = oneWayTime * 2f;
+                float t = (Time.time + startOffset) % cycleDuration;
+
                 Vector3 currentPos;
                 if (t < oneWayTime)
                 {
-                    // Moving A -> B
-                    float progress = t / oneWayTime; // 0..1
-                    // Linear interpolation
+                    float progress = t / oneWayTime;
                     currentPos = Vector3.Lerp(targetA, targetB, progress);
                 }
                 else
                 {
-                    // Moving B -> A
-                    float progress = (t - oneWayTime) / oneWayTime; // 0..1
+                    float progress = (t - oneWayTime) / oneWayTime;
                     currentPos = Vector3.Lerp(targetB, targetA, progress);
                 }
-                
+
                 transform.position = currentPos;
             }
         }
 
-        // Visualization Logic (Editor only)
+        // Editor-only selection visualization
         bool isSelected = false;
-        if (_placer != null && _placer.currentMode == BuildMode.Modify)
-        {
-            if (_placedData != null && _placer.SelectedObject == _placedData.gameObject) 
-                isSelected = true;
-        }
-        
+#if UNITY_EDITOR
+        isSelected = CheckEditorSelection();
+#endif
+
         UpdateVisualization(isSelected, targetA, targetB);
     }
+
+#if UNITY_EDITOR
+    private bool CheckEditorSelection()
+    {
+        if (_placedData == null) _placedData = GetComponentInParent<PlacedItemData>();
+        if (_placedData == null) return false;
+
+        var placerType = System.Type.GetType("GridPlacer, GRoll.MapDesignerTools");
+        if (placerType == null) return false;
+
+        var placer = FindFirstObjectByType(placerType);
+        if (placer == null) return false;
+
+        var modeField = placerType.GetField("currentMode");
+        var selectedField = placerType.GetProperty("SelectedObject");
+        if (modeField == null || selectedField == null) return false;
+
+        var mode = modeField.GetValue(placer);
+        const int BuildMode_Modify = 3; // BuildMode.Modify value
+        if (mode == null || (int)mode != BuildMode_Modify) return false;
+
+        var selected = selectedField.GetValue(placer) as GameObject;
+        return selected == _placedData.gameObject;
+    }
+#endif
 
     private Vector3 CalculateWorldOffset()
     {
         Vector3 localOffset = new Vector3(rangeX, 0, rangeZ);
-        // Use current rotation
         return transform.rotation * localOffset;
     }
 
@@ -141,21 +139,20 @@ public class MovingWall : Wall, IMapConfigurable
             return;
         }
 
-        // Create Line if missing
         if (_previewLine == null)
         {
             var lineObj = new GameObject("_MovePathPreview");
             lineObj.transform.SetParent(this.transform);
-            
+
             _previewLine = lineObj.AddComponent<LineRenderer>();
             _previewLine.useWorldSpace = true;
-            
+
             var shader = Shader.Find("Particles/Standard Unlit");
             if (shader == null) shader = Shader.Find("Sprites/Default");
-            
+
             var mat = new Material(shader);
-            mat.renderQueue = 3500; 
-            
+            mat.renderQueue = 3500;
+
             _previewLine.material = mat;
             _previewLine.startColor = Color.yellow;
             _previewLine.endColor = Color.yellow;
@@ -165,15 +162,14 @@ public class MovingWall : Wall, IMapConfigurable
         }
 
         _previewLine.enabled = true;
-        
-        // Elevate
-        p1.y += 0.2f; 
+
+        p1.y += 0.2f;
         p2.y += 0.2f;
 
         _previewLine.SetPosition(0, p1);
         _previewLine.SetPosition(1, p2);
     }
-    
+
     // --- IMapConfigurable Implementation ---
 
     public List<ConfigDefinition> GetConfigDefinitions()
@@ -245,4 +241,4 @@ public class MovingWall : Wall, IMapConfigurable
                 rangeZ = Mathf.Clamp(f, 0f, 20f);
         }
     }
-}// Force Recompile Fri Jan  9 23:15:37 +03 2026
+}

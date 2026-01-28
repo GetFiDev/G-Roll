@@ -4,15 +4,38 @@
     "references": [
         "UniTask",
         "VContainer",
-        "GRoll.Core"
+        "GRoll.Core",
+        "Unity.Purchasing",
+        "Unity.Purchasing.Stores",
+        "Google.Play.Games",
+        "Lofelt.NiceVibrations",
+        "AppodealAds.Unity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll",
+        "Firebase.App.dll",
+        "Firebase.Auth.dll",
+        "Firebase.Firestore.dll",
+        "Firebase.Functions.dll",
+        "Google.MiniJson.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.purchasing",
+            "expression": "",
+            "define": "UNITY_PURCHASING"
+        },
+        {
+            "name": "com.appodeal.mediation-sdk",
+            "expression": "",
+            "define": "APPODEAL_MEDIATION"
+        }
+    ],
     "noEngineReferences": false
 }

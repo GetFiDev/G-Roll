@@ -1,6 +1,6 @@
 using UnityEngine;
 using DG.Tweening;
-using MapDesignerTool; // for IMapConfigurable, PlacedItemData
+using MapDesignerTool; // for IMapConfigurable
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -9,7 +9,7 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
     [Header("Rotator Settings")]
     [Tooltip("The actual object that will rotate.")]
     public Transform movingPart;
-    
+
     [Tooltip("Rotation speed in degrees per second.")]
     public float speed = 45f;
     [Tooltip("Start time offset (0-10s) to create wave effects.")]
@@ -20,9 +20,8 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
     [Range(0f, 360f)] public float angle2 = 90f;
     public bool clockwise = true;
 
-    // Visualization
+    // Visualization (Editor only)
     private LineRenderer _previewLine;
-    private GridPlacer _placer;
     private PlacedItemData _placedData;
 
     private void Start()
@@ -32,9 +31,8 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
             Debug.LogError("LimitedRotatorWall: Missing 'movingPart' reference!", this);
             return;
         }
-        
-        _placer = FindFirstObjectByType<GridPlacer>();
-        _placedData = GetComponent<PlacedItemData>(); // Usually on root, this script is on root
+
+        _placedData = GetComponent<PlacedItemData>();
 
         // Setup Collision Proxy on ALL child colliders recursively (from Root)
         var allColliders = GetComponentsInChildren<Collider>(true);
@@ -48,74 +46,74 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
 
     private void Update()
     {
-        // Lazy find placer/data if missing
-        if (_placer == null) _placer = FindFirstObjectByType<GridPlacer>();
-        if (_placedData == null) _placedData = GetComponent<PlacedItemData>();
-
+        // Editor-only selection visualization
         bool isSelected = false;
-        if (_placer != null && _placedData != null && _placer.currentMode == BuildMode.Modify)
-        {
-            if (_placer.SelectedObject == _placedData.gameObject) isSelected = true;
-        }
+#if UNITY_EDITOR
+        isSelected = CheckEditorSelection();
+#endif
 
         UpdateVisualization(isSelected);
-        
+
         // --- GLOBAL TIME SYNC MOVEMENT ---
         if (movingPart != null)
         {
-            // Calculate travel angle distance
-            // Normally we want shortest path? Or strictly angle1 -> angle2?
-            // Let's assume absolute angles on Y axis.
-            
-            float angleDiff = Mathf.DeltaAngle(angle1, angle2); // Signed difference
+            float angleDiff = Mathf.DeltaAngle(angle1, angle2);
             float totalDist = Mathf.Abs(angleDiff);
-            
+
             if (totalDist > 0.01f && speed > 0.1f)
             {
-               float oneWayTime = totalDist / speed;
-               float cycleDuration = oneWayTime * 2f;
-               
-               if (cycleDuration > 0.001f)
-               {
-                   float t = (Time.time + startOffset) % cycleDuration;
-                   
-                   float tNorm;
-                   if (t < oneWayTime)
-                   {
-                       // Going Towards
-                       tNorm = t / oneWayTime;
-                       // Easing? Use Mathf.SmoothStep or similar for better look than Linear
-                       // User requested "easing" previously.
-                       tNorm = Mathf.SmoothStep(0f, 1f, tNorm);
-                   }
-                   else
-                   {
-                       // Going Back
-                       tNorm = (t - oneWayTime) / oneWayTime;
-                       tNorm = 1f - Mathf.SmoothStep(0f, 1f, tNorm);
-                   }
-                   
-                   // Lerp Angle
-                   // We use Mathf.LerpAngle to handle wraparound correctly if needed, 
-                   // but here angle1/angle2 are raw inputs.
-                   // If clockwise flag was set, it might effectively just swap start/end logic implies direction preference?
-                   // Actually, if we use PingPong, we oscillate between Angle1 and Angle2.
-                   // "Clockwise" flag is a bit ambiguous for PingPong.
-                   // Old logic: used Clockwise to determine start angle.
-                   // Let's stick to simple: Oscilate Angle1 <-> Angle2.
-                   
-                   float currentAngle = Mathf.LerpAngle(angle1, angle2, tNorm);
-                   
-                   // Direction Logic:
-                   // The previous 'clockwise' param meant: Start at Angle 1, go to Angle 2 (via shortest? or via clockwise?)
-                   // Here we just interpolate.
-                   
-                   movingPart.localRotation = Quaternion.Euler(0, currentAngle, 0);
-               }
+                float oneWayTime = totalDist / speed;
+                float cycleDuration = oneWayTime * 2f;
+
+                if (cycleDuration > 0.001f)
+                {
+                    float t = (Time.time + startOffset) % cycleDuration;
+
+                    float tNorm;
+                    if (t < oneWayTime)
+                    {
+                        tNorm = t / oneWayTime;
+                        tNorm = Mathf.SmoothStep(0f, 1f, tNorm);
+                    }
+                    else
+                    {
+                        tNorm = (t - oneWayTime) / oneWayTime;
+                        tNorm = 1f - Mathf.SmoothStep(0f, 1f, tNorm);
+                    }
+
+                    float currentAngle = Mathf.LerpAngle(angle1, angle2, tNorm);
+                    movingPart.localRotation = Quaternion.Euler(0, currentAngle, 0);
+                }
             }
         }
     }
-    
+
+#if UNITY_EDITOR
+    private bool CheckEditorSelection()
+    {
+        if (_placedData == null) _placedData = GetComponent<PlacedItemData>();
+        if (_placedData == null) return false;
+
+        // Use reflection to check GridPlacer selection (avoid compile-time dependency)
+        var placerType = System.Type.GetType("GridPlacer, GRoll.MapDesignerTools");
+        if (placerType == null) return false;
+
+        var placer = FindFirstObjectByType(placerType);
+        if (placer == null) return false;
+
+        var modeField = placerType.GetField("currentMode");
+        var selectedField = placerType.GetProperty("SelectedObject");
+        if (modeField == null || selectedField == null) return false;
+
+        var mode = modeField.GetValue(placer);
+        const int BuildMode_Modify = 3; // BuildMode.Modify value
+        if (mode == null || (int)mode != BuildMode_Modify) return false;
+
+        var selected = selectedField.GetValue(placer) as GameObject;
+        return selected == _placedData.gameObject;
+    }
+#endif
+
     private void UpdateVisualization(bool show)
     {
         if (!show)
@@ -128,37 +126,36 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
         {
             var lineObj = new GameObject("_AnglePreview");
             lineObj.transform.SetParent(this.transform);
-            
+
             _previewLine = lineObj.AddComponent<LineRenderer>();
             _previewLine.useWorldSpace = true;
-            
-            // Robust shader/material setup
+
             var shader = Shader.Find("Particles/Standard Unlit");
             if (shader == null) shader = Shader.Find("Sprites/Default");
-            
+
             var mat = new Material(shader);
-            mat.renderQueue = 3500; // Overlay
-            
+            mat.renderQueue = 3500;
+
             _previewLine.material = mat;
-            _previewLine.startColor = Color.cyan; 
+            _previewLine.startColor = Color.cyan;
             _previewLine.endColor = Color.cyan;
             _previewLine.startWidth = 0.15f;
             _previewLine.endWidth = 0.15f;
-            _previewLine.positionCount = 3; 
+            _previewLine.positionCount = 3;
         }
 
         _previewLine.enabled = true;
 
         Vector3 center = transform.position;
-        center.y += 0.5f; 
+        center.y += 0.5f;
 
         Vector3 dir1 = Quaternion.Euler(0, angle1, 0) * Vector3.forward;
         Vector3 dir2 = Quaternion.Euler(0, angle2, 0) * Vector3.forward;
 
         Vector3 worldDir1 = transform.rotation * dir1;
         Vector3 worldDir2 = transform.rotation * dir2;
-        
-        Vector3 p1 = center + worldDir1 * 3f; 
+
+        Vector3 p1 = center + worldDir1 * 3f;
         Vector3 p2 = center + worldDir2 * 3f;
 
         _previewLine.SetPosition(0, p1);
@@ -166,7 +163,6 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
         _previewLine.SetPosition(2, p2);
     }
 
-    // Public methods for the proxy to call
     public void OnProxyTriggerEnter(Collider other)
     {
         if (expectTrigger) NotifyPlayer(other);
@@ -235,10 +231,10 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
         {
             if (float.TryParse(spdVal, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
             {
-               speed = Mathf.Clamp(f, 1f, 720f);
+                speed = Mathf.Clamp(f, 1f, 720f);
             }
         }
-        
+
         if (config.TryGetValue("offset", out var oVal))
         {
             if (float.TryParse(oVal, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
@@ -249,7 +245,7 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
         {
             if (float.TryParse(a1Val, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
             {
-               angle1 = Mathf.Clamp(f, 0f, 360f);
+                angle1 = Mathf.Clamp(f, 0f, 360f);
             }
         }
 
@@ -257,7 +253,7 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
         {
             if (float.TryParse(a2Val, NumberStyles.Float, CultureInfo.InvariantCulture, out float f))
             {
-               angle2 = Mathf.Clamp(f, 0f, 360f);
+                angle2 = Mathf.Clamp(f, 0f, 360f);
             }
         }
 
@@ -268,7 +264,6 @@ public class LimitedRotatorWall : Wall, IMapConfigurable
     }
 }
 
-// Helper component added automatically to the moving part
 public class LimitedRotatorCollisionProxy : MonoBehaviour
 {
     public LimitedRotatorWall owner;
@@ -283,4 +278,3 @@ public class LimitedRotatorCollisionProxy : MonoBehaviour
         if (owner != null) owner.OnProxyCollisionEnter(collision);
     }
 }
-// Force Recompile Fri Jan  9 23:15:37 +03 2026

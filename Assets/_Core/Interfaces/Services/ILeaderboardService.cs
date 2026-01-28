@@ -1,47 +1,107 @@
 using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using GRoll.Core.Events.Messages;
 using GRoll.Core.Optimistic;
 
 namespace GRoll.Core.Interfaces.Services
 {
     /// <summary>
-    /// Leaderboard yönetimi için service interface.
-    /// Skor gönderme ve sıralama sorgulama işlemlerini yönetir.
+    /// Leaderboard yonetimi icin service interface.
+    /// Skor gonderme, siralama sorgulama ve season desteigi saglar.
+    /// Eski LeaderboardManager'in yerini alir.
     /// </summary>
     public interface ILeaderboardService
     {
+        #region Properties
+
+        /// <summary>Secili leaderboard tipi</summary>
+        LeaderboardType CurrentType { get; }
+
+        /// <summary>Cache yuklu mu?</summary>
+        bool IsCacheLoaded { get; }
+
+        /// <summary>Cached top entries</summary>
+        IReadOnlyList<LeaderboardEntry> TopCached { get; }
+
+        #endregion
+
+        #region Season Properties
+
+        /// <summary>Season aktif mi?</summary>
+        bool IsSeasonActive { get; }
+
+        /// <summary>Aktif season adi</summary>
+        string ActiveSeasonName { get; }
+
+        /// <summary>Aktif season aciklamasi</summary>
+        string ActiveSeasonDescription { get; }
+
+        /// <summary>Sonraki season baslangic tarihi</summary>
+        DateTime? NextSeasonStartDate { get; }
+
+        #endregion
+
+        #region Current User Properties
+
+        /// <summary>Kullanicinin sirasi</summary>
+        int MyRank { get; }
+
+        /// <summary>Kullanicinin skoru</summary>
+        int MyScore { get; }
+
+        /// <summary>Kullanici elite mi?</summary>
+        bool MyIsElite { get; }
+
+        #endregion
+
+        #region Events
+
+        /// <summary>Leaderboard guncellendikten sonra</summary>
+        event Action OnLeaderboardUpdated;
+
+        /// <summary>Cache guncellendikten sonra</summary>
+        event Action OnCacheUpdated;
+
+        #endregion
+
+        #region Methods
+
         /// <summary>
-        /// En yüksek skorlu kullanıcıları döndürür.
+        /// Leaderboard tipini degistir
         /// </summary>
-        /// <param name="count">Kaç sonuç döndürülsün</param>
+        void SetLeaderboardType(LeaderboardType type);
+
+        /// <summary>
+        /// Cache'i yenile
+        /// </summary>
+        UniTask<OperationResult> RefreshAsync();
+
+        /// <summary>
+        /// En yuksek skorlu kullanicilari dondurur.
+        /// </summary>
         UniTask<IReadOnlyList<LeaderboardEntry>> GetTopEntriesAsync(int count);
 
         /// <summary>
-        /// Kullanıcının etrafındaki sıralamayı döndürür.
+        /// Kullanicinin etrafindaki siralamayi dondurur.
         /// </summary>
-        /// <param name="userId">Kullanıcı ID'si</param>
-        /// <param name="range">Üst ve alt kaç kullanıcı gösterilsin</param>
         UniTask<IReadOnlyList<LeaderboardEntry>> GetNearbyEntriesAsync(string userId, int range = 5);
 
         /// <summary>
-        /// Belirtilen kullanıcının leaderboard kaydını döndürür.
+        /// Belirtilen kullanicinin leaderboard kaydini dondurur.
         /// </summary>
         UniTask<LeaderboardEntry> GetUserEntryAsync(string userId);
 
         /// <summary>
-        /// Skor optimistic olarak gönderir.
+        /// Skor optimistic olarak gonderir.
         /// </summary>
         UniTask<OperationResult> SubmitScoreOptimisticAsync(int score);
 
-        /// <summary>
-        /// Leaderboard güncellendiğinde tetiklenen event.
-        /// </summary>
-        event Action OnLeaderboardUpdated;
+        #endregion
     }
 
     /// <summary>
-    /// Leaderboard kaydı
+    /// Leaderboard kaydi
     /// </summary>
     public class LeaderboardEntry
     {
@@ -52,5 +112,19 @@ namespace GRoll.Core.Interfaces.Services
         public int Score { get; set; }
         public long Timestamp { get; set; }
         public bool IsCurrentUser { get; set; }
+        public bool HasElitePass { get; set; }
+    }
+
+    /// <summary>
+    /// Season bilgisi
+    /// </summary>
+    public class SeasonInfo
+    {
+        public bool IsActive { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public DateTime? NextSeasonStartDate { get; set; }
     }
 }

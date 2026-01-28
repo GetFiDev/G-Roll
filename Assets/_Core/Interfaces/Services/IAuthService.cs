@@ -16,6 +16,11 @@ namespace GRoll.Core.Interfaces.Services
         bool IsAuthenticated { get; }
 
         /// <summary>
+        /// Kullanıcı login olmuş mu? (IsAuthenticated ile aynı, eski API uyumluluğu)
+        /// </summary>
+        bool IsLoggedIn { get; }
+
+        /// <summary>
         /// Mevcut kullanıcı ID'si
         /// </summary>
         string CurrentUserId { get; }
@@ -44,6 +49,16 @@ namespace GRoll.Core.Interfaces.Services
         /// Çıkış yapar.
         /// </summary>
         UniTask SignOutAsync();
+
+        /// <summary>
+        /// Çıkış yapar (eski API uyumluluğu).
+        /// </summary>
+        UniTask LogoutAsync();
+
+        /// <summary>
+        /// Hesabı siler.
+        /// </summary>
+        UniTask<OperationResult> DeleteAccountAsync();
 
         /// <summary>
         /// Anonim hesabı kalıcı hesaba bağlar.

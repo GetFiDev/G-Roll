@@ -41,8 +41,8 @@ public class TriggerPushButton : MonoBehaviour
     // Changed to public so proxy can call it
     public void OnProxyTriggerEnter(Collider other)
     {
-        // Check for player
-        if (other.GetComponentInParent<PlayerController>() != null || other.CompareTag("Player"))
+        // Check for player via tag (PlayerController moved to GRoll.Gameplay assembly)
+        if (other.CompareTag("Player"))
         {
             PressButton();
         }

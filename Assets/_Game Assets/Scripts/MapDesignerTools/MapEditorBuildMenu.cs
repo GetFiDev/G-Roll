@@ -726,15 +726,17 @@ namespace MapDesignerTool
             // Animate Y position
             if (slidingPanel)
             {
-                slidingPanel.DOKill();
-                slidingPanel.DOAnchorPosY(isOpen ? panelOpenY : panelClosedY, animDuration).SetEase(Ease.OutQuad);
+                DOTween.Kill(slidingPanel);
+                float targetY = isOpen ? panelOpenY : panelClosedY;
+                DOTween.To(() => slidingPanel.anchoredPosition.y, y => slidingPanel.anchoredPosition = new Vector2(slidingPanel.anchoredPosition.x, y), targetY, animDuration).SetEase(Ease.OutQuad);
             }
 
             // Optional: Rotate toggle icon if exists
             if (toggleIcon)
             {
-                toggleIcon.DOKill();
-                toggleIcon.DORotate(new Vector3(0, 0, isOpen ? 180 : 0), animDuration);
+                DOTween.Kill(toggleIcon);
+                Vector3 targetRotation = new Vector3(0, 0, isOpen ? 180 : 0);
+                DOTween.To(() => toggleIcon.eulerAngles, r => toggleIcon.eulerAngles = r, targetRotation, animDuration);
             }
         }
 

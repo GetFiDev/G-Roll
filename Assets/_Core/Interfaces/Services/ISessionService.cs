@@ -34,10 +34,21 @@ namespace GRoll.Core.Interfaces.Services
         UniTask<OperationResult<SessionInfo>> RequestSessionAsync(GameMode mode);
 
         /// <summary>
+        /// Session başlatır (RequestSessionAsync ile aynı, alias).
+        /// </summary>
+        /// <param name="mode">Oyun modu</param>
+        UniTask<OperationResult<SessionInfo>> StartSessionAsync(GameMode mode);
+
+        /// <summary>
         /// Session sonuçlarını server'a gönderir.
         /// </summary>
         /// <param name="data">Session verileri (skor, süre, vs.)</param>
         UniTask<OperationResult<SessionResult>> SubmitSessionAsync(SessionData data);
+
+        /// <summary>
+        /// Session'ı sonlandırır (basit skor ve coin ile).
+        /// </summary>
+        UniTask<OperationResult> EndSessionAsync(string sessionId, int score, int coins, bool success);
 
         /// <summary>
         /// Aktif session'ı iptal eder.

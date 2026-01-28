@@ -1,0 +1,25 @@
+{
+    "name": "GRoll.Presentation",
+    "rootNamespace": "GRoll.Presentation",
+    "references": [
+        "UniTask",
+        "VContainer",
+        "GRoll.Core",
+        "GRoll.Domain",
+        "GRoll.Infrastructure",
+        "GRoll.Gameplay",
+        "Unity.TextMeshPro",
+        "ParticleImage"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "DOTween.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

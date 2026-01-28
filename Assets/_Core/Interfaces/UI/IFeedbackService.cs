@@ -17,6 +17,11 @@ namespace GRoll.Core.Interfaces.UI
         void ShowToast(string message, ToastType type = ToastType.Info);
 
         /// <summary>
+        /// Bilgi toast'ı gösterir.
+        /// </summary>
+        void ShowInfoToast(string message);
+
+        /// <summary>
         /// Başarı toast'ı gösterir.
         /// </summary>
         void ShowSuccessToast(string message);
@@ -49,6 +54,11 @@ namespace GRoll.Core.Interfaces.UI
         /// Hata haptic'i çalar.
         /// </summary>
         void PlayErrorHaptic();
+
+        /// <summary>
+        /// Uyarı haptic'i çalar.
+        /// </summary>
+        void PlayWarningHaptic();
 
         /// <summary>
         /// Seçim haptic'i çalar (buton tap, vs.)

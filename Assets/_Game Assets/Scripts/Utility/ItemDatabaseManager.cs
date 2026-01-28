@@ -1,197 +1,126 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using GRoll.Core.Interfaces.Services;
+using GRoll.Infrastructure.Firebase.Interfaces;
+using GRoll.Infrastructure.Persistence;
 using UnityEngine;
 
 /// <summary>
-/// RemoteItemService + ItemLocalDatabase üstünden tek kapı.
-/// Lazy loading destekli - Shop açıldığında InitializeAsync() çağrılır.
-/// EnsureInitializedAsync() ile güvenli erişim sağlanır.
+/// Legacy facade for ItemService.
+/// This static class provides backward compatibility for existing code.
+/// New code should inject IItemService directly via DI.
 /// </summary>
+[Obsolete("Use IItemService via DI instead. This class will be removed in future versions.")]
 public static class ItemDatabaseManager
 {
-    // Bellek-içi aktif veri
-    private static Dictionary<string, RemoteItemService.ItemData> _items;
+    private static IItemService _itemService;
+    private static bool _serviceResolved;
 
-    // Initialization state tracking
-    private static bool _isInitializing = false;
-    private static Task _initTask = null;
+    /// <summary>
+    /// Sets the ItemService instance. Called by DI container setup.
+    /// </summary>
+    public static void SetService(IItemService service)
+    {
+        _itemService = service;
+        _serviceResolved = true;
+    }
 
-    // Cache age tracking for conditional fetches
-    private static DateTime _lastRemoteFetchTime = DateTime.MinValue;
-    private const int CACHE_MAX_AGE_MINUTES = 60; // Re-fetch from remote if cache older than this
-
-    public static bool IsReady => _items != null && _items.Count > 0;
+    public static bool IsReady => _itemService?.IsReady ?? false;
 
     /// <summary>
     /// Ensures ItemDatabaseManager is initialized before accessing items.
-    /// Safe to call multiple times - will only initialize once.
-    /// Use this method when you need items (e.g., when Shop opens).
+    /// Safe to call multiple times.
     /// </summary>
     public static async Task EnsureInitializedAsync()
     {
-        // Already initialized
-        if (IsReady) return;
-
-        // Initialization in progress - wait for it
-        if (_isInitializing && _initTask != null)
+        if (_itemService == null)
         {
-            await _initTask;
+            Debug.LogWarning("[ItemDatabaseManager] Service not injected. Use DI-based IItemService instead.");
             return;
         }
 
-        // Start initialization
-        await InitializeAsync();
+        await _itemService.InitializeAsync();
     }
 
     /// <summary>
-    /// 1) Local cache'i anında yükler (offline-friendly)
-    /// 2) Conditional fetch: Eğer cache yeterince yeniyse remote'a gitmez
-    /// 3) Arkasından remote'tan taze veri çekip cache'i yeniler (başarırsa)
+    /// Legacy initialization method. Use EnsureInitializedAsync instead.
     /// </summary>
     public static async Task InitializeAsync()
     {
-        // Prevent concurrent initialization
-        if (_isInitializing) return;
-        _isInitializing = true;
-
-        try
-        {
-            _initTask = InitializeInternalAsync();
-            await _initTask;
-        }
-        finally
-        {
-            _isInitializing = false;
-            _initTask = null;
-        }
-    }
-
-    private static async Task InitializeInternalAsync()
-    {
-        // 1) Lokal cache'i hemen oku (null dönerse bile sorun yok)
-        var local = ItemLocalDatabase.Load();
-        Dictionary<string, RemoteItemService.ItemData> result = null;
-
-        // 2) Check if local cache is fresh enough (optimization for repeat sessions)
-        bool shouldFetchRemote = true;
-        if (local != null && local.Count > 0)
-        {
-            var cacheAge = DateTime.Now - _lastRemoteFetchTime;
-            if (_lastRemoteFetchTime != DateTime.MinValue && cacheAge.TotalMinutes < CACHE_MAX_AGE_MINUTES)
-            {
-                // Cache is fresh, use it immediately without network call
-                Debug.Log($"[ItemDatabaseManager] Using fresh local cache ({cacheAge.TotalMinutes:F0}m old). Skipping remote fetch.");
-                _items = local;
-                shouldFetchRemote = false;
-            }
-            else
-            {
-                // Cache exists but might be stale - use it immediately, fetch in background
-                _items = local;
-                Debug.Log("[ItemDatabaseManager] Using local cache immediately. Will refresh from remote.");
-            }
-        }
-
-        // 3) Remote fetch (if needed)
-        if (shouldFetchRemote)
-        {
-            try
-            {
-                // Changed from FetchAllItemsWithIconsAsync to FetchAllItemsAsync for lazy loading
-                var fetched = await RemoteItemService.FetchAllItemsAsync();
-                if (fetched != null && fetched.Count > 0)
-                {
-                    result = fetched;
-                    ItemLocalDatabase.Save(fetched);
-                    _lastRemoteFetchTime = DateTime.Now;
-                    Debug.Log($"[ItemDatabaseManager] Refreshed {fetched.Count} items from remote.");
-                }
-                else
-                {
-                    Debug.LogError("[ItemDatabaseManager] Remote returned 0 items. Using local cache if available.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[ItemDatabaseManager] Remote fetch failed: {ex.Message}");
-            }
-
-            // 4) Remote başarısızsa ama lokal doluysa local cache'i kullan
-            if ((result == null || result.Count == 0) && local != null && local.Count > 0)
-            {
-                Debug.LogWarning("[ItemDatabaseManager] Using local item cache as fallback.");
-                result = local;
-            }
-
-            // 5) Sonucu belleğe yaz (remote başarılıysa override et)
-            if (result != null && result.Count > 0)
-            {
-                _items = result;
-            }
-        }
-
-        // 6) Hâlâ boşsa, IsReady false kalacak
-        if (_items == null || _items.Count == 0)
-        {
-            Debug.LogError("[ItemDatabaseManager] No items available after initialization. Shop will remain empty until a successful fetch.");
-        }
+        await EnsureInitializedAsync();
     }
 
     // ---- Public API ----
 
     /// <summary>
-    /// ID ile item verisi (işlenmiş okunabilir model) döner. Bulunamazsa null.
+    /// ID ile item verisi döner. Bulunamazsa null.
     /// </summary>
     public static ReadableItemData GetItemData(string itemId)
     {
-        if (!IsReady || string.IsNullOrEmpty(itemId) || !_items.TryGetValue(itemId, out var raw))
+        if (_itemService == null || !_itemService.IsReady)
             return null;
 
-        return ToReadable(itemId, raw);
+        var item = _itemService.GetItem(itemId);
+        return item != null ? ToReadable(item) : null;
     }
 
     /// <summary>
-    /// Tüm itemları (işlenmiş) enumerate etmek için.
+    /// Tüm itemları enumerate etmek için.
     /// </summary>
     public static IEnumerable<ReadableItemData> GetAllItems()
     {
-        if (!IsReady) yield break;
-        foreach (var kv in _items)
-            yield return ToReadable(kv.Key, kv.Value);
+        if (_itemService == null || !_itemService.IsReady)
+            yield break;
+
+        foreach (var item in _itemService.GetAllItems())
+        {
+            yield return ToReadable(item);
+        }
     }
 
     /// <summary>
-    /// Sunucuda satın alma isteği (TODO: server call)
+    /// Item satin al.
     /// </summary>
     public static async Task<bool> BuyItem(string itemId)
     {
-        // TODO: Cloud Function çağır (buyItem)
-        await Task.Yield();
-        Debug.Log($"[ItemDatabaseManager] TODO BuyItem({itemId})");
-        return false;
+        if (_itemService == null)
+        {
+            Debug.LogWarning("[ItemDatabaseManager] Service not available");
+            return false;
+        }
+
+        var result = await _itemService.PurchaseAsync(itemId, PurchaseMethod.GET);
+        return result.Success;
     }
 
     /// <summary>
-    /// Sunucuda equip isteği (TODO: server call)
+    /// Item'i ekiple.
     /// </summary>
     public static async Task<bool> EquipItem(string itemId)
     {
-        // TODO: Cloud Function çağır (equipItem)
-        await Task.Yield();
-        Debug.Log($"[ItemDatabaseManager] TODO EquipItem({itemId})");
-        return false;
+        if (_itemService == null)
+        {
+            Debug.LogWarning("[ItemDatabaseManager] Service not available");
+            return false;
+        }
+
+        return await _itemService.EquipAsync(itemId);
     }
 
     /// <summary>
-    /// Sunucudan sahiplik/equip state sorgusu (TODO: server call)
+    /// Sahiplik ve equip durumunu sorgula.
     /// </summary>
     public static async Task<(bool owned, bool equipped)> CheckItemOwnershipAndEquipState(string itemId)
     {
-        // TODO: Cloud Function çağır (checkOwnershipAndEquip)
-        await Task.Yield();
-        Debug.Log($"[ItemDatabaseManager] TODO CheckItemOwnershipAndEquipState({itemId})");
-        return (false, false);
+        if (_itemService == null)
+        {
+            Debug.LogWarning("[ItemDatabaseManager] Service not available");
+            return (false, false);
+        }
+
+        var state = await _itemService.GetOwnershipStateAsync(itemId);
+        return (state.Owned, state.Equipped);
     }
 
     // ---- Mapping ----
@@ -210,7 +139,7 @@ public static class ItemDatabaseManager
         public bool isRewardedAd;
         public int referralThreshold;
 
-        public ItemStats stats; // oyun içi stat paketi (okunabilir)
+        public ItemStats stats;
 
         public override string ToString()
         {
@@ -236,31 +165,31 @@ public static class ItemDatabaseManager
         }
     }
 
-    private static ReadableItemData ToReadable(string id, RemoteItemService.ItemData src)
+    private static ReadableItemData ToReadable(ItemData item)
     {
         return new ReadableItemData
         {
-            id = id,
-            name = src.itemName ?? string.Empty,
-            description = src.itemDescription ?? string.Empty,
-            iconUrl = src.itemIconUrl ?? string.Empty,
-            iconSprite = src.iconSprite,
+            id = item.Id,
+            name = item.Name ?? string.Empty,
+            description = item.Description ?? string.Empty,
+            iconUrl = item.IconUrl ?? string.Empty,
+            iconSprite = item.IconSprite,
 
-            premiumPrice = src.itemPremiumPrice,
-            getPrice = src.itemGetPrice,
-            isConsumable = src.itemIsConsumable,
-            isRewardedAd = src.itemIsRewardedAd,
-            referralThreshold = src.itemReferralThreshold,
+            premiumPrice = item.PremiumPrice,
+            getPrice = item.GetPrice,
+            isConsumable = item.IsConsumable,
+            isRewardedAd = item.IsRewardedAd,
+            referralThreshold = item.ReferralThreshold,
 
             stats = new ItemStats
             {
-                coinMultiplierPercent = src.itemstat_coinMultiplierPercent,
-                comboPower = src.itemstat_comboPower,
-                gameplaySpeedMultiplierPercent = src.itemstat_gameplaySpeedMultiplierPercent,
-                magnetPowerPercent = src.itemstat_magnetPowerPercent,
-                playerAcceleration = src.itemstat_playerAcceleration,
-                playerSizePercent = src.itemstat_playerSizePercent,
-                playerSpeed = src.itemstat_playerSpeed
+                coinMultiplierPercent = item.Stats.CoinMultiplierPercent,
+                comboPower = item.Stats.ComboPower,
+                gameplaySpeedMultiplierPercent = item.Stats.GameplaySpeedMultiplierPercent,
+                magnetPowerPercent = item.Stats.MagnetPowerPercent,
+                playerAcceleration = item.Stats.PlayerAcceleration,
+                playerSizePercent = item.Stats.PlayerSizePercent,
+                playerSpeed = item.Stats.PlayerSpeed
             }
         };
     }

@@ -1,0 +1,24 @@
+{
+    "name": "GRoll.MapDesignerTools",
+    "rootNamespace": "GRoll.MapDesignerTools",
+    "references": [
+        "GRoll.Core",
+        "GRoll.MapData",
+        "GRoll.Entities",
+        "Unity.InputSystem",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "DOTween.dll",
+        "Firebase.App.dll",
+        "Firebase.Functions.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

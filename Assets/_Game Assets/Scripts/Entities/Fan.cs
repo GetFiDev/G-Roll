@@ -1,3 +1,6 @@
+using GRoll.Gameplay.Player.Core;
+using GRoll.Gameplay.Player.Interfaces;
+using GRoll.Gameplay.Player.Movement;
 using UnityEngine;
 
 public class Fan : MonoBehaviour, IPlayerInteractable
@@ -14,10 +17,14 @@ public class Fan : MonoBehaviour, IPlayerInteractable
 
     public void OnPlayerEnter(PlayerController player, Collider other)
     {
-        if (player == null || player.playerMovement == null) return;
+        if (player == null) return;
+
+        // PlayerMovement'ı runtime'da al (assembly boundary nedeniyle)
+        var movement = player.GetComponent<PlayerMovement>();
+        if (movement == null) return;
 
         // Fan'a girilir girilmez: double-tap benzeri ama daha güçlü bir zıplama uygula
-        player.playerMovement.JumpCustom(boostJumpHeight, boostJumpDuration);
+        movement.JumpCustom(boostJumpHeight, boostJumpDuration);
     }
 
     public void OnPlayerStay(PlayerController player, Collider other, float dt) { }

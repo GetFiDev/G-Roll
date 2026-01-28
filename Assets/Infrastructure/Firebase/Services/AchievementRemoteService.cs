@@ -36,5 +36,14 @@ namespace GRoll.Infrastructure.Firebase.Services
             );
             return result;
         }
+
+        public async UniTask<ClaimAchievementResponse> ClaimAllEligibleLevelsAsync(string achievementId)
+        {
+            var result = await _firebase.CallFunctionAsync<ClaimAchievementResponse>(
+                "claimAllEligibleLevels",
+                new { achievementId }
+            );
+            return result;
+        }
     }
 }

@@ -19,6 +19,11 @@ namespace GRoll.Infrastructure.Firebase.Interfaces
         /// Server'dan tüm achievement'ları alır.
         /// </summary>
         UniTask<List<Achievement>> FetchAchievementsAsync();
+
+        /// <summary>
+        /// Multi-level achievement için tüm eligible level'ları claim eder.
+        /// </summary>
+        UniTask<ClaimAchievementResponse> ClaimAllEligibleLevelsAsync(string achievementId);
     }
 
     /// <summary>

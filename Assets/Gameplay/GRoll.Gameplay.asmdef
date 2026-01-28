@@ -1,0 +1,22 @@
+{
+    "name": "GRoll.Gameplay",
+    "rootNamespace": "GRoll.Gameplay",
+    "references": [
+        "UniTask",
+        "VContainer",
+        "GRoll.Core",
+        "GRoll.Domain",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "DOTween.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

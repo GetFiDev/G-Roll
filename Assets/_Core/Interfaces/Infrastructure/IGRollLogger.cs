@@ -15,6 +15,11 @@ namespace GRoll.Core.Interfaces.Infrastructure
         void Log(string message);
 
         /// <summary>
+        /// Info seviyesinde log yazar.
+        /// </summary>
+        void LogInfo(string message);
+
+        /// <summary>
         /// Uyarı seviyesinde log yazar.
         /// </summary>
         void LogWarning(string message);

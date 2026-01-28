@@ -27,8 +27,17 @@ namespace GRoll.Domain.Social
         private List<LeaderboardEntry> _cachedTopEntries = new();
         private LeaderboardEntry _cachedUserEntry;
         private int _pendingScore = -1;
+        private LeaderboardType _currentType = LeaderboardType.AllTime;
+        private bool _isCacheLoaded;
+
+        // Season data
+        private bool _isSeasonActive;
+        private string _activeSeasonName = "";
+        private string _activeSeasonDescription = "";
+        private DateTime? _nextSeasonStartDate;
 
         public event Action OnLeaderboardUpdated;
+        public event Action OnCacheUpdated;
 
         [Inject]
         public LeaderboardService(
@@ -41,7 +50,86 @@ namespace GRoll.Domain.Social
             _logger = logger;
         }
 
+        #region Properties
+
+        public LeaderboardType CurrentType => _currentType;
+        public bool IsCacheLoaded => _isCacheLoaded;
+
+        public IReadOnlyList<LeaderboardEntry> TopCached
+        {
+            get
+            {
+                lock (_cacheLock)
+                {
+                    return _cachedTopEntries;
+                }
+            }
+        }
+
+        public bool IsSeasonActive => _isSeasonActive;
+        public string ActiveSeasonName => _activeSeasonName;
+        public string ActiveSeasonDescription => _activeSeasonDescription;
+        public DateTime? NextSeasonStartDate => _nextSeasonStartDate;
+
+        public int MyRank
+        {
+            get
+            {
+                lock (_cacheLock)
+                {
+                    return _cachedUserEntry?.Rank ?? 0;
+                }
+            }
+        }
+
+        public int MyScore
+        {
+            get
+            {
+                lock (_cacheLock)
+                {
+                    return _pendingScore >= 0 ? _pendingScore : (_cachedUserEntry?.Score ?? 0);
+                }
+            }
+        }
+
+        public bool MyIsElite
+        {
+            get
+            {
+                lock (_cacheLock)
+                {
+                    return _cachedUserEntry?.HasElitePass ?? false;
+                }
+            }
+        }
+
+        #endregion
+
         #region ILeaderboardService Implementation
+
+        public void SetLeaderboardType(LeaderboardType type)
+        {
+            if (_currentType == type) return;
+            _currentType = type;
+            _logger.Log($"[Leaderboard] Type changed to: {type}");
+        }
+
+        public async UniTask<OperationResult> RefreshAsync()
+        {
+            try
+            {
+                var entries = await GetTopEntriesAsync(100);
+                _isCacheLoaded = true;
+                OnCacheUpdated?.Invoke();
+                return OperationResult.Success();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[Leaderboard] Refresh error: {ex.Message}");
+                return OperationResult.NetworkError(ex);
+            }
+        }
 
         public async UniTask<IReadOnlyList<LeaderboardEntry>> GetTopEntriesAsync(int count)
         {

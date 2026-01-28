@@ -3,7 +3,8 @@
     "rootNamespace": "GRoll.Core",
     "references": [
         "UniTask",
-        "VContainer"
+        "VContainer",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
